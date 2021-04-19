@@ -57,10 +57,27 @@ let emit_bytecode i (bytecode, required_globals) =
          (Emitcode.to_file oc cmo ~required_globals);
     )
 
+let to_gallina i Typedtree.{structure; _} =
+  Coqgen.transl_implementation (Unit_info.modname i.target) structure
+
+let emit_gallina i ct =
+  let v_name = Unit_info.prefix i.target ^ ".v" in
+  let vfile = open_out v_name in
+  let open Format in
+  let ppf = formatter_of_out_channel vfile in
+  fprintf ppf "@[<v>";
+  Coqprint.emit_gallina (Unit_info.modname i.target) ppf ct;
+  fprintf ppf "@]@.";
+  close_out vfile
+
 let implementation ~start_from ~source_file ~output_prefix =
   let backend info typed =
-    let bytecode = to_bytecode info typed in
-    emit_bytecode info bytecode
+    if !Clflags.compile_to_coq then 
+      let gallina = to_gallina info typed in
+      emit_gallina info gallina
+    else
+      let bytecode = to_bytecode info typed in
+      emit_bytecode info bytecode
   in
   let unit_info = Unit_info.make ~source_file Impl output_prefix in
   with_info ~dump_ext:"cmo" unit_info @@ fun info ->

@@ -34,7 +34,7 @@ CAMLOPT=$(OCAMLRUN) ./ocamlopt$(EXE) $(STDLIBFLAGS) -I otherlibs/dynlink
 ARCHES=amd64 arm64 power s390x riscv
 VPATH = utils parsing typing bytecomp file_formats lambda middle_end \
   middle_end/closure middle_end/flambda middle_end/flambda/base_types \
-  asmcomp driver toplevel tools runtime \
+  coqgen asmcomp driver toplevel tools runtime \
   $(addprefix otherlibs/, $(ALL_OTHERLIBS))
 INCLUDES = $(addprefix -I ,$(VPATH))
 
@@ -207,6 +207,12 @@ ocamlcommon_SOURCES = \
   $(lambda_SOURCES) $(comp_SOURCES)
 
 ocamlbytecomp_SOURCES = \
+  coqgen/coqdef.mli coqgen/coqdef.ml \
+  coqgen/coqinit.mli coqgen/coqinit.ml \
+  coqgen/coqtypes.mli coqgen/coqtypes.ml \
+  coqgen/coqcore.mli coqgen/coqcore.ml \
+  coqgen/coqprint.mli coqgen/coqprint.ml \
+  coqgen/coqgen.mli coqgen/coqgen.ml \
   bytecomp/instruct.mli bytecomp/instruct.ml \
   bytecomp/bytegen.mli bytecomp/bytegen.ml \
   bytecomp/printinstr.mli bytecomp/printinstr.ml \
@@ -2711,6 +2717,7 @@ endif
 	   typing/*.cmi \
 	   bytecomp/*.cmi \
 	   file_formats/*.cmi \
+	   coqgen/*.cmi \
 	   lambda/*.cmi \
 	   driver/*.cmi \
 	   toplevel/*.cmi \
@@ -2724,6 +2731,7 @@ ifeq "$(INSTALL_SOURCE_ARTIFACTS)" "true"
 	   parsing/*.cmt parsing/*.cmti parsing/*.mli \
 	   typing/*.cmt typing/*.cmti typing/*.mli \
 	   file_formats/*.cmt file_formats/*.cmti file_formats/*.mli \
+	   coqgen/*.cmt \
 	   lambda/*.cmt lambda/*.cmti lambda/*.mli \
 	   bytecomp/*.cmt bytecomp/*.cmti bytecomp/*.mli \
 	   driver/*.cmt driver/*.cmti driver/*.mli \
@@ -2932,7 +2940,7 @@ endif
 	   utils/*.cmx parsing/*.cmx typing/*.cmx bytecomp/*.cmx \
 	   toplevel/*.cmx toplevel/native/*.cmx \
 	   toplevel/native/tophooks.cmi \
-	   file_formats/*.cmx \
+	   file_formats/*.cmx coqgen/*.cmx \
 	   lambda/*.cmx \
 	   driver/*.cmx asmcomp/*.cmx middle_end/*.cmx \
            middle_end/closure/*.cmx \
@@ -2957,7 +2965,7 @@ install-compiler-sources:
 ifeq "$(INSTALL_SOURCE_ARTIFACTS)" "true"
 	$(INSTALL_DATA) \
 	   utils/*.ml parsing/*.ml typing/*.ml bytecomp/*.ml driver/*.ml \
-           file_formats/*.ml \
+           file_formats/*.ml coqgen/*.ml \
            lambda/*.ml \
 	   toplevel/*.ml toplevel/byte/*.ml \
 	   middle_end/*.ml middle_end/closure/*.ml \
