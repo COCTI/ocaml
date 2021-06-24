@@ -416,15 +416,15 @@ let finalize_variant pat tag opat r =
   begin match row_field_repr f with
   | Rabsent -> () (* assert false *)
   | Reither (true, [], _) when not (row_closed row) ->
-      set_row_field ~ext_of:f (inj_row_field (Rpresent None))
+      set_row_field_ext ~inside:f (inj_row_field (Rpresent None))
   | Reither (false, ty::tl, _) when not (row_closed row) ->
-      set_row_field ~ext_of:f (inj_row_field (Rpresent (Some ty)));
+      set_row_field_ext ~inside:f (inj_row_field (Rpresent (Some ty)));
       begin match opat with None -> assert false
       | Some pat ->
           let env = ref pat.pat_env in List.iter (unify_pat env pat) (ty::tl)
       end
   | Reither (c, _l, true) when not (has_fixed_explanation row) ->
-      set_row_field ~ext_of:f (inj_row_field (Reither (c, [], false)))
+      set_row_field_ext ~inside:f (inj_row_field (Reither (c, [], false)))
   | _ -> ()
   end
   (* Force check of well-formedness   WHY? *)

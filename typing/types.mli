@@ -317,7 +317,7 @@ type row_field_view =
   | Rabsent
 
 val row_field_repr: row_field -> row_field_view
-val inj_row_field: ?ext_of:row_field -> row_field_view -> row_field
+val inj_row_field: ?with_ext_of:row_field -> row_field_view -> row_field
 val eq_row_field_ext: row_field -> row_field -> bool
 val match_row_field:
     present:(type_expr option -> 'a) ->
@@ -691,7 +691,7 @@ val set_scope: type_expr -> int -> unit
 val set_name:
     (Path.t * type_expr list) option ref ->
     (Path.t * type_expr list) option -> unit
-val set_row_field: ext_of:row_field -> row_field -> unit
+val set_row_field_ext: inside:row_field -> row_field -> unit
         (* Extract the extension variable of [ext_of] and set it to [v] *)
 val set_univar: type_expr option ref -> type_expr -> unit
 val set_kind: field_kind option ref -> field_kind -> unit

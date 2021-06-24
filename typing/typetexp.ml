@@ -587,7 +587,7 @@ let rec make_fixed_univars ty =
             List.map
               (fun (s,f as p) -> match row_field_repr f with
                 Reither (c, tl, _m) ->
-                  s, inj_row_field ~ext_of:f (Reither (c, tl, true))
+                  s, inj_row_field ~with_ext_of:f (Reither (c, tl, true))
               | _ -> p)
               fields
           in

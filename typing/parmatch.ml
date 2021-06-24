@@ -724,7 +724,7 @@ let close_variant env row =
         match row_field_repr f with
         | Reither(_, _, false) ->
             (* fixed=false means that this tag is not explicitly matched *)
-            set_row_field ~ext_of:f (inj_row_field Rabsent);
+            set_row_field_ext ~inside:f (inj_row_field Rabsent);
             (None, static)
         | Reither (_, _, true) -> (nm, false)
         | Rabsent | Rpresent _ -> (nm, static))

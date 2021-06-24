@@ -654,13 +654,13 @@ let rec row_field_ext fi =
       if !ext = RFnone then ext else row_field_ext !ext
   | _ -> Misc.fatal_error "Types.row_field_ext "
 
-let inj_row_field ?ext_of view =
+let inj_row_field ?with_ext_of view =
   match view with
   | Rabsent -> RFabsent
   | Rpresent t -> RFpresent t
   | Reither (const, arg_type, fixed) ->
       let ext =
-        match ext_of with
+        match with_ext_of with
           Some rf -> row_field_ext rf
         | None -> ref RFnone
       in
@@ -760,12 +760,12 @@ let set_univar rty ty =
 let set_name nm v =
   log_change (Cname (nm, !nm)); nm := v
 
-let rec set_row_field ~ext_of v =
-  match ext_of with
+let rec set_row_field_ext ~inside v =
+  match inside with
   | RFeither {ext = {contents=RFnone} as e} ->
       log_change (Crow (e, !e)); e := v
   | RFeither {ext} ->
-      set_row_field ~ext_of:!ext v
+      set_row_field_ext ~inside:!ext v
   | _ -> invalid_arg "Types.set_row_field"
 
 let set_kind rk k =

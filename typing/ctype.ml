@@ -478,7 +478,7 @@ let rec filter_row_fields erase = function
       match row_field_repr f with
         Rabsent -> fi
       | Reither(_,_,false) when erase ->
-          set_row_field ~ext_of:f (inj_row_field Rabsent); fi
+          set_row_field_ext ~inside:f (inj_row_field Rabsent); fi
       | _ -> p :: fi
 
                     (**************************************)
@@ -3123,7 +3123,7 @@ and unify_row_field env fixed1 fixed2 rm1 rm2 l f1 f2 =
       && List.length tl1 = List.length tl2 then begin
         (* PR#7496 *)
         let f = inj_row_field (Reither (c1 || c2, [], m1 || m2)) in
-        set_row_field ~ext_of:f1 f; set_row_field ~ext_of:f2 f;
+        set_row_field_ext ~inside:f1 f; set_row_field_ext ~inside:f2 f;
         List.iter2 (unify env) tl1 tl2
       end
       else let redo =
@@ -3161,17 +3161,17 @@ and unify_row_field env fixed1 fixed2 rm1 rm2 l f1 f2 =
       update_levels rm1 tl2';
       let f1' = inj_row_field (Reither(c1 || c2, tl2', m1 || m2)) in
       let f2' =
-        inj_row_field ~ext_of:f1' (Reither(c1 || c2, tl1', m1 || m2)) in
-      set_row_field ~ext_of:f1 f1'; set_row_field ~ext_of:f2 f2';
+        inj_row_field ~with_ext_of:f1' (Reither(c1 || c2, tl1', m1 || m2)) in
+      set_row_field_ext ~inside:f1 f1'; set_row_field_ext ~inside:f2 f2';
   | Reither(_, _, false), Rabsent ->
-      if_not_fixed first (fun () -> set_row_field ~ext_of:f1 f2)
+      if_not_fixed first (fun () -> set_row_field_ext ~inside:f1 f2)
   | Rabsent, Reither(_, _, false) ->
-      if_not_fixed second (fun () -> set_row_field ~ext_of:f2 f1)
+      if_not_fixed second (fun () -> set_row_field_ext ~inside:f2 f1)
   | Rabsent, Rabsent -> ()
   | Reither(false, tl, _), Rpresent(Some t2) ->
       if_not_fixed first (fun () ->
           let s = snapshot () in
-          set_row_field ~ext_of:f1 f2;
+          set_row_field_ext ~inside:f1 f2;
           update_level_for Unify !env (get_level rm1) t2;
           update_scope_for Unify (get_scope rm1) t2;
           (try List.iter (fun t1 -> unify env t1 t2) tl
@@ -3180,16 +3180,16 @@ and unify_row_field env fixed1 fixed2 rm1 rm2 l f1 f2 =
   | Rpresent(Some t1), Reither(false, tl, _) ->
       if_not_fixed second (fun () ->
           let s = snapshot () in
-          set_row_field ~ext_of:f2 f1;
+          set_row_field_ext ~inside:f2 f1;
           update_level_for Unify !env (get_level rm2) t1;
           update_scope_for Unify (get_scope rm2) t1;
           (try List.iter (unify env t1) tl
            with exn -> backtrack_one s; raise exn)
         )
   | Reither(true, [], _), Rpresent None ->
-      if_not_fixed first (fun () -> set_row_field ~ext_of:f1 f2)
+      if_not_fixed first (fun () -> set_row_field_ext ~inside:f1 f2)
   | Rpresent None, Reither(true, [], _) ->
-      if_not_fixed second (fun () -> set_row_field ~ext_of:f2 f1)
+      if_not_fixed second (fun () -> set_row_field_ext ~inside:f2 f1)
   | _ -> raise_unexplained_for Unify
 
 let unify env ty1 ty2 =
@@ -3592,8 +3592,9 @@ and moregen_row inst_nongen type_pairs env row1 row2 =
              try
                if not (eq_row_field_ext f1 f2) then begin
                  if c1 && not c2 then raise_unexplained_for Moregen;
-                 let f2' = inj_row_field ~ext_of:f2 (Reither (c2, [], m2)) in
-                 set_row_field ~ext_of:f1 f2';
+                 let f2' =
+                   inj_row_field ~with_ext_of:f2 (Reither (c2, [], m2)) in
+                 set_row_field_ext ~inside:f1 f2';
                  if List.length tl1 = List.length tl2 then
                    List.iter2 (moregen inst_nongen type_pairs env) tl1 tl2
                  else match tl2 with
@@ -3610,7 +3611,7 @@ and moregen_row inst_nongen type_pairs env row1 row2 =
          (* Generalizing [Reither] *)
          | Reither(false, tl1, _), Rpresent(Some t2) when may_inst -> begin
              try
-               set_row_field ~ext_of:f1 f2;
+               set_row_field_ext ~inside:f1 f2;
                List.iter
                  (fun t1 -> moregen inst_nongen type_pairs env t1 t2)
                  tl1
@@ -3619,9 +3620,9 @@ and moregen_row inst_nongen type_pairs env row1 row2 =
                  (Variant (Incompatible_types_for l) :: trace)
            end
          | Reither(true, [], _), Rpresent None when may_inst ->
-             set_row_field ~ext_of:f1 f2
+             set_row_field_ext ~inside:f1 f2
          | Reither(_, _, _), Rabsent when may_inst ->
-             set_row_field ~ext_of:f1 f2
+             set_row_field_ext ~inside:f1 f2
          (* Both [Rabsent]s *)
          | Rabsent, Rabsent -> ()
          (* Mismatched constructor arguments *)
@@ -4928,7 +4929,7 @@ let rec normalize_type_rec visited ty =
                   [ty] tyl
               in
               if List.length tyl' <= List.length tyl then
-                inj_row_field ~ext_of:f (Reither(b, List.rev tyl', m))
+                inj_row_field ~with_ext_of:f (Reither(b, List.rev tyl', m))
               else f
             | _ -> f)
           orig_fields in
