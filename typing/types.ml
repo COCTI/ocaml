@@ -51,12 +51,14 @@ and row_desc =
 and fixed_explanation =
   | Univar of type_expr | Fixed_private | Reified of Path.t | Rigid
 and row_field =
-    Rpresent of type_expr option
-  | Reither of bool * type_expr list * bool * row_field option ref
-        (* 1st true denotes a constant constructor *)
-        (* 2nd true denotes a tag in a pattern matching, and
-           is erased later *)
-  | Rabsent
+    RFpresent of type_expr option
+  | RFeither of
+      { const: bool;
+        arg_type: type_expr list;
+        fixed: bool;
+        ext: row_field ref}
+  | RFabsent
+  | RFnone
 
 and abbrev_memo =
     Mnil
@@ -483,7 +485,7 @@ type change =
   | Cscope of type_expr * int
   | Cname of
       (Path.t * type_expr list) option ref * (Path.t * type_expr list) option
-  | Crow of row_field option ref * row_field option
+  | Crow of row_field ref * row_field
   | Ckind of field_kind option ref * field_kind option
   | Ccommu of commutable ref * commutable
   | Cuniv of type_expr option ref * type_expr option
@@ -591,6 +593,16 @@ let row_closed row = (row_repr_no_fields row).row_closed
 let row_fixed row = (row_repr_no_fields row).row_fixed
 let row_name row = (row_repr_no_fields row).row_name
 
+let rec get_row_field tag row =
+  let rec find = function
+    | (tag',f) :: fields ->
+        if tag = tag' then f else find fields
+    | [] ->
+        match get_desc row.row_more with
+        | Tvariant row' -> get_row_field tag row'
+        | _ -> RFabsent
+  in find row.row_fields
+
 let set_row_name row row_name =
   let row_fields = row_fields row in
   let row = row_repr_no_fields row in
@@ -612,26 +624,60 @@ let row_repr row =
         fixed = row.row_fixed;
         name = row.row_name }
 
+type row_field_view =
+    Rpresent of type_expr option
+  | Reither of bool * type_expr list * bool
+        (* 1st true denotes a constant constructor *)
+        (* 2nd true denotes a tag in a pattern matching, and
+           is erased later *)
+  | Rabsent
+
 let rec row_field_repr_aux tl = function
-    Reither(_, tl', _, {contents = Some fi}) ->
-      row_field_repr_aux (tl@tl') fi
-  | Reither(c, tl', m, r) ->
-      Reither(c, tl@tl', m, r)
-  | Rpresent (Some _) when tl <> [] ->
-      Rpresent (Some (List.hd tl))
+  | RFeither r when !(r.ext) = RFnone ->
+      RFeither {r with arg_type = tl@r.arg_type}
+  | RFeither {arg_type; ext} ->
+      row_field_repr_aux (tl@arg_type) !ext
+  | RFpresent (Some _) when tl <> [] ->
+      RFpresent (Some (List.hd tl))
   | fi -> fi
 
-let row_field_repr fi = row_field_repr_aux [] fi
+let row_field_repr fi =
+  match row_field_repr_aux [] fi with
+  | RFeither {const; arg_type; fixed} -> Reither (const, arg_type, fixed)
+  | RFpresent t -> Rpresent t
+  | RFabsent -> Rabsent
+  | RFnone -> assert false
 
-let rec row_field tag row =
-  let rec find = function
-    | (tag',f) :: fields ->
-        if tag = tag' then row_field_repr f else find fields
-    | [] ->
-        match get_desc row.row_more with
-        | Tvariant row' -> row_field tag row'
-        | _ -> Rabsent
-  in find row.row_fields
+let rec row_field_ext fi =
+  match fi with
+  | RFeither {ext} ->
+      if !ext = RFnone then ext else row_field_ext !ext
+  | _ -> Misc.fatal_error "Types.row_field_ext "
+
+let inj_row_field ?ext_of view =
+  match view with
+  | Rabsent -> RFabsent
+  | Rpresent t -> RFpresent t
+  | Reither (const, arg_type, fixed) ->
+      let ext =
+        match ext_of with
+          Some rf -> row_field_ext rf
+        | None -> ref RFnone
+      in
+      RFeither {const; arg_type; fixed; ext}
+
+let eq_row_field_ext rf1 rf2 =
+  row_field_ext rf1 == row_field_ext rf2
+
+let match_row_field ~present ~absent ~either f =
+  match f with
+  | RFnone -> Misc.fatal_error "Types.match_row_field"
+  | RFabsent -> absent ()
+  | RFpresent t -> present t
+  | RFeither {const; arg_type; fixed; ext} ->
+      let e = if !ext = RFnone then None else Some !ext in
+      either const arg_type fixed e
+
 
 (**** Some type creators ****)
 
@@ -713,8 +759,15 @@ let set_univar rty ty =
   log_change (Cuniv (rty, !rty)); rty := Some ty
 let set_name nm v =
   log_change (Cname (nm, !nm)); nm := v
-let set_row_field e v =
-  log_change (Crow (e, !e)); e := Some v
+
+let rec set_row_field ~ext_of v =
+  match ext_of with
+  | RFeither {ext = {contents=RFnone} as e} ->
+      log_change (Crow (e, !e)); e := v
+  | RFeither {ext} ->
+      set_row_field ~ext_of:!ext v
+  | _ -> invalid_arg "Types.set_row_field"
+
 let set_kind rk k =
   log_change (Ckind (rk, !rk)); rk := Some k
 let set_commu rc c =
@@ -736,7 +789,7 @@ let rec rev_log accu = function
 let backtrack ~cleanup_abbrev (changes, old) =
   match !changes with
     Unchanged -> last_snapshot := old
-  | Invalid -> failwith "Btype.backtrack"
+  | Invalid -> failwith "Types.backtrack"
   | Change _ as change ->
       cleanup_abbrev ();
       let backlog = rev_log [] change in
@@ -744,6 +797,12 @@ let backtrack ~cleanup_abbrev (changes, old) =
       changes := Unchanged;
       last_snapshot := old;
       trail := changes
+
+let backtrack_one (changes, _) =
+  match !changes with
+  | Change (ch, _) ->
+      undo_change ch
+  | _ -> ()
 
 let rec rev_compress_log log r =
   match !r with

@@ -218,7 +218,7 @@ let fold_row f init row =
       (fun init (_, fi) ->
          match row_field_repr fi with
          | Rpresent(Some ty) -> f init ty
-         | Reither(_, tl, _, _) -> List.fold_left f init tl
+         | Reither(_, tl, _) -> List.fold_left f init tl
          | _ -> init)
       init
       (row_fields row)
@@ -399,13 +399,13 @@ let copy_row f fixed row keep more =
   let fields = List.map
       (fun (l, fi) -> l,
         match row_field_repr fi with
-        | Rpresent(Some ty) -> Rpresent(Some(f ty))
-        | Reither(c, tl, m, e) ->
-            let e = if keep then e else ref None in
+        | Rpresent(Some ty) -> inj_row_field (Rpresent(Some(f ty)))
+        | Reither(c, tl, m) ->
+            let ext_of = if keep then Some fi else None in
             let m = if is_fixed row then fixed else m in
             let tl = List.map f tl in
-            Reither(c, tl, m, e)
-        | _ -> fi)
+            inj_row_field ?ext_of (Reither(c, tl, m))
+        | view -> inj_row_field view)
       orig_fields in
   let name =
     match orig_name with
