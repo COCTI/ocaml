@@ -298,9 +298,9 @@ and transl_type_aux env policy styp =
               (fun (l,f) -> l,
                 match row_field_repr f with
                 | Rpresent (Some ty) ->
-                    Reither(false, [ty], false, ref None)
+                    inj_row_field (Reither(false, [ty], false))
                 | Rpresent None ->
-                    Reither (true, [], false, ref None)
+                    inj_row_field (Reither(true, [], false))
                 | _ -> f)
               (row_fields row)
           in
@@ -390,14 +390,14 @@ and transl_type_aux env policy styp =
             let f = match present with
               Some present when not (List.mem l.txt present) ->
                 let ty_tl = List.map (fun cty -> cty.ctyp_type) tl in
-                Reither(c, ty_tl, false, ref None)
+                inj_row_field (Reither(c, ty_tl, false))
             | _ ->
                 if List.length stl > 1 || c && stl <> [] then
                   raise(Error(styp.ptyp_loc, env,
                               Present_has_conjunction l.txt));
-                match tl with [] -> Rpresent None
+                match tl with [] -> inj_row_field (Rpresent None)
                 | st :: _ ->
-                      Rpresent (Some st.ctyp_type)
+                    inj_row_field (Rpresent (Some st.ctyp_type))
             in
             add_typed_field styp.ptyp_loc l.txt f;
               Ttag (l,c,tl)
@@ -422,11 +422,11 @@ and transl_type_aux env policy styp =
               (fun (l, f) ->
                 let f = match present with
                   Some present when not (List.mem l present) ->
-                    begin match f with
+                    begin match row_field_repr f with
                       Rpresent(Some ty) ->
-                        Reither(false, [ty], false, ref None)
+                        inj_row_field (Reither(false, [ty], false))
                     | Rpresent None ->
-                        Reither(true, [], false, ref None)
+                        inj_row_field (Reither(true, [], false))
                     | _ ->
                         assert false
                     end
@@ -586,7 +586,8 @@ let rec make_fixed_univars ty =
           let fields =
             List.map
               (fun (s,f as p) -> match row_field_repr f with
-                Reither (c, tl, _m, r) -> s, Reither (c, tl, true, r)
+                Reither (c, tl, _m) ->
+                  s, inj_row_field ~with_ext_of:f (Reither (c, tl, true))
               | _ -> p)
               fields
           in

@@ -412,18 +412,19 @@ let finalize_variant pat tag opat r =
       Tvariant row -> r := row; row
     | _ -> assert false
   in
-  begin match row_field tag row with
+  let f = get_row_field tag row in
+  begin match row_field_repr f with
   | Rabsent -> () (* assert false *)
-  | Reither (true, [], _, e) when not (row_closed row) ->
-      set_row_field e (Rpresent None)
-  | Reither (false, ty::tl, _, e) when not (row_closed row) ->
-      set_row_field e (Rpresent (Some ty));
+  | Reither (true, [], _) when not (row_closed row) ->
+      set_row_field_ext ~inside:f (inj_row_field (Rpresent None))
+  | Reither (false, ty::tl, _) when not (row_closed row) ->
+      set_row_field_ext ~inside:f (inj_row_field (Rpresent (Some ty)));
       begin match opat with None -> assert false
       | Some pat ->
           let env = ref pat.pat_env in List.iter (unify_pat env pat) (ty::tl)
       end
-  | Reither (c, _l, true, e) when not (has_fixed_explanation row) ->
-      set_row_field e (Reither (c, [], false, ref None))
+  | Reither (c, _l, true) when not (has_fixed_explanation row) ->
+      set_row_field_ext ~inside:f (inj_row_field (Reither (c, [], false)))
   | _ -> ()
   end
   (* Force check of well-formedness   WHY? *)
@@ -578,7 +579,8 @@ and build_as_type_aux env p =
       ty_res
   | Tpat_variant(l, p', _) ->
       let ty = Option.map (build_as_type env) p' in
-      newty (Tvariant (create_row ~fields:[l, Rpresent ty] ~more:(newvar())
+      let fields = [l, inj_row_field (Rpresent ty)] in
+      newty (Tvariant (create_row ~fields ~more:(newvar())
                          ~name:None ~fixed:None ~closed:false))
   | Tpat_record (lpl,_) ->
       let lbl = snd3 (List.hd lpl) in
@@ -793,13 +795,9 @@ let solve_Ppat_constraint ~refine loc env sty expected_ty =
 
 let solve_Ppat_variant ~refine loc env tag constant expected_ty =
   let arg_type = if constant then [] else [newgenvar()] in
+  let fields = [tag, inj_row_field (Reither(constant, arg_type, true))] in
   let make_row more =
-    create_row
-      ~fields: [tag, Reither(constant, arg_type, true, ref None)]
-      ~closed: false
-      ~more
-      ~fixed:  None
-      ~name:   None
+    create_row ~fields ~closed:false ~more ~fixed:None ~name:None
   in
   let row = make_row (newgenvar ()) in
   let expected_ty = generic_instance expected_ty in
@@ -824,13 +822,15 @@ let build_or_pat env loc lid =
       (fun (pats,fields) (l,f) ->
         match row_field_repr f with
           Rpresent None ->
+            let f = inj_row_field (Reither(true, [], true)) in
             (l,None) :: pats,
-            (l, Reither(true,[], true, ref None)) :: fields
+            (l, f) :: fields
         | Rpresent (Some ty) ->
+            let f = inj_row_field (Reither(false, [ty], true)) in
             (l, Some {pat_desc=Tpat_any; pat_loc=Location.none; pat_env=env;
                       pat_type=ty; pat_extra=[]; pat_attributes=[]})
             :: pats,
-            (l, Reither(false, [ty], true, ref None)) :: fields
+            (l, f) :: fields
         | _ -> pats, fields)
       ([],[]) (row_fields row0) in
   let fields = List.rev fields in
@@ -2716,8 +2716,9 @@ let check_absent_variant env =
       then () else
       let ty_arg =
         match arg with None -> [] | Some p -> [correct_levels p.pat_type] in
+      let fields = [s, inj_row_field (Reither(arg=None,ty_arg,true))] in
       let row' =
-        create_row ~fields:[s, Reither(arg=None,ty_arg,true,ref None)]
+        create_row ~fields
           ~more:(newvar ()) ~closed:false ~fixed:None ~name:None in
       (* Should fail *)
       unify_pat (ref env) {pat with pat_type = newty (Tvariant row')}
@@ -3062,7 +3063,10 @@ and type_expect_
         get_desc (expand_head env ty_expected0)
       with
       | Some sarg, Tvariant row, Tvariant row0 ->
-          begin match row_field l row, row_field l row0 with
+          begin match
+            row_field_repr (get_row_field l row),
+            row_field_repr (get_row_field l row0)
+          with
             Rpresent (Some ty), Rpresent (Some ty0) ->
               let arg = type_argument env sarg ty ty0 in
               re { exp_desc = Texp_variant(l, Some arg);
@@ -3078,7 +3082,7 @@ and type_expect_
         let arg_type = Option.map (fun arg -> arg.exp_type) arg in
         let row =
           create_row
-            ~fields: [l, Rpresent arg_type]
+            ~fields: [l, inj_row_field(Rpresent arg_type)]
             ~more:   (newvar ())
             ~closed: false
             ~fixed:  None
