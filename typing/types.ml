@@ -651,6 +651,9 @@ let snapshot () =
   last_snapshot := !new_id;
   (!trail, old)
 
+let same_snapshot (snap1 : snapshot) (snap2 : snapshot) =
+  fst snap1 == fst snap2
+
 let rec rev_log accu = function
     Unchanged -> accu
   | Invalid -> assert false

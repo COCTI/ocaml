@@ -634,6 +634,9 @@ type snapshot
         (* A snapshot for backtracking *)
 val snapshot: unit -> snapshot
         (* Make a snapshot for later backtracking. Costs nothing *)
+val same_snapshot: snapshot -> snapshot -> bool
+        (* Compare two snapshots. If two snapshots are equal,
+           then no type has been changed between them. *)
 val backtrack: cleanup_abbrev:(unit -> unit) -> snapshot -> unit
         (* Backtrack to a given snapshot. Only possible if you have
            not already backtracked to a previous snapshot.
