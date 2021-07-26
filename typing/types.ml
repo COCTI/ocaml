@@ -754,13 +754,13 @@ let set_univar rty ty =
 let set_name nm v =
   log_change (Cname (nm, !nm)); nm := v
 
-let rec set_row_field_ext ~inside v =
+let rec link_row_field_ext ~inside v =
   match inside with
   | RFeither {ext = {contents=RFnone} as e} ->
       log_change (Crow (e, !e)); e := v
   | RFeither {ext} ->
-      set_row_field_ext ~inside:!ext v
-  | _ -> invalid_arg "Types.set_row_field_ext"
+      link_row_field_ext ~inside:!ext v
+  | _ -> invalid_arg "Types.link_row_field_ext"
 
 let set_kind rk k =
   log_change (Ckind (rk, !rk)); rk := Some k
