@@ -694,7 +694,8 @@ val set_name:
     (Path.t * type_expr list) option ref ->
     (Path.t * type_expr list) option -> unit
 val link_row_field_ext: inside:row_field -> row_field -> unit
-        (* Extract the extension variable of [ext_of] and set it to [v] *)
+        (* Extract the extension variable of [inside] and set it to the
+           second argument *)
 val set_univar: type_expr option ref -> type_expr -> unit
 val set_kind: field_kind option ref -> field_kind -> unit
 val set_commu: commutable ref -> commutable -> unit
