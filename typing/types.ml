@@ -760,7 +760,7 @@ let rec set_row_field_ext ~inside v =
       log_change (Crow (e, !e)); e := v
   | RFeither {ext} ->
       set_row_field_ext ~inside:!ext v
-  | _ -> invalid_arg "Types.set_row_field"
+  | _ -> invalid_arg "Types.set_row_field_ext"
 
 let set_kind rk k =
   log_change (Ckind (rk, !rk)); rk := Some k
