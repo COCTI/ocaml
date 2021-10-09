@@ -34,6 +34,7 @@ module TypeMap : sig
                      and type 'a t = 'a TransientTypeMap.t
   val add: type_expr -> 'a -> 'a t -> 'a t
   val find: type_expr -> 'a t -> 'a
+  val mem: type_expr -> 'a t -> bool
   val singleton: type_expr -> 'a -> 'a t
   val fold: (type_expr -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 end

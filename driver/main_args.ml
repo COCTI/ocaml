@@ -81,6 +81,9 @@ let mk_config_var f =
 \    (print nothing and exit with error value if the variable does not exist)"
 ;;
 
+let mk_coq f =
+  "-coq", Arg.Unit f, " Output Coq code"
+
 let mk_custom f =
   "-custom", Arg.Unit f, " Link in custom mode"
 ;;
@@ -1028,6 +1031,7 @@ module type Bytecomp_options = sig
   include Core_options
   include Compiler_options
   val _compat_32 : unit -> unit
+  val _coq : unit -> unit
   val _custom : unit -> unit
   val _no_check_prims : unit -> unit
   val _dllib : string -> unit
@@ -1160,6 +1164,7 @@ struct
     mk_compat_32 F._compat_32;
     mk_config F._config;
     mk_config_var F._config_var;
+    mk_coq F._coq;
     mk_custom F._custom;
     mk_dllib F._dllib;
     mk_dllpath F._dllpath;
@@ -1985,6 +1990,7 @@ third-party libraries such as Lwt, but with a different API."
     include Core
     include Compiler
     let _compat_32 = set bytecode_compatible_32
+    let _coq = set compile_to_coq
     let _custom = set custom_runtime
     let _dcamlprimc = set keep_camlprimc_file
     let _dinstr = set dump_instr

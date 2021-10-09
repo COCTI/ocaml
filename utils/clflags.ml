@@ -44,6 +44,7 @@ and dllibs = ref ([] : string list)     (* .so and -dllib -lxxx *)
 
 let compile_only = ref false            (* -c *)
 and output_name = ref (None : string option) (* -o *)
+and compile_to_coq = ref false          (* -coq *)
 and include_dirs = ref ([] : string list)(* -I *)
 and no_std_include = ref false          (* -nostdlib *)
 and print_types = ref false             (* -i *)
