@@ -641,7 +641,7 @@ let check_abbrev env sdecl (id, decl) =
 
 let check_well_founded env loc path to_check ty =
   let visited = ref TypeMap.empty in
-  let rec check ty0 parents ty =
+  let rec check root ty0 parents ty =
     if TypeSet.mem ty parents then begin
       (*Format.eprintf "@[%a@]@." Printtyp.raw_type_expr ty;*)
       if match get_desc ty0 with
@@ -666,32 +666,27 @@ let check_well_founded env loc path to_check ty =
       | Tobject _ | Tvariant _ -> true
       | _ -> !Clflags.recursive_types
     in
-    let visited' = TypeMap.add ty parents !visited in
-    let arg_exn =
-      try
-        visited := visited';
-        let parents =
-          if rec_ok then TypeSet.empty else TypeSet.add ty parents in
-        Btype.iter_type_expr (check ty0 parents) ty;
-        None
-      with e ->
-        visited := visited'; Some e
-    in
+    visited := TypeMap.add ty parents !visited;
+    if rec_ok then Btype.iter_type_expr (check false ty0 TypeSet.empty) ty else
     match get_desc ty with
-    | Tconstr(p, _, _) when arg_exn <> None || to_check p ->
-        if to_check p then Option.iter raise arg_exn
-        else Btype.iter_type_expr (check ty0 TypeSet.empty) ty;
-        begin try
-          let ty' = Ctype.try_expand_once_opt env ty in
-          let ty0 = if TypeSet.is_empty parents then ty else ty0 in
-          check ty0 (TypeSet.add ty parents) ty'
-        with
-          Ctype.Cannot_expand -> Option.iter raise arg_exn
+    | Tconstr(p, tyl, _) ->
+        let to_check = to_check p in
+        if to_check then List.iter (check root ty0 parents) tyl
+        else List.iter (check false ty0 TypeSet.empty) tyl;
+        if root || not to_check && tyl <> [] then begin
+          try
+            let ty' = Ctype.try_expand_once_opt env ty in
+            let ty0 = if TypeSet.is_empty parents then ty else ty0 in
+            check root ty0 (TypeSet.add ty parents) ty'
+          with
+            Ctype.Cannot_expand ->
+              List.iter (check root ty0 parents) tyl
         end
-    | _ -> Option.iter raise arg_exn
+    | _ -> 
+        Btype.iter_type_expr (check root ty0 parents) ty
   in
   let snap = Btype.snapshot () in
-  try Ctype.wrap_trace_gadt_instances env (check ty TypeSet.empty) ty
+  try Ctype.wrap_trace_gadt_instances env (check true ty TypeSet.empty) ty
   with Ctype.Escape _ ->
     (* Will be detected by check_recursion *)
     Btype.backtrack snap

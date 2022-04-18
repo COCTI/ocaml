@@ -909,8 +909,7 @@ type t = u and u = t;;
 Line 1, characters 0-10:
 1 | type t = u and u = t;;
     ^^^^^^^^^^
-Error: The definition of t contains a cycle:
-       u
+Error: The type abbreviation t is cyclic
 |}];;
 
 (* PR#8188 *)
@@ -1025,8 +1024,10 @@ and  ('a2, 'b2) ty2 = 'b2 -> unit constraint 'b2 = [> `V2 of ('a2, 'b2) ty1 as '
 Line 1, characters 0-83:
 1 | type ('a1, 'b1) ty1 = 'a1 -> unit constraint 'a1 = [> `V1 of ('a1, 'b1) ty2 as 'b1]
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: The definition of ty1 contains a cycle:
-       [> `V1 of ('a, 'b) ty2 as 'b ] as 'a
+Error: Constraints are not satisfied in this type.
+       Type ('a, [> `V2 of 'a ]) ty1 as 'a should be an instance of
+         [> `V1 of ('b, 'c) ty2 as 'c ] as 'b
+       ty1 is abstract because no corresponding cmi file was found in path.
 |}];;
 
 (* PR#8359: expanding may change original in Ctype.unify2 *)

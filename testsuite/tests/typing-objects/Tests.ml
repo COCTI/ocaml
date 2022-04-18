@@ -222,8 +222,7 @@ and 'a t = 'a t u;;
 Line 2, characters 0-17:
 2 | and 'a t = 'a t u;;
     ^^^^^^^^^^^^^^^^^
-Error: The definition of t contains a cycle:
-       'a t u
+Error: The type abbreviation t is cyclic
 |}];; (* fails since 4.04 *)
 type 'a u = 'a
 and 'a t = 'a t u;;
