@@ -103,24 +103,6 @@ let is_uident s =
   | 'A'..'Z' -> true
   | _ -> false
 
-type typath =
-  | Regular of t
-  | Ext of t * string
-  | LocalExt of Ident.t
-  | Cstr of t * string
-
-let constructor_typath = function
-  | Pident id when is_uident (Ident.name id) -> LocalExt id
-  | Pdot(ty_path, s) when is_uident s ->
-      if is_uident (last ty_path) then Ext (ty_path, s)
-      else Cstr (ty_path, s)
-  | p -> Regular p
-
-let is_constructor_typath p =
-  match constructor_typath p with
-  | Regular _ -> false
-  | _ -> true
-
 module T = struct
   type nonrec t = t
   let compare = compare

@@ -132,6 +132,7 @@ let used_labels : label_usage usage_tbl ref =
 
 (** Map indexed by the name of module components. *)
 module NameMap = String.Map
+module TyNameMap = Map.Make(Path.TyPath.Order(String))
 
 type value_unbound_reason =
   | Val_unbound_instance_variable
@@ -324,7 +325,7 @@ module IdTbl =
               its local names to produce a valid path in the current
               environment. *)
 
-          components: 'b NameMap.t;
+          components: 'b TyNameMap.t;
           (** Components from the opened module. *)
 
           using: (string -> ('a * 'a) option -> unit) option;
@@ -1139,7 +1140,7 @@ let type_of_cstr path = function
   | _ -> assert false
 
 let find_type_data path env =
-  match Path.constructor_typath path with
+  match Path.typath_of_path path with
   | Regular p -> begin
       match Path.Map.find p env.local_constraints with
       | decl ->
@@ -1167,13 +1168,13 @@ let find_type_data path env =
         end
       in
       type_of_cstr path cstr
-  | LocalExt id ->
+  | Ext (Pident id) ->
       let cstr =
         try (TycompTbl.find_same id env.constrs).cda_description
         with Not_found -> assert false
       in
       type_of_cstr path cstr
-  | Ext (mod_path, s) ->
+  | Ext (Pdot (mod_path, s)) ->
       let comps =
         try find_structure_components mod_path env
         with Not_found -> assert false
@@ -1183,9 +1184,12 @@ let find_type_data path env =
         with Not_found -> assert false
       in
       let exts = List.filter is_ext cstrs in
-      match exts with
+      begin match exts with
       | [cda] -> type_of_cstr path cda.cda_description
       | _ -> assert false
+      end
+  | Ext (Papply _) ->
+      assert false
 
 let find_type p env =
   (find_type_data p env).tda_declaration
