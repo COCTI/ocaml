@@ -91,6 +91,10 @@ let string_of_constant ~loc = function
   | Const_int x ->
       let s = string_of_int x ^ "%int63" in
       if x < 0 then "("^s^")" else s
+  | Const_float x ->
+      let x = if x.[String.length x-1] = '.' then x ^ "0" else x in
+      let s = x ^ "%float" in
+      "("^s^")"
   | Const_char c ->
       let s = Char.escaped c in
       let s =
