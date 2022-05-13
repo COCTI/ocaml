@@ -51,6 +51,10 @@ let init_type_map vars =
     {ctd with ct_name = "ml_int";
      ct_type = CTid "Int63.int";
      ct_compare = Some (ctRet (CTapp (CTid"Int63.compare", xy)))});
+   (Predef.path_float, [],
+    {ctd with ct_name = "ml_float";
+     ct_type = CTid "float";
+     ct_compare = Some (ctRet (CTapp (CTid"compare_float", xy)))});
    (Predef.path_char, [],
     {ctd with ct_name = "ml_char";
      ct_type = CTid "Ascii.ascii";
@@ -110,6 +114,8 @@ let init_type_map vars =
 let init_term_map vars =
   let int_to_int = newgenarrow Predef.type_int Predef.type_int in
   let int_to_int_to_int = newgenarrow Predef.type_int int_to_int in
+  let float_to_float = newgenarrow Predef.type_float Predef.type_float in
+  let float_to_float_to_float = newgenarrow Predef.type_float float_to_float in
   List.fold_left
     (fun map (lid, desc) ->
       let path = List.fold_left (fun m s -> Path.Pdot (m, s)) stdlib lid in
@@ -190,6 +196,24 @@ let init_term_map vars =
     (["~-"],
      {ce_name = "Int63.opp";
       ce_type = int_to_int;
+      ce_vars = [];
+      ce_rec = Nonrecursive;
+      ce_purary = 2})
+  ] @
+  List.map
+    (fun (ml, coq) ->
+      [ml],
+      {ce_name = coq^"%float";
+       ce_type = float_to_float_to_float;
+       ce_vars = [];
+       ce_rec = Nonrecursive;
+       ce_purary = 3})
+    [("+.", "add"); ("-.", "sub"); ("*.", "mul");
+     ("/.", "div")]
+  @ [
+    (["~-."],
+     {ce_name = "opp";
+      ce_type = float_to_float;
       ce_vars = [];
       ce_rec = Nonrecursive;
       ce_purary = 2})

@@ -1,10 +1,11 @@
 From mathcomp Require Import ssreflect ssrnat seq.
-Require Import Int63 Ascii String cocti_defs.
+Require Import Int63 Ascii String Floats cocti_defs.
 
 (* Generated representation of all ML types *)
 Inductive ml_type :=
   | ml_int
   | ml_char
+  | ml_float
   | ml_bool
   | ml_unit
   | ml_exn
@@ -69,6 +70,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   match T with
   | ml_int => Int63.int
   | ml_char => Ascii.ascii
+  | ml_float => float
   | ml_bool => bool
   | ml_unit => unit
   | ml_exn => @ml_exns M
@@ -107,6 +109,7 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     match T as T return coq_type T -> coq_type T -> M comparison with
     | ml_int => fun x y => Ret (Int63.compare x y)
     | ml_char => fun x y => Ret (compare_ascii x y)
+    | ml_float => fun x y => Ret (compare_float x y)
     | ml_bool => fun x y => Ret (Bool.compare x y)
     | ml_unit => fun x y => Ret Eq
     | ml_exn =>
@@ -218,6 +221,9 @@ Definition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=
 Definition h := 100000.
 
 (* Translated code *)
+
+Definition div (x y : coq_type ml_float) : coq_type ml_float :=
+  div%float x y.
 
 Definition ref' (T : ml_type) := newref T.
 

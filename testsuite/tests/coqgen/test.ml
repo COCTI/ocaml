@@ -6,6 +6,9 @@ compile_only = "true"
 *)
 (* ../../../ocamlc -c -coq -I ../../../stdlib test.ml *)
 
+(** float *)
+let div x y = x /. y;; 
+(** float *)
 let ref' = ref;;
 
 let id h = h;;
