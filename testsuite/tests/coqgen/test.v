@@ -225,6 +225,10 @@ Definition h := 100000.
 Definition div (x y : coq_type ml_float) : coq_type ml_float :=
   div%float x y.
 
+Definition harmonic (x y : coq_type ml_float) : coq_type ml_float :=
+  div%float (2.0%float)
+    (add%float (div%float (1.0%float) x) (div%float (1.0%float) y)).
+
 Definition ref' (T : ml_type) := newref T.
 
 Definition id (T : ml_type) (h_1 : coq_type T) : coq_type T := h_1.

@@ -8,6 +8,7 @@ compile_only = "true"
 
 (** float *)
 let div x y = x /. y;; 
+let harmonic x y = 2. /. ((1. /. x) +. (1. /. y));;
 (** float *)
 let ref' = ref;;
 
