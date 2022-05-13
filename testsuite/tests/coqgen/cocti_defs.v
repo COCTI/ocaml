@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Int63 BinNums Ascii String ZArith.
+Require Import Int63 BinNums Ascii String ZArith Floats.
 
 (* Extra predefined types *)
 Inductive empty :=. (* for the value restriction *)
@@ -226,6 +226,13 @@ Fixpoint compare_string (s1 s2 : string) :=
     | Eq => compare_string s1 s2
     | cmp => cmp
     end
+  end.
+
+Definition compare_float (x1 x2 : float) :=
+  match compare x1 x2 with 
+  | FEq | FNotComparable => Eq
+  | FLt => Lt
+  | FGt => Gt
   end.
 End Comparison.
 

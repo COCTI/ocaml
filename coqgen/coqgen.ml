@@ -135,7 +135,7 @@ let transl_implementation _modname st =
     CTinductive
       { name = "ml_exns"; kind = CTsort *)
   CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
-\nRequire Import Int63 Ascii String cocti_defs.\
+\nRequire Import Int63 Ascii String Floats cocti_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
   CTverbatim "\
