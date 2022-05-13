@@ -86,6 +86,7 @@ Local Fixpoint coq_type_rec (p : nat) (T : ml_type) : Type :=
   end.
 Local Definition coq_type := coq_type_rec 0.
 End with_monad.
+Local Definition ml_exn := ml_exn.
 End MLtypes.
 Export MLtypes.
 
