@@ -589,22 +589,26 @@ let duplicate_class_type ty =
    [expand_abbrev] (via [subst]) requires these expansions to be
    preserved. Does it worth duplicating this code ?
 *)
-let rec generalize ty =
+let rec generalize ?trace ty =
   let level = get_level ty in
   if (level > !current_level) && (level <> generic_level) then begin
+    begin match trace with
+      Some r -> if is_Tvar ty then r := ty :: !r
+    | None -> ()
+    end;
     set_level ty generic_level;
     (* recur into abbrev for the speed *)
     begin match get_desc ty with
       Tconstr (_, _, abbrev) ->
-        iter_abbrev generalize !abbrev
+        iter_abbrev (generalize ?trace) !abbrev
     | _ -> ()
     end;
-    iter_type_expr generalize ty
+    iter_type_expr (generalize ?trace) ty
   end
 
-let generalize ty =
+let generalize ?trace ty =
   simple_abbrevs := Mnil;
-  generalize ty
+  generalize ?trace ty
 
 (* Generalize the structure and lower the variables *)
 
