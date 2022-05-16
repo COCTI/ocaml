@@ -171,7 +171,7 @@ let transl_implementation _modname st =
 \nVariant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).\
 \n\
 \nSection with_monad.\
-\nVariable M : Type -> Type.\
+\nContext [M : Type -> Type].\
 \n\n(* Generated type definitions *)" ::
   typedefs @
   CTverbatim "Local (* Generated type translation function *)" ::
@@ -184,7 +184,7 @@ let transl_implementation _modname st =
 \nModule REFmonadML := REFmonad (MLtypes).\
 \nExport REFmonadML.\
 \n\
-\nDefinition coq_type := MLtypes.coq_type M.\
+\nDefinition coq_type := @MLtypes.coq_type M.\
 \nDefinition empty_env := mkEnv 0%int63 nil.\
 \nDefinition it : W unit := (empty_env, inl tt).\
 \n\n(* Generated comparison function *)" ::

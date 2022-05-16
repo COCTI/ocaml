@@ -41,7 +41,7 @@ Record key := mkkey {key_id : int; key_type : ml_type}.
 Variant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).
 
 Section with_monad.
-Variable M : Type -> Type.
+Context [M : Type -> Type].
 
 (* Generated type definitions *)
 Inductive color := | Red | Green | Blue.
@@ -60,6 +60,7 @@ Inductive endo (a : Type) := Endo (_ : a -> M a).
 Inductive option (a : Type) := | Some (_ : a) | None.
 
 Inductive ml_exns :=
+  | Restart_1 (_ : unit -> M Int63.int)
   | Invalid_argument (_ : string)
   | Failure (_ : string)
   | Not_found.
@@ -96,7 +97,7 @@ Export MLtypes.
 Module REFmonadML := REFmonad (MLtypes).
 Export REFmonadML.
 
-Definition coq_type := MLtypes.coq_type M.
+Definition coq_type := @MLtypes.coq_type M.
 Definition empty_env := mkEnv 0%int63 nil.
 Definition it : W unit := (empty_env, inl tt).
 
@@ -115,11 +116,15 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
       fun x y =>
         match x, y with
         | Not_found, Not_found => Ret Eq
+        | Restart_1 x1, Restart_1 y1 =>
+          compare_rec (ml_arrow ml_unit ml_int) x1 y1
         | Invalid_argument x1, Invalid_argument y1 =>
           compare_rec ml_string x1 y1
         | Failure x1, Failure y1 => compare_rec ml_string x1 y1
         | Not_found, _ => Ret Lt
         | _, Not_found => Ret Gt
+        | Restart_1 _, _ => Ret Lt
+        | _, Restart_1 _ => Ret Gt
         | Invalid_argument _, _ => Ret Lt
         | _, Invalid_argument _ => Ret Gt
         end
@@ -534,14 +539,25 @@ Definition it_21 :=
     ((fun x : coq_type ml_exn => raise ml_empty x) (Failure "Hello"%string)).
 Eval vm_compute in it_21.
 
-Definition it_22 := Restart it_21 (omega ml_int 1%int63).
+Definition it_22 :=
+  Restart it_21
+    (handle ml_int
+       (do _ <-
+        raise ml_empty
+          (Restart_1
+             (fun x : coq_type ml_unit => Ret (3%int63 : coq_type ml_int)));
+        Ret 0%int63)
+       (fun v => if v is Restart_1 f_1 then f_1 tt else raise ml_int v)).
 Eval vm_compute in it_22.
 
-Definition it_23 :=
-  Restart it_22
+Definition it_23 := Restart it_22 (omega ml_int 1%int63).
+Eval vm_compute in it_23.
+
+Definition it_24 :=
+  Restart it_23
     (AppM
        (fixpt h ml_empty ml_int
           (fun f_1 : coq_type (ml_arrow ml_int ml_empty) =>
              Ret (f_1 : coq_type (ml_arrow ml_int ml_empty))))
        0%int63).
-Eval vm_compute in it_23.
+Eval vm_compute in it_24.

@@ -18,6 +18,10 @@ open Types
 open Btype
 open Coqdef
 
+let rec map_snd f = function
+    [] -> []
+  | (a, b) :: l -> let c = f b in (a, c) :: map_snd f l
+
 let make_tuple_type ~def ctl =
   let unit = if def then "unit" else "ml_unit" in
   let pair = if def then "pair" else "ml_pair" in
@@ -201,18 +205,16 @@ let transl_typedecl ~loc ~env ~vars id td =
       let ctd = { ctd with ct_args = params; ct_mlargs = ml_params;
                   ct_type = ret_type params ml_params } in
       let vars = add_type (Path.Pident id) ctd vars in
+      let cmp_arg = transl_type ~loc ~env ~vars in
+      let coq_def_arg = transl_type ~loc ~env ~vars ~def:true in
       let cmp_cases =
-        List.map snd ml_params0,
-        List.map (fun (cname, args) ->
-          let ctl_def = List.map (transl_type ~loc ~env ~vars) args in
-          (cname, ctl_def))
-          names_types
+        List.map snd ml_params0, map_snd (List.map cmp_arg) names_types
       and ct_constrs =
         List.map2 (fun cd (cname, _) -> (Ident.name cd.cd_id, cname))
           cl names_types
       and cases =
         List.map (fun (cname, args) ->
-          let mkarg arg = ("_", transl_type ~loc ~env ~vars ~def:true arg) in
+          let mkarg arg = ("_", coq_def_arg arg) in
           cname, List.map mkarg args, None)
           names_types
       in
@@ -233,7 +235,7 @@ let rec make_exn_name = function
   | Papply(p1,p2) -> make_exn_name p1 ^ "__'" ^ make_exn_name p2 ^ "'"
 *)
 
-let _constructor_of_extension excon =
+let constructor_of_extension excon =
   let exty = excon.Typedtree.ext_type in
   { cd_id = excon.Typedtree.ext_id;
     cd_args = exty.ext_args;
@@ -242,10 +244,14 @@ let _constructor_of_extension excon =
     cd_attributes = exty.ext_attributes;
     cd_uid = exty.ext_uid }
 
-let transl_exception ~loc:_ ~env:_ ~vars excon =
-  let cname = fresh_name ~vars (Ident.name excon.Typedtree.ext_id) in
-  let vars = add_reserved cname vars in
-  vars
+let transl_exception ~loc ~env ~vars excon =
+  let cd = constructor_of_extension excon in
+  let (vars, cname, args) = transl_constructor ~vars cd in
+  let cmp_arg = transl_type ~loc ~env ~vars in
+  let coq_def_arg = transl_type ~loc ~env ~vars ~def:true in
+  let cmp_args = List.map cmp_arg args in
+  let coq_def_args = List.map coq_def_arg args in
+  add_exception (Path.Pident cd.cd_id) cname cmp_args coq_def_args vars
 
 let enter_free_variables ~loc ~vars ty =
   (*close_type ty;*)

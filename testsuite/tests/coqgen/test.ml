@@ -173,12 +173,17 @@ let rec tarai x y z =
 
 tarai 1 2 3;;
 
+(* Exceptions *)
 let failwith s = raise (Failure s);;
 failwith "Bad";;
 
 try if true then failwith "a" else "b" with Failure x -> x;;
 
 (fun x -> raise x) (Failure "Hello");;
+
+exception Restart of (unit -> int);;
+
+try raise (Restart (fun x -> 3)); 0 with Restart f -> f ();;
 
 (* loops *)
 omega 1;;
