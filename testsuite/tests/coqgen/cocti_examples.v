@@ -53,6 +53,8 @@ Variant loc : ml_type -> Type :=
 Section with_monad.
 Variable M : Type -> Type.
 
+(* type (_, _) eqw = Refl : ('a,'a) eqw *)
+
 Inductive eqw (T1 T2 : ml_type) :=
   | Refl of T1 = T2.
 
@@ -211,6 +213,12 @@ Definition Omega : M empty :=
                (fun x => raise ml_empty (Failure M "omega"));
   let Delta i := do f <- getref _ r; f i in
   do _ <- setref _ r Delta; Delta 1%int63.
+
+Definition Omega_False : M False :=
+  do empty <- Omega ;
+  match empty with end.
+
+Check Omega_False empty_env.
 
 (* Evaluation loops *)
 (* Eval cbv in Omega empty_env. *)

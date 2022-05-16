@@ -147,6 +147,7 @@ type coq_type_desc = {
     ct_args: (int * string) list; (* Type vars *)
     ct_mlargs: (int * string) list; (* ML vars *)
     ct_type: coq_term;
+    ct_coqdef: (string * coq_term list) list;
     ct_def: (string list * (string * coq_term list) list) option;
        (* cases for comparison *)
     ct_constrs: (string * string) list;

@@ -144,6 +144,19 @@ let enter_tvars ~loc ~vars ~def tvl =
   in
   (List.mapi (fun n x -> n, x) (List.rev names), vars)
 
+let transl_constructor ~vars (cd : Types.constructor_declaration) =
+  let loc = cd.cd_loc in
+  if cd.cd_res <> None then not_allowed ~loc "GADT";
+  let cname = fresh_name ~vars (Ident.name cd.cd_id) in
+  let vars = add_reserved cname vars in
+  let args =
+    match cd.cd_args with
+    | Cstr_tuple tyl -> tyl
+    | Cstr_record _ ->
+        not_allowed ~loc "Inline record"
+  in
+  (vars, cname, args)
+
 let transl_typedecl ~loc ~env ~vars id td =
   let ml_name = fresh_name ~vars ("ml_" ^ Ident.name id) in
   let name = fresh_name ~vars (Ident.name id) in
@@ -157,7 +170,7 @@ let transl_typedecl ~loc ~env ~vars id td =
        List.map (fun (_,v) -> ctid v) ml_params) in
   let ctd =
     { ct_name = ml_name; ct_arity = td.type_arity;
-      ct_args = params; ct_mlargs = ml_params0;
+      ct_args = params; ct_mlargs = ml_params0; ct_coqdef = [];
       ct_type = ret_type params ml_params0; ct_def = None;
       ct_compare = None; ct_constrs = []; ct_maps = [] } in
   let vars = add_type (Path.Pident id) ctd vars in
@@ -166,16 +179,8 @@ let transl_typedecl ~loc ~env ~vars id td =
   | Type_variant (cl, _) ->
       let names_types, vars =
         List.fold_left
-          (fun (ntl, vars) (cd : Types.constructor_declaration) ->
-            if cd.cd_res <> None then not_allowed ~loc "GADT";
-            let cname = fresh_name ~vars (Ident.name cd.cd_id) in
-            let vars = add_reserved cname vars in
-            let args =
-              match cd.cd_args with
-              | Cstr_tuple tyl -> tyl
-              | Cstr_record _ ->
-                  not_allowed ~loc "Inline record"
-            in
+          (fun (ntl, vars) cd ->
+            let vars, cname, args = transl_constructor ~vars cd in
             ((cname, args) :: ntl, vars))
           ([],vars) cl
       in
@@ -220,6 +225,27 @@ let transl_typedecl ~loc ~env ~vars id td =
       set_tvars vars old_tvars
   | _ -> not_allowed ~loc "Non-inductive type definition"
   end
+
+(*
+let rec make_exn_name = function
+    Pident id -> Ident.name id
+  | Pdot(p, s) -> make_exn_name p ^ "__" ^ s
+  | Papply(p1,p2) -> make_exn_name p1 ^ "__'" ^ make_exn_name p2 ^ "'"
+*)
+
+let _constructor_of_extension excon =
+  let exty = excon.Typedtree.ext_type in
+  { cd_id = excon.Typedtree.ext_id;
+    cd_args = exty.ext_args;
+    cd_res = exty.ext_ret_type;
+    cd_loc = exty.ext_loc;
+    cd_attributes = exty.ext_attributes;
+    cd_uid = exty.ext_uid }
+
+let transl_exception ~loc:_ ~env:_ ~vars excon =
+  let cname = fresh_name ~vars (Ident.name excon.Typedtree.ext_id) in
+  let vars = add_reserved cname vars in
+  vars
 
 let enter_free_variables ~loc ~vars ty =
   (*close_type ty;*)

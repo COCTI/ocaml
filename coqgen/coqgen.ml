@@ -126,23 +126,34 @@ let make_compare_rec vars =
                      CTapp (CTid"M", [CTid "comparison"]))))
              )))
 
+let inductive_of_exn vars =
+  let constrs =
+    match Path.Map.find_opt Predef.path_exn vars.type_map with
+      Some {ct_coqdef = constrs} -> constrs
+    | _ -> assert false
+  in
+  let cases =
+    List.map
+      (fun (cstr, args) -> cstr, List.map (fun ct -> "_", ct) args, None)
+      constrs
+  in
+  CTinductive
+    { name = "ml_exns"; args = []; kind = CTsort Type; cases }
+
 let transl_implementation _modname st =
   let cmds, vars = transl_structure ~vars:init_vars st.str_items in
   let typedefs, cmds =
     List.partition (function CTinductive _ -> true | _ -> false) cmds
   in
-  (*let exceptions =
-    CTinductive
-      { name = "ml_exns"; kind = CTsort *)
+  let typedefs = typedefs @ [inductive_of_exn vars] in
+(*  let _inductives =
+    List.flatten
+      (List.map (function CTinductive ind -> ind | _ -> assert false) typedefs)
+  in*)
   CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
 \nRequire Import Int63 Ascii String Floats cocti_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
-  CTverbatim "\
-\nInductive ml_exns {M : Type -> Type} :=\
-\n  | Invalid_argument (_ : string)\
-\n  | Failure (_ : string)\
-\n  | Not_found.\n" ::
   CTverbatim "(* Module argument for monadic functor *)\
 \nModule MLtypes.\
 \nDefinition ml_type_eq_dec (T1 T2 : ml_type) : {T1=T2}+{T1<>T2}.\

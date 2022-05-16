@@ -565,5 +565,10 @@ let rec transl_structure ~vars = function
             td.typ_id td.typ_type in
         let cmds, vars = transl_structure ~vars rem in
         (def :: cmds, vars)
+    | Tstr_exception tyexn ->
+        let vars =
+          transl_exception ~loc:tyexn.tyexn_loc ~env:it.str_env ~vars
+            tyexn.tyexn_constructor in
+        transl_structure ~vars rem
     | _ ->
         not_allowed ~loc:it.str_loc "This structure item"

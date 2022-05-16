@@ -23,12 +23,6 @@ Inductive ml_type :=
   | ml_ref (_ : ml_type)
   | ml_arrow (_ : ml_type) (_ : ml_type).
 
-
-Inductive ml_exns {M : Type -> Type} :=
-  | Invalid_argument (_ : string)
-  | Failure (_ : string)
-  | Not_found.
-
 (* Module argument for monadic functor *)
 Module MLtypes.
 Definition ml_type_eq_dec (T1 T2 : ml_type) : {T1=T2}+{T1<>T2}.
@@ -65,6 +59,11 @@ Inductive endo (a : Type) := Endo (_ : a -> M a).
 
 Inductive option (a : Type) := | Some (_ : a) | None.
 
+Inductive ml_exns :=
+  | Invalid_argument (_ : string)
+  | Failure (_ : string)
+  | Not_found.
+
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
@@ -73,7 +72,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_float => float
   | ml_bool => bool
   | ml_unit => unit
-  | ml_exn => @ml_exns M
+  | ml_exn => ml_exns
   | ml_array T1 => loc (ml_array_t T1)
   | ml_list T1 => list (coq_type T1)
   | ml_string => String.string

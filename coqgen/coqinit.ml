@@ -30,7 +30,7 @@ let xy = [CTid"x"; CTid"y"]
 
 let ctd = { ct_name = ""; ct_arity = 0; ct_args = []; ct_mlargs = [];
             ct_type = CTid ""; ct_def = None; ct_constrs = [];
-            ct_compare = None; ct_maps = [] }
+            ct_compare = None; ct_maps = []; ct_coqdef = [] }
 
 let init_type_map vars =
   List.fold_left
@@ -99,9 +99,11 @@ let init_type_map vars =
      ct_def = Some (["a"], ["ArrayVal", [CTapp(CTid"ml_list", [CTid "a"])]])});
    (Predef.path_exn, [],
     {ctd with ct_name = "ml_exn";
-     ct_type = CTapp (CTid "@ml_exns", [CTid "M"]);
+     ct_type = CTid "ml_exns";
      ct_constrs = List.map (fun x -> (x,x))
        ["Invalid_argument"; "Failure"; "Not_found"];
+     ct_coqdef = ["Invalid_argument", [CTid"string"];
+                  "Failure", [CTid"string"]; "Not_found", []];
      ct_def = Some ([], ["Invalid_argument", [CTid"ml_string"];
                          "Failure", [CTid"ml_string"]; "Not_found", []])});
    (coqgen, ["arrow"],
