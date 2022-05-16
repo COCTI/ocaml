@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Int63 BinNums Ascii String ZArith Floats.
+Require Import Sint63 BinNums Ascii String ZArith Floats.
 
 (* Extra predefined types *)
 Inductive empty :=. (* for the value restriction *)

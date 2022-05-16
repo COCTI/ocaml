@@ -42,13 +42,15 @@ type coq_term =
   | CTlet of string * coq_term option * coq_term * coq_term
   | CTif of coq_term * coq_term * coq_term
 
+type inductive =
+    { name: string; args: (string * coq_term) list; kind: coq_term;
+      cases: (string * (string * coq_term) list * coq_term option) list }
+
 type vernacular =
   | CTdefinition of string * coq_term
   | CTfixpoint of string * coq_term
   | CTeval of coq_term
-  | CTinductive of
-      { name: string; args: (string * coq_term) list; kind: coq_term;
-        cases: (string * (string * coq_term) list * coq_term option) list }
+  | CTinductive of inductive list
   | CTverbatim of string
 
 let may_app f o x =
@@ -147,6 +149,7 @@ type coq_type_desc = {
     ct_args: (int * string) list; (* Type vars *)
     ct_mlargs: (int * string) list; (* ML vars *)
     ct_type: coq_term;
+    ct_coqdef: (string * coq_term list) list;
     ct_def: (string list * (string * coq_term list) list) option;
        (* cases for comparison *)
     ct_constrs: (string * string) list;
@@ -185,17 +188,20 @@ let add_type path td vars =
     type_map = Path.Map.add path td vars.type_map;
     coq_names = Names.add td.ct_name vars.coq_names }
 
-let add_exception path name args vars =
-  let ct = Path.Map.find Predef.path_exn vars.type_map in
-  let def =
-    match ct.ct_def with Some ([], def) -> def | _ -> assert false in
+let add_exception path name args coqargs vars =
+  let ct, def =
+    match Path.Map.find_opt Predef.path_exn vars.type_map with
+      Some ({ct_def = Some ([], def)} as ct) -> ct, def
+    | _ -> assert false
+  in
   let ct =
     { ct with
       ct_constrs = (Path.name path, name) :: ct.ct_constrs;
-      ct_def = Some ([], (name, args) :: def) }
+      ct_def = Some ([], (name, args) :: def);
+      ct_coqdef = (name, coqargs) :: ct.ct_coqdef }
   in
   { vars with
-    type_map = Path.Map.add path ct vars.type_map;
+    type_map = Path.Map.add Predef.path_exn ct vars.type_map;
     coq_names = Names.add name vars.coq_names }
 
 let add_term ?(toplevel = false) path td vars =

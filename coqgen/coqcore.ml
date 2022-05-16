@@ -34,9 +34,9 @@ let name_tuple names =
   make_tuple ctl
 
 let rec shrink_purary_val ~vars ~args p1 p2 ct =
-  if p1 <= 1 then ctapp ct (List.rev args) else
-  let x = fresh_name ~vars "x" in
   let ct1 =
+    if p1 <= 1 then ctapp ct (List.rev args) else
+    let x = fresh_name ~vars "x" in
     CTabs (x, None,
            shrink_purary_val ~vars:(add_reserved x vars) ~args:(CTid x :: args)
              (p1-1) (p2-1) ct)
@@ -46,15 +46,15 @@ let rec shrink_purary_val ~vars ~args p1 p2 ct =
 let rec shrink_purary_rec ~vars p1 p2 ct =
   assert (p2 <= p1);
   if p1 <= 0 || p1 = p2 then ct else
-  let ct2 =
-    match ct with
-    | CTabs (x, t, ct1) ->
+  match ct with
+  | CTabs (x, t, ct1) ->
+      let ct2 =
         let vars = add_reserved x vars in
         CTabs (x, t, shrink_purary_rec ~vars (p1-1) (p2-1) ct1)
-    | _ ->
-        shrink_purary_val ~vars ~args:[] p1 p2 ct
-  in
-  if p2 <= 0 then ctRet ct2 else ct2
+      in
+      if p2 <= 0 then ctRet ct2 else ct2
+  | _ ->
+      shrink_purary_val ~vars ~args:[] p1 p2 ct
 
 let shrink_purary ~vars pt p2 =
   if pt.pary = p2 then pt else
@@ -591,11 +591,14 @@ let rec transl_structure ~vars = function
             else pt.pterm
           in
           CTdefinition (name, ct) :: cmds, vars'
-    | Tstr_type (Recursive, [td]) ->
-        let def, vars =
-          transl_typedecl ~loc:td.typ_loc ~env:it.str_env ~vars
-            td.typ_id td.typ_type in
+    | Tstr_type (Recursive, tds) ->
+        let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
         let cmds, vars = transl_structure ~vars rem in
         (def :: cmds, vars)
+    | Tstr_exception tyexn ->
+        let vars =
+          transl_exception ~loc:tyexn.tyexn_loc ~env:it.str_env ~vars
+            tyexn.tyexn_constructor in
+        transl_structure ~vars rem
     | _ ->
         not_allowed ~loc:it.str_loc "This structure item"

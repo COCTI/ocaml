@@ -5055,6 +5055,7 @@ coqgen/coqdef.cmi : \
 coqgen/coqgen.cmo : \
     typing/types.cmi \
     typing/typedtree.cmi \
+    typing/predef.cmi \
     typing/path.cmi \
     coqgen/coqtypes.cmi \
     coqgen/coqinit.cmi \
@@ -5064,6 +5065,7 @@ coqgen/coqgen.cmo : \
 coqgen/coqgen.cmx : \
     typing/types.cmx \
     typing/typedtree.cmx \
+    typing/predef.cmx \
     typing/path.cmx \
     coqgen/coqtypes.cmx \
     coqgen/coqinit.cmx \
@@ -5105,6 +5107,7 @@ coqgen/coqprint.cmi : \
     coqgen/coqdef.cmi
 coqgen/coqtypes.cmo : \
     typing/types.cmi \
+    typing/typedtree.cmi \
     typing/path.cmi \
     typing/ident.cmi \
     typing/ctype.cmi \
@@ -5114,6 +5117,7 @@ coqgen/coqtypes.cmo : \
     coqgen/coqtypes.cmi
 coqgen/coqtypes.cmx : \
     typing/types.cmx \
+    typing/typedtree.cmx \
     typing/path.cmx \
     typing/ident.cmx \
     typing/ctype.cmx \
@@ -5123,8 +5127,8 @@ coqgen/coqtypes.cmx : \
     coqgen/coqtypes.cmi
 coqgen/coqtypes.cmi : \
     typing/types.cmi \
+    typing/typedtree.cmi \
     parsing/location.cmi \
-    typing/ident.cmi \
     typing/env.cmi \
     coqgen/coqdef.cmi
 middle_end/closure/closure.cmo : \

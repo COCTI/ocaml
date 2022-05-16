@@ -6,14 +6,25 @@ compile_only = "true"
 *)
 (* ../../../ocamlc -c -coq -I ../../../stdlib test.ml *)
 
-(** float *)
-let div x y = x /. y;; 
+(* float *)
+let div x y = x /. y;;
 let harmonic x y = 2. /. ((1. /. x) +. (1. /. y));;
-(** float *)
+
+(* redefinition *)
 let ref' = ref;;
 
+(* let polymorphism *)
+let foo1 x =
+  let id y = y in id id x;;
+
+(* pure arity *)
 let id h = h;;
 
+let foo2 x = let y = x + 1 in id (fun z -> y + z);;
+
+let foo3 x = id foo2 x;;
+
+(* references *)
 let incr r =
   let x = !r in r := x + 1;;
 
@@ -24,6 +35,7 @@ let x = ref [] in !x;;
 let nil = let x = ref [] in !x;;
 (* let onel = 1 :: nil;;  requires subtyping *)
 
+(* Recursion *)
 let rec loop h = loop h;;
 
 let rec fib n =
@@ -38,8 +50,11 @@ let rec ack m n =
 
 ack 3 7;;
 
+(* string and char *)
 "hellas" < "hello";;
 let cmp = 'a' < 'A';;
+
+(* Lists *)
 
 let rec map f l =
   match l with
@@ -118,21 +133,6 @@ let rec iota m n =
 
 iota 1 10;;
 
-let omega n =
-  let r = ref (fun x -> x) in
-  let delta i = !r i in
-  r := delta; delta n ;;
-
-let fixpt f =
-  let r = ref (fun x -> loop x) in
-  let delta i = f !r i in
-  r := delta; delta ;;
-
-let fib =
-  fixpt (fun fib n -> if n <= 1 then 1 else fib (n-1) + fib (n-2));;
-
-fib 10;;
-
 (* need to fix the semantics of toplevel side effects *)
 let r = ref [3] ;;
 let z = r := 1 :: !r; !r;;
@@ -173,12 +173,35 @@ let rec tarai x y z =
 
 tarai 1 2 3;;
 
+(* Exceptions *)
+
 let failwith s = raise (Failure s);;
 failwith "Bad";;
 
 try if true then failwith "a" else "b" with Failure x -> x;;
 
 (fun x -> raise x) (Failure "Hello");;
+
+exception Restart of (unit -> int);;
+
+try id (raise (Restart (fun x -> 3))) with Restart f -> f ();;
+
+(* Fixpoints (without gas) *)
+
+let omega n =
+  let r = ref (fun x -> x) in
+  let delta i = !r i in
+  r := delta; delta n ;;
+
+let fixpt f =
+  let r = ref (fun x -> loop x) in
+  let delta i = f !r i in
+  r := delta; delta ;;
+
+let fib =
+  fixpt (fun fib n -> if n <= 1 then 1 else fib (n-1) + fib (n-2));;
+
+fib 10;;
 
 (* loops *)
 omega 1;;

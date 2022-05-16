@@ -53,6 +53,8 @@ Variant loc : ml_type -> Type :=
 Section with_monad.
 Variable M : Type -> Type.
 
+(* type (_, _) eqw = Refl : ('a,'a) eqw *)
+
 Inductive eqw (T1 T2 : ml_type) :=
   | Refl of T1 = T2.
 
@@ -212,6 +214,29 @@ Definition Omega : M empty :=
   let Delta i := do f <- getref _ r; f i in
   do _ <- setref _ r Delta; Delta 1%int63.
 
+Definition Omega_False : M False :=
+  do empty <- Omega ;
+  match empty with end.
+
+Check Omega_False empty_env.
+
+(* Proof of inconsistency *)
+Definition extract [T] def (r : W T) : T :=
+  if snd r is inl x then x else def.
+
+Definition trues : M (list bool) :=
+  do r_1 <- newref (ml_arrow ml_bool (ml_list ml_bool)) (fun x => Ret nil);
+  let delta _ : M (list bool) :=
+    (* produce an infinite stream by breaking the monad *)
+    do f <- getref _ r_1; fun e => Ret (true :: extract nil (f true e)) e in
+  do _ <- setref _ r_1 delta; delta true.
+
+Lemma contrad : let x := extract nil (trues empty_env) in x = true :: x.
+Proof. done. Qed.
+
+Lemma inconsistency : False.
+Proof. by elim: (extract _ _) contrad => //= a l IH [] ->. Qed.
+
 (* Evaluation loops *)
 (* Eval cbv in Omega empty_env. *)
 (* Use Scheme Equality, evaluation stops, but this is actually due to
@@ -292,6 +317,20 @@ Definition int_not_empty (x : eqw ml_int ml_empty) : empty.
   discriminate.
   Show Proof.
 Defined.
+
+(* let cast_fst : type a b. (a * b, int * bool) eq -> a -> int =
+   function Refl -> fun x -> x
+ *)
+
+Definition proj_ml_pair1 defT T :=
+  match T with ml_pair T1 _ => T1 | _ => defT end.
+
+Definition cast_fst (A B : ml_type)
+           (w : eqw (ml_pair A  B) (ml_pair ml_int ml_bool))
+           (x : coq_type A) : int :=
+  match w with
+    Refl H => eq_rect A coq_type x ml_int (f_equal (proj_ml_pair1 A) H)
+  end.
 
 (*
 let rec ack m n =

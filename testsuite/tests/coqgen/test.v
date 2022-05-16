@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrnat seq.
-Require Import Int63 Ascii String Floats cocti_defs.
+Require Import Sint63 Ascii String Floats cocti_defs.
 
 (* Generated representation of all ML types *)
 Inductive ml_type :=
@@ -23,12 +23,6 @@ Inductive ml_type :=
   | ml_ref (_ : ml_type)
   | ml_arrow (_ : ml_type) (_ : ml_type).
 
-
-Inductive ml_exns {M : Type -> Type} :=
-  | Invalid_argument (_ : string)
-  | Failure (_ : string)
-  | Not_found.
-
 (* Module argument for monadic functor *)
 Module MLtypes.
 Definition ml_type_eq_dec (T1 T2 : ml_type) : {T1=T2}+{T1<>T2}.
@@ -47,7 +41,7 @@ Record key := mkkey {key_id : int; key_type : ml_type}.
 Variant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).
 
 Section with_monad.
-Variable M : Type -> Type.
+Context [M : Type -> Type].
 
 (* Generated type definitions *)
 Inductive color := | Red | Green | Blue.
@@ -65,6 +59,12 @@ Inductive endo (a : Type) := Endo (_ : a -> M a).
 
 Inductive option (a : Type) := | Some (_ : a) | None.
 
+Inductive ml_exns :=
+  | Restart_1 (_ : unit -> M Int63.int)
+  | Invalid_argument (_ : string)
+  | Failure (_ : string)
+  | Not_found.
+
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
@@ -73,7 +73,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_float => float
   | ml_bool => bool
   | ml_unit => unit
-  | ml_exn => @ml_exns M
+  | ml_exn => ml_exns
   | ml_array T1 => loc (ml_array_t T1)
   | ml_list T1 => list (coq_type T1)
   | ml_string => String.string
@@ -97,7 +97,7 @@ Export MLtypes.
 Module REFmonadML := REFmonad (MLtypes).
 Export REFmonadML.
 
-Definition coq_type := MLtypes.coq_type M.
+Definition coq_type := @MLtypes.coq_type M.
 Definition empty_env := mkEnv 0%int63 nil.
 Definition it : W unit := (empty_env, inl tt).
 
@@ -107,7 +107,7 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
   if h is h.+1 then
     let compare_rec := compare_rec h in
     match T as T return coq_type T -> coq_type T -> M comparison with
-    | ml_int => fun x y => Ret (Int63.compare x y)
+    | ml_int => fun x y => Ret (Sint63.compare x y)
     | ml_char => fun x y => Ret (compare_ascii x y)
     | ml_float => fun x y => Ret (compare_float x y)
     | ml_bool => fun x y => Ret (Bool.compare x y)
@@ -116,19 +116,22 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
       fun x y =>
         match x, y with
         | Not_found, Not_found => Ret Eq
+        | Restart_1 x1, Restart_1 y1 =>
+          compare_rec (ml_arrow ml_unit ml_int) x1 y1
         | Invalid_argument x1, Invalid_argument y1 =>
           compare_rec ml_string x1 y1
         | Failure x1, Failure y1 => compare_rec ml_string x1 y1
         | Not_found, _ => Ret Lt
         | _, Not_found => Ret Gt
+        | Restart_1 _, _ => Ret Lt
+        | _, Restart_1 _ => Ret Gt
         | Invalid_argument _, _ => Ret Lt
         | _, Invalid_argument _ => Ret Gt
         end
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
     | ml_string => fun x y => Ret (compare_string x y)
-    | ml_empty =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+    | ml_empty => fun x y => match x with end
     | ml_array_t T1 =>
       fun x y =>
         match x, y with
@@ -231,7 +234,20 @@ Definition harmonic (x y : coq_type ml_float) : coq_type ml_float :=
 
 Definition ref' (T : ml_type) := newref T.
 
+Definition foo1 (T : ml_type) (x : coq_type T) : M (coq_type T) :=
+  let id (T_1 : ml_type) (y : coq_type T_1) : coq_type T_1 := y in
+  id (ml_arrow T T) (fun x_1 => Ret (id T x_1)) x.
+
 Definition id (T : ml_type) (h_1 : coq_type T) : coq_type T := h_1.
+
+Definition foo2 (x : coq_type ml_int) : coq_type (ml_arrow ml_int ml_int) :=
+  let y := Int63.add x 1%int63 in
+  id (ml_arrow ml_int ml_int)
+    (fun z : coq_type ml_int => Ret (Int63.add y z : coq_type ml_int)).
+
+Definition foo3 (x : coq_type ml_int)
+  : M (coq_type (ml_arrow ml_int ml_int)) :=
+  id (ml_arrow ml_int (ml_arrow ml_int ml_int)) (fun x_1 => Ret (foo2 x_1)) x.
 
 Definition incr (r : coq_type (ml_ref ml_int)) : M (coq_type ml_unit) :=
   do x <- getref ml_int r; setref ml_int r (Int63.add x 1%int63).
@@ -405,36 +421,8 @@ Fixpoint iota (h : nat) (m n : coq_type ml_int)
 Definition it_12 := Restart it_11 (iota h 1%int63 10%int63).
 Eval vm_compute in it_12.
 
-Definition omega (T : ml_type) (n : coq_type T) : M (coq_type T) :=
-  do r <- newref (ml_arrow T T) (fun x : coq_type T => Ret (x : coq_type T));
-  let delta (i : coq_type T) : M (coq_type T) :=
-    AppM (getref (ml_arrow T T) r) i in
-  do _ <- setref (ml_arrow T T) r delta; delta n.
-
-Definition fixpt (h : nat) (T T_1 : ml_type)
-  (f : coq_type (ml_arrow (ml_arrow T_1 T) (ml_arrow T_1 T)))
-  : M (coq_type (ml_arrow T_1 T)) :=
-  do r <- newref (ml_arrow T_1 T) (fun x : coq_type T_1 => loop h T T_1 x);
-  let delta (i : coq_type T_1) : M (coq_type T) :=
-    do v <- getref (ml_arrow T_1 T) r; AppM (f v) i in
-  do _ <- setref (ml_arrow T_1 T) r delta; Ret delta.
-
-Definition fib_1 :=
-  Restart it_12
-    (fixpt h ml_int ml_int
-       (fun fib_1 : coq_type (ml_arrow ml_int ml_int) =>
-          Ret
-            (fun n : coq_type ml_int =>
-               do v <- ml_le h ml_int n 1%int63;
-               if v then Ret 1%int63 else
-                 do v <- fib_1 (Int63.sub n 2%int63);
-                 do v_1 <- fib_1 (Int63.sub n 1%int63); Ret (Int63.add v_1 v)))).
-
-Definition it_13 := Restart fib_1 (do fib_1 <- FromW fib_1; fib_1 10%int63).
-Eval vm_compute in it_13.
-
 Definition r :=
-  Restart it_13 (newref (ml_list ml_int) (3%int63 :: @nil (coq_type ml_int))).
+  Restart it_12 (newref (ml_list ml_int) (3%int63 :: @nil (coq_type ml_int))).
 
 Definition z :=
   Restart r
@@ -446,12 +434,12 @@ Definition z :=
       setref (ml_list ml_int) r v);
      getref (ml_list ml_int) r).
 
-Definition it_14 := Restart z (do r <- FromW r; getref (ml_list ml_int) r).
-Eval vm_compute in it_14.
+Definition it_13 := Restart z (do r <- FromW r; getref (ml_list ml_int) r).
+Eval vm_compute in it_13.
 
-Definition z' := Restart it_14 (do z <- FromW z; Ret z).
+Definition z' := Restart it_13 (do z <- FromW z; Ret z).
 
-Definition it_15 :=
+Definition it_14 :=
   Restart z'
     (do r <- FromW r;
      let r_1 := r in
@@ -461,7 +449,7 @@ Definition it_15 :=
        Ret (@cons (coq_type ml_int) 1%int63 v));
       setref (ml_list ml_int) r_1 v);
      getref (ml_list ml_int) r_1).
-Eval vm_compute in it_15.
+Eval vm_compute in it_14.
 
 Definition f (v : coq_type ml_unit) :=
   do z' <- FromW z';
@@ -489,10 +477,10 @@ Definition double_r (v : coq_type ml_unit) : M (coq_type ml_unit) :=
     setref (ml_list ml_int) r v_1
   end.
 
-Definition it_16 :=
-  Restart it_15
+Definition it_15 :=
+  Restart it_14
     (do r <- FromW r; do _ <- double_r tt; getref (ml_list ml_int) r).
-Eval vm_compute in it_16.
+Eval vm_compute in it_15.
 
 Fixpoint mccarthy_m (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
@@ -501,8 +489,8 @@ Fixpoint mccarthy_m (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
       do v <- mccarthy_m h (Int63.add n 11%int63); mccarthy_m h v
   else FailGas.
 
-Definition it_17 := Restart it_16 (mccarthy_m h 10%int63).
-Eval vm_compute in it_17.
+Definition it_16 := Restart it_15 (mccarthy_m h 10%int63).
+Eval vm_compute in it_16.
 
 Fixpoint tarai (h : nat) (x y z_1 : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
@@ -514,35 +502,75 @@ Fixpoint tarai (h : nat) (x y z_1 : coq_type ml_int) : M (coq_type ml_int) :=
     else Ret y
   else FailGas.
 
-Definition it_18 := Restart it_17 (tarai h 1%int63 2%int63 3%int63).
-Eval vm_compute in it_18.
+Definition it_17 := Restart it_16 (tarai h 1%int63 2%int63 3%int63).
+Eval vm_compute in it_17.
 
 Definition failwith (T : ml_type) (s : coq_type ml_string)
   : M (coq_type T) := raise T (Failure s).
 
-Definition it_19 := Restart it_18 (failwith ml_empty "Bad"%string).
+Definition it_18 := Restart it_17 (failwith ml_empty "Bad"%string).
+Eval vm_compute in it_18.
+
+Definition it_19 :=
+  Restart it_18
+    (handle ml_string
+       (if true then failwith ml_string "a"%string else Ret "b"%string)
+       (fun v => if v is Failure x then Ret x else raise ml_string v)).
 Eval vm_compute in it_19.
 
 Definition it_20 :=
   Restart it_19
-    (handle ml_string
-       (if true then failwith ml_string "a"%string else Ret "b"%string)
-       (fun v => if v is Failure x then Ret x else raise ml_string v)).
+    ((fun x : coq_type ml_exn => raise ml_empty x) (Failure "Hello"%string)).
 Eval vm_compute in it_20.
 
 Definition it_21 :=
   Restart it_20
-    ((fun x : coq_type ml_exn => raise ml_empty x) (Failure "Hello"%string)).
+    (handle ml_int
+       (do v <-
+        raise ml_int
+          (Restart_1
+             (fun x : coq_type ml_unit => Ret (3%int63 : coq_type ml_int)));
+        Ret (id ml_int v))
+       (fun v => if v is Restart_1 f_1 then f_1 tt else raise ml_int v)).
 Eval vm_compute in it_21.
 
-Definition it_22 := Restart it_21 (omega ml_int 1%int63).
+Definition omega (T : ml_type) (n : coq_type T) : M (coq_type T) :=
+  do r_1 <-
+  newref (ml_arrow T T) (fun x : coq_type T => Ret (x : coq_type T));
+  let delta (i : coq_type T) : M (coq_type T) :=
+    AppM (getref (ml_arrow T T) r_1) i in
+  do _ <- setref (ml_arrow T T) r_1 delta; delta n.
+
+Definition fixpt (h : nat) (T T_1 : ml_type)
+  (f_1 : coq_type (ml_arrow (ml_arrow T_1 T) (ml_arrow T_1 T)))
+  : M (coq_type (ml_arrow T_1 T)) :=
+  do r_1 <- newref (ml_arrow T_1 T) (fun x : coq_type T_1 => loop h T T_1 x);
+  let delta (i : coq_type T_1) : M (coq_type T) :=
+    do v <- getref (ml_arrow T_1 T) r_1; AppM (f_1 v) i in
+  do _ <- setref (ml_arrow T_1 T) r_1 delta; Ret delta.
+
+Definition fib_1 :=
+  Restart it_21
+    (fixpt h ml_int ml_int
+       (fun fib_1 : coq_type (ml_arrow ml_int ml_int) =>
+          Ret
+            (fun n : coq_type ml_int =>
+               do v <- ml_le h ml_int n 1%int63;
+               if v then Ret 1%int63 else
+                 do v <- fib_1 (Int63.sub n 2%int63);
+                 do v_1 <- fib_1 (Int63.sub n 1%int63); Ret (Int63.add v_1 v)))).
+
+Definition it_22 := Restart fib_1 (do fib_1 <- FromW fib_1; fib_1 10%int63).
 Eval vm_compute in it_22.
 
-Definition it_23 :=
-  Restart it_22
+Definition it_23 := Restart it_22 (omega ml_int 1%int63).
+Eval vm_compute in it_23.
+
+Definition it_24 :=
+  Restart it_23
     (AppM
        (fixpt h ml_empty ml_int
           (fun f_1 : coq_type (ml_arrow ml_int ml_empty) =>
              Ret (f_1 : coq_type (ml_arrow ml_int ml_empty))))
        0%int63).
-Eval vm_compute in it_23.
+Eval vm_compute in it_24.

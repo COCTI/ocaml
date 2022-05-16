@@ -30,7 +30,7 @@ let xy = [CTid"x"; CTid"y"]
 
 let ctd = { ct_name = ""; ct_arity = 0; ct_args = []; ct_mlargs = [];
             ct_type = CTid ""; ct_def = None; ct_constrs = [];
-            ct_compare = None; ct_maps = [] }
+            ct_compare = None; ct_maps = []; ct_coqdef = [] }
 
 let init_type_map vars =
   List.fold_left
@@ -46,11 +46,12 @@ let init_type_map vars =
      ct_compare =
      Some (CTapp (CTid"compare_ref", CTid"compare_rec" :: CTid"T1" :: xy))});
    (path_empty, [],
-    {ctd with ct_name = "ml_empty"; ct_type = CTid "empty"});
+    {ctd with ct_name = "ml_empty"; ct_type = CTid "empty";
+     ct_compare = Some (CTmatch (CTid"x", None, []))});
    (Predef.path_int, [],
     {ctd with ct_name = "ml_int";
      ct_type = CTid "Int63.int";
-     ct_compare = Some (ctRet (CTapp (CTid"Int63.compare", xy)))});
+     ct_compare = Some (ctRet (CTapp (CTid"Sint63.compare", xy)))});
    (Predef.path_float, [],
     {ctd with ct_name = "ml_float";
      ct_type = CTid "float";
@@ -99,9 +100,11 @@ let init_type_map vars =
      ct_def = Some (["a"], ["ArrayVal", [CTapp(CTid"ml_list", [CTid "a"])]])});
    (Predef.path_exn, [],
     {ctd with ct_name = "ml_exn";
-     ct_type = CTapp (CTid "@ml_exns", [CTid "M"]);
+     ct_type = CTid "ml_exns";
      ct_constrs = List.map (fun x -> (x,x))
        ["Invalid_argument"; "Failure"; "Not_found"];
+     ct_coqdef = ["Invalid_argument", [CTid"string"];
+                  "Failure", [CTid"string"]; "Not_found", []];
      ct_def = Some ([], ["Invalid_argument", [CTid"ml_string"];
                          "Failure", [CTid"ml_string"]; "Not_found", []])});
    (coqgen, ["arrow"],
@@ -191,7 +194,7 @@ let init_term_map vars =
        ce_rec = Nonrecursive;
        ce_purary = 3})
     [("+", "Int63.add"); ("-", "Int63.sub"); ("*", "Int63.mul");
-     ("/", "Int63.div"); ("mod", "Int63.mod")]
+     ("/", "divs"); ("mod", "mods")]
   @ [
     (["~-"],
      {ce_name = "Int63.opp";
@@ -235,7 +238,7 @@ let init_term_map vars =
 let init_reserved =
   [ "fix"; "Definition"; "Fixpoint"; "Inductive"; "unit"; "bool"; "int63";
     "M"; "Res"; "Fail"; "K"; "coq_type"; "S"; "Eq"; "Lt"; "Gt";
-    "nil"; "cons"; "it" ]
+    "nil"; "cons"; "it"; "Restart"; "T1"; "T2" ]
 
 let init_vars =
   init_type_map (
