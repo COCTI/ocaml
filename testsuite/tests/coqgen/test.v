@@ -226,6 +226,10 @@ Definition h := 100000.
 
 (* Translated code *)
 
+Definition foo1 (T : ml_type) (x : coq_type T) : M (coq_type T) :=
+  let id (T_1 : ml_type) (y : coq_type T_1) : coq_type T_1 := y in
+  id (ml_arrow T T) (fun x_1 => Ret (id T x_1)) x.
+
 Definition div (x y : coq_type ml_float) : coq_type ml_float :=
   div%float x y.
 

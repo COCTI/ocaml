@@ -6,6 +6,10 @@ compile_only = "true"
 *)
 (* ../../../ocamlc -c -coq -I ../../../stdlib test.ml *)
 
+(* let polymorphism *)
+let foo1 x =
+  let id y = y in id id x;;
+
 (** float *)
 let div x y = x /. y;; 
 let harmonic x y = 2. /. ((1. /. x) +. (1. /. y));;
