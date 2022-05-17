@@ -31,7 +31,7 @@ let make_ml_type vars =
         None)
       (Path.Map.bindings vars.type_map)
   in
-  CTinductive { name = ml_type; args = []; kind = CTsort Set; cases }
+  CTinductive [{ name = ml_type; args = []; kind = CTsort Set; cases }]
 
 let make_subst = Coqtypes.make_subst ~mkcoq:mkcoqty ~mkml:(fun x -> x)
 
@@ -126,6 +126,32 @@ let make_compare_rec vars =
                      CTapp (CTid"M", [CTid "comparison"]))))
              )))
 
+let topo_sort (type def) (deps : def -> string * Names.t) (defs : def list) =
+  let edges = List.map deps defs in
+  let edge id1 id2 =
+    try Names.mem id2 (List.assoc id1 edges) with Not_found -> false in
+  let rec add (id : string) (dep : Names.t) (groups : string list list) =
+    match groups with
+      [] -> [[id]]
+    | gr :: rem ->
+        if List.exists (fun x -> Names.mem x dep) gr then
+          let cycle, groups' = get_cycle id groups in
+          (id :: cycle) :: groups'
+        else
+          gr :: add id dep rem
+  and get_cycle id = function
+      [] -> [], []
+    | gr :: rem as groups ->
+        let cycle, rem' = get_cycle id rem in
+        if cycle <> [] then gr @ cycle, rem' else
+        if List.exists (fun x -> edge x id) gr then gr, rem'
+        else [], groups
+  in
+  let groups =
+    List.fold_left (fun groups (id,dep) -> add id dep groups) [] edges in
+  let id_defs = List.combine (List.map fst edges) defs in
+  List.map (List.map (fun id -> List.assoc id id_defs)) groups
+
 let inductive_of_exn vars =
   let constrs =
     match Path.Map.find_opt Predef.path_exn vars.type_map with
@@ -137,8 +163,15 @@ let inductive_of_exn vars =
       (fun (cstr, args) -> cstr, List.map (fun ct -> "_", ct) args, None)
       constrs
   in
-  CTinductive
-    { name = "ml_exns"; args = []; kind = CTsort Type; cases }
+  CTinductive [{ name = "ml_exns"; args = []; kind = CTsort Type; cases }]
+
+let deps_inductive ind =
+  let types =
+    List.map snd ind.args @
+    List.flatten (List.map (fun (_, args, _) -> List.map snd args) ind.cases)
+  in
+  let vars = List.map coq_vars types in
+  (ind.name, List.fold_left Names.union Names.empty vars)
 
 let transl_implementation _modname st =
   let cmds, vars = transl_structure ~vars:init_vars st.str_items in
@@ -146,10 +179,13 @@ let transl_implementation _modname st =
     List.partition (function CTinductive _ -> true | _ -> false) cmds
   in
   let typedefs = typedefs @ [inductive_of_exn vars] in
-(*  let _inductives =
+  let inductives =
     List.flatten
       (List.map (function CTinductive ind -> ind | _ -> assert false) typedefs)
-  in*)
+  in
+  let inductives = topo_sort deps_inductive inductives in
+  let typedefs = List.map (fun gr -> CTinductive gr) inductives in
+
   CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
 \nRequire Import Int63 Ascii String Floats cocti_defs.\
 \n\n(* Generated representation of all ML types *)" ::

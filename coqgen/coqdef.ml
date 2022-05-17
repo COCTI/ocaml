@@ -42,13 +42,15 @@ type coq_term =
   | CTlet of string * coq_term option * coq_term * coq_term
   | CTif of coq_term * coq_term * coq_term
 
+type inductive =
+    { name: string; args: (string * coq_term) list; kind: coq_term;
+      cases: (string * (string * coq_term) list * coq_term option) list }
+
 type vernacular =
   | CTdefinition of string * coq_term
   | CTfixpoint of string * coq_term
   | CTeval of coq_term
-  | CTinductive of
-      { name: string; args: (string * coq_term) list; kind: coq_term;
-        cases: (string * (string * coq_term) list * coq_term option) list }
+  | CTinductive of inductive list
   | CTverbatim of string
 
 let may_app f o x =

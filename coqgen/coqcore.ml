@@ -559,10 +559,8 @@ let rec transl_structure ~vars = function
             else pt.pterm
           in
           CTdefinition (name, ct) :: cmds, vars'
-    | Tstr_type (Recursive, [td]) ->
-        let def, vars =
-          transl_typedecl ~loc:td.typ_loc ~env:it.str_env ~vars
-            td.typ_id td.typ_type in
+    | Tstr_type (Recursive, tds) ->
+        let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
         let cmds, vars = transl_structure ~vars rem in
         (def :: cmds, vars)
     | Tstr_exception tyexn ->

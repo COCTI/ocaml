@@ -161,7 +161,8 @@ let transl_constructor ~vars (cd : Types.constructor_declaration) =
   in
   (vars, cname, args)
 
-let transl_typedecl ~loc ~env ~vars id td =
+let transl_typedecl ~env ~vars id td =
+  let loc = td.type_loc in
   let ml_name = fresh_name ~vars ("ml_" ^ Ident.name id) in
   let name = fresh_name ~vars (Ident.name id) in
   let vars = add_reserved name vars in
@@ -179,6 +180,11 @@ let transl_typedecl ~loc ~env ~vars id td =
       ct_compare = None; ct_constrs = []; ct_maps = [] } in
   let vars = add_type (Path.Pident id) ctd vars in
   if td.type_private <> Public then not_allowed ~loc "Private type";
+  let new_tvars = get_tvars vars in
+ (set_tvars vars old_tvars,
+  fun vars ->
+  let old_tvars = get_tvars vars in
+  let vars = set_tvars vars new_tvars in
   begin match td.type_kind with
   | Type_variant (cl, _) ->
       let names_types, vars =
@@ -223,10 +229,27 @@ let transl_typedecl ~loc ~env ~vars id td =
       let args =
         List.map (fun (_,v) -> v, CTsort Type) params
         @ List.map (fun (_,v) -> v, ml_tid) ml_params in
-      CTinductive { name; args; kind = CTsort Type; cases },
+      { name; args; kind = CTsort Type; cases },
       set_tvars vars old_tvars
   | _ -> not_allowed ~loc "Non-inductive type definition"
-  end
+  end)
+
+let transl_typedecls ~env ~vars td_list =
+  let open Typedtree in
+  let (vars, clos) =
+    List.fold_left
+      (fun (vars, clos) td ->
+        let (vars, clo) = transl_typedecl ~env ~vars td.typ_id td.typ_type in
+        (vars, clo::clos))
+      (vars, []) td_list
+  in
+  let (inds, vars) =
+    List.fold_left
+      (fun (inds, vars) clo ->
+        let (ind, vars) = clo vars in (ind::inds, vars))
+      ([], vars) clos
+  in
+  (CTinductive inds, vars)
 
 (*
 let rec make_exn_name = function

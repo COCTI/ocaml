@@ -35,11 +35,10 @@ val find_instantiation :
   vars:coq_env ->
   coq_term_desc -> type_expr -> coq_term list
 
-val transl_typedecl :
-  loc:Location.t ->
+val transl_typedecls :
   env:Env.t ->
   vars:coq_env ->
-  Ident.t -> type_declaration -> vernacular * coq_env
+  Typedtree.type_declaration list -> vernacular * coq_env
 
 val transl_exception :
   loc:Location.t ->
