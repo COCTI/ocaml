@@ -3982,7 +3982,6 @@ coqgen/coqtypes.cmi : \
     typing/types.cmi \
     typing/typedtree.cmi \
     parsing/location.cmi \
-    typing/ident.cmi \
     typing/env.cmi \
     coqgen/coqdef.cmi
 middle_end/closure/closure.cmo : \

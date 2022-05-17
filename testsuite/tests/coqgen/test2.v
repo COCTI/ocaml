@@ -50,8 +50,8 @@ Inductive ml_exns :=
 with t := E (_ : ml_exns).
 
 Inductive t2 := T0 (_ : t0)
-with t0 := | O | T1 (_ : t1)
-with t1 := T2 (_ : t2).
+with t0 := | O | T1_1 (_ : t1)
+with t1 := T2_1 (_ : t2).
 
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
@@ -129,13 +129,13 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
       fun x y =>
         match x, y with
         | O, O => Ret Eq
-        | T1 x1, T1 y1 => compare_rec ml_t1 x1 y1
+        | T1_1 x1, T1_1 y1 => compare_rec ml_t1 x1 y1
         | O, _ => Ret Lt
         | _, O => Ret Gt
         end
     | ml_t1 =>
       fun x y =>
-        match x, y with | T2 x1, T2 y1 => compare_rec ml_t2 x1 y1 end
+        match x, y with | T2_1 x1, T2_1 y1 => compare_rec ml_t2 x1 y1 end
     | ml_t2 =>
       fun x y =>
         match x, y with | T0 x1, T0 y1 => compare_rec ml_t0 x1 y1 end
@@ -177,3 +177,6 @@ Definition h := 100000.
 
 (* Translated code *)
 
+Definition x := T0 O.
+
+Eval vm_compute in T2_1 x.

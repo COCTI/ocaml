@@ -108,4 +108,3 @@ val fresh_opt_name : ?name:Names.elt -> coq_env -> Names.elt
 val fresh_var_name : vars:coq_env -> Names.elt option -> Names.elt
 
 val may_app : ('a -> 'b -> 'b) -> 'a option -> 'b -> 'b
-
