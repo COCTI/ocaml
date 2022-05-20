@@ -33,14 +33,15 @@ type coq_term =
   | CTlet of string * coq_term option * coq_term * coq_term
   | CTif of coq_term * coq_term * coq_term
 
+type inductive =
+    { name: string; args: (string * coq_term) list; kind: coq_term;
+      cases: (string * (string * coq_term) list * coq_term option) list }
+
 type vernacular =
-    CTdefinition of string * coq_term
+  | CTdefinition of string * coq_term
   | CTfixpoint of string * coq_term
   | CTeval of coq_term
-  | CTinductive of { name : string; args : (string * coq_term) list;
-      kind : coq_term;
-      cases : (string * (string * coq_term) list * coq_term option) list;
-    }
+  | CTinductive of inductive list
   | CTverbatim of string
 
 module Names = Misc.Stdlib.String.Set
@@ -64,6 +65,7 @@ type coq_type_desc = {
     ct_args: (int * string) list; (* Type vars *)
     ct_mlargs: (int * string) list; (* ML vars *)
     ct_type: coq_term;
+    ct_coqdef: (string * coq_term list) list;
     ct_def: (string list * (string * coq_term list) list) option;
        (* cases for comparison *)
     ct_constrs: (string * string) list;
@@ -90,7 +92,8 @@ type coq_env = {
 
 val empty_vars : coq_env
 val add_type : Path.t -> coq_type_desc -> coq_env -> coq_env
-val add_exception : Path.t -> string -> coq_term list -> coq_env -> coq_env
+val add_exception :
+  Path.t -> string -> coq_term list -> coq_term list -> coq_env -> coq_env
 val add_term :
   ?toplevel:bool -> Path.t -> coq_term_desc -> coq_env -> coq_env
 val add_tvar : Types.type_expr -> Names.elt -> coq_env -> coq_env
@@ -105,4 +108,3 @@ val fresh_opt_name : ?name:Names.elt -> coq_env -> Names.elt
 val fresh_var_name : vars:coq_env -> Names.elt option -> Names.elt
 
 val may_app : ('a -> 'b -> 'b) -> 'a option -> 'b -> 'b
-

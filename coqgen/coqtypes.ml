@@ -18,6 +18,10 @@ open Types
 open Btype
 open Coqdef
 
+let rec map_snd f = function
+    [] -> []
+  | (a, b) :: l -> let c = f b in (a, c) :: map_snd f l
+
 let make_tuple_type ~def ctl =
   let unit = if def then "unit" else "ml_unit" in
   let pair = if def then "pair" else "ml_pair" in
@@ -144,7 +148,21 @@ let enter_tvars ~loc ~vars ~def tvl =
   in
   (List.mapi (fun n x -> n, x) (List.rev names), vars)
 
-let transl_typedecl ~loc ~env ~vars id td =
+let transl_constructor ~vars (cd : Types.constructor_declaration) =
+  let loc = cd.cd_loc in
+  if cd.cd_res <> None then not_allowed ~loc "GADT";
+  let cname = fresh_name ~vars (Ident.name cd.cd_id) in
+  let vars = add_reserved cname vars in
+  let args =
+    match cd.cd_args with
+    | Cstr_tuple tyl -> tyl
+    | Cstr_record _ ->
+        not_allowed ~loc "Inline record"
+  in
+  (vars, cname, args)
+
+let transl_typedecl ~env ~vars id td =
+  let loc = td.type_loc in
   let ml_name = fresh_name ~vars ("ml_" ^ Ident.name id) in
   let name = fresh_name ~vars (Ident.name id) in
   let vars = add_reserved name vars in
@@ -157,25 +175,22 @@ let transl_typedecl ~loc ~env ~vars id td =
        List.map (fun (_,v) -> ctid v) ml_params) in
   let ctd =
     { ct_name = ml_name; ct_arity = td.type_arity;
-      ct_args = params; ct_mlargs = ml_params0;
+      ct_args = params; ct_mlargs = ml_params0; ct_coqdef = [];
       ct_type = ret_type params ml_params0; ct_def = None;
       ct_compare = None; ct_constrs = []; ct_maps = [] } in
   let vars = add_type (Path.Pident id) ctd vars in
   if td.type_private <> Public then not_allowed ~loc "Private type";
+  let new_tvars = get_tvars vars in
+ (set_tvars vars old_tvars,
+  fun vars ->
+  let old_tvars = get_tvars vars in
+  let vars = set_tvars vars new_tvars in
   begin match td.type_kind with
   | Type_variant (cl, _) ->
       let names_types, vars =
         List.fold_left
-          (fun (ntl, vars) (cd : Types.constructor_declaration) ->
-            if cd.cd_res <> None then not_allowed ~loc "GADT";
-            let cname = fresh_name ~vars (Ident.name cd.cd_id) in
-            let vars = add_reserved cname vars in
-            let args =
-              match cd.cd_args with
-              | Cstr_tuple tyl -> tyl
-              | Cstr_record _ ->
-                  not_allowed ~loc "Inline record"
-            in
+          (fun (ntl, vars) cd ->
+            let vars, cname, args = transl_constructor ~vars cd in
             ((cname, args) :: ntl, vars))
           ([],vars) cl
       in
@@ -196,18 +211,16 @@ let transl_typedecl ~loc ~env ~vars id td =
       let ctd = { ctd with ct_args = params; ct_mlargs = ml_params;
                   ct_type = ret_type params ml_params } in
       let vars = add_type (Path.Pident id) ctd vars in
+      let cmp_arg = transl_type ~loc ~env ~vars in
+      let coq_def_arg = transl_type ~loc ~env ~vars ~def:true in
       let cmp_cases =
-        List.map snd ml_params0,
-        List.map (fun (cname, args) ->
-          let ctl_def = List.map (transl_type ~loc ~env ~vars) args in
-          (cname, ctl_def))
-          names_types
+        List.map snd ml_params0, map_snd (List.map cmp_arg) names_types
       and ct_constrs =
         List.map2 (fun cd (cname, _) -> (Ident.name cd.cd_id, cname))
           cl names_types
       and cases =
         List.map (fun (cname, args) ->
-          let mkarg arg = ("_", transl_type ~loc ~env ~vars ~def:true arg) in
+          let mkarg arg = ("_", coq_def_arg arg) in
           cname, List.map mkarg args, None)
           names_types
       in
@@ -216,10 +229,52 @@ let transl_typedecl ~loc ~env ~vars id td =
       let args =
         List.map (fun (_,v) -> v, CTsort Type) params
         @ List.map (fun (_,v) -> v, ml_tid) ml_params in
-      CTinductive { name; args; kind = CTsort Type; cases },
+      { name; args; kind = CTsort Type; cases },
       set_tvars vars old_tvars
   | _ -> not_allowed ~loc "Non-inductive type definition"
-  end
+  end)
+
+let transl_typedecls ~env ~vars td_list =
+  let open Typedtree in
+  let (vars, clos) =
+    List.fold_left
+      (fun (vars, clos) td ->
+        let (vars, clo) = transl_typedecl ~env ~vars td.typ_id td.typ_type in
+        (vars, clo::clos))
+      (vars, []) td_list
+  in
+  let (inds, vars) =
+    List.fold_left
+      (fun (inds, vars) clo ->
+        let (ind, vars) = clo vars in (ind::inds, vars))
+      ([], vars) clos
+  in
+  (CTinductive inds, vars)
+
+(*
+let rec make_exn_name = function
+    Pident id -> Ident.name id
+  | Pdot(p, s) -> make_exn_name p ^ "__" ^ s
+  | Papply(p1,p2) -> make_exn_name p1 ^ "__'" ^ make_exn_name p2 ^ "'"
+*)
+
+let constructor_of_extension excon =
+  let exty = excon.Typedtree.ext_type in
+  { cd_id = excon.Typedtree.ext_id;
+    cd_args = exty.ext_args;
+    cd_res = exty.ext_ret_type;
+    cd_loc = exty.ext_loc;
+    cd_attributes = exty.ext_attributes;
+    cd_uid = exty.ext_uid }
+
+let transl_exception ~loc ~env ~vars excon =
+  let cd = constructor_of_extension excon in
+  let (vars, cname, args) = transl_constructor ~vars cd in
+  let cmp_arg = transl_type ~loc ~env ~vars in
+  let coq_def_arg = transl_type ~loc ~env ~vars ~def:true in
+  let cmp_args = List.map cmp_arg args in
+  let coq_def_args = List.map coq_def_arg args in
+  add_exception (Path.Pident cd.cd_id) cname cmp_args coq_def_args vars
 
 let enter_free_variables ~loc ~vars ty =
   (*close_type ty;*)

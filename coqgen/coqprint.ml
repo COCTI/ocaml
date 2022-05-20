@@ -177,20 +177,26 @@ let emit_vernacular ppf = function
   | CTeval ct ->
       fprintf ppf "@[<2>Eval vm_compute in@ %a.@]" print_term ct;
       newlines := 2
-  | CTinductive td ->
-      fprintf ppf "@[<hv2>@[<2>Inductive %s" td.name;
-      List.iter (print_arg_typed ppf) td.args;
-      fprintf ppf "@ :=@]";
-      let bar = if List.length td.cases = 1 then "" else "| " in
-      List.iter
-        (fun (s, args, ret) ->
-          fprintf ppf "@ @[<2>%s%s" bar s;
-          List.iter (print_arg_typed ppf) args;
-          match ret with
-          | None -> fprintf ppf "@]"
-          | Some ret -> fprintf ppf "@ : %a@]" print_term ret)
-        td.cases;
-      fprintf ppf ".@]";
+  | CTinductive tds ->
+      let first = ref true in
+      fprintf ppf "@[<hv>@[<hv2>@[<2>Inductive";
+      List.iter (fun td ->
+        if !first then first := false
+        else fprintf ppf "@]@ @[<hv2>@[<2>with";
+        fprintf ppf " %s" td.name;
+        List.iter (print_arg_typed ppf) td.args;
+        fprintf ppf "@ :=@]";
+        let bar = if List.length td.cases = 1 then "" else "| " in
+        List.iter
+          (fun (s, args, ret) ->
+            fprintf ppf "@ @[<2>%s%s" bar s;
+            List.iter (print_arg_typed ppf) args;
+            match ret with
+            | None -> fprintf ppf "@]"
+            | Some ret -> fprintf ppf "@ : %a@]" print_term ret)
+          td.cases)
+        tds;
+      fprintf ppf ".@]@]";
       newlines := 2
 
 let print_newlines ppf () =
