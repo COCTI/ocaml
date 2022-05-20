@@ -180,3 +180,26 @@ Definition h := 100000.
 Definition x := T0 O.
 
 Eval vm_compute in T2_1 x.
+
+Definition failwith (T_1 : ml_type) (s : coq_type ml_string)
+  : M (coq_type T_1) := raise T_1 (Failure s).
+
+Fixpoint length_aux (h : nat) (T_1 : ml_type) (len : coq_type ml_int)
+  (param : coq_type (ml_list T_1)) : M (coq_type ml_int) :=
+  if h is h.+1 then
+    match param with
+    | @nil _ => Ret len
+    | _ :: l => length_aux h T_1 (Int63.add len 1%int63) l
+    end
+  else FailGas.
+
+Definition length (h : nat) (T_1 : ml_type) (l : coq_type (ml_list T_1))
+  : M (coq_type ml_int) := length_aux h T_1 0%int63 l.
+
+Definition cons_1 (T_1 : ml_type) (a : coq_type T_1)
+  (l : coq_type (ml_list T_1)) : coq_type (ml_list T_1) := a :: l.
+
+Definition hd (T_1 : ml_type) (param : coq_type (ml_list T_1))
+  : M (coq_type T_1) :=
+  match param with | @nil _ => failwith T_1 "hd"%string | a :: _ => Ret a end.
+
