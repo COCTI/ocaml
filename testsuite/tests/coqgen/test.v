@@ -229,6 +229,15 @@ Definition harmonic (x y : coq_type ml_float) : coq_type ml_float :=
   div%float (2.0%float)
     (add%float (div%float (1.0%float) x) (div%float (1.0%float) y)).
 
+Fixpoint float_sum (h : nat) (l : coq_type (ml_list ml_float))
+  : M (coq_type ml_float) :=
+  if h is h.+1 then
+    match l with
+    | @nil _ => Ret (0.0%float)
+    | first :: rest => do v <- float_sum h rest; Ret (add%float first v)
+    end
+  else FailGas.
+
 Definition ref' (T : ml_type) := newref T.
 
 Definition id (T : ml_type) (h_1 : coq_type T) : coq_type T := h_1.
