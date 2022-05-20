@@ -9,6 +9,11 @@ compile_only = "true"
 (* float *)
 let div x y = x /. y;;
 let harmonic x y = 2. /. ((1. /. x) +. (1. /. y));;
+(* float loop *)
+let rec float_sum l = match l with
+  | [] -> 0.0
+  | first :: rest -> first +. float_sum rest;;
+
 
 (* redefinition *)
 let ref' = ref;;
