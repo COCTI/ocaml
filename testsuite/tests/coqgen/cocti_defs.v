@@ -108,7 +108,7 @@ Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
   fun env =>
     let: mkEnv c refs := env in
     let key := mkkey c T in
-    Ret (mkloc key) (mkEnv (succ c) (mkbind key val :: refs)).
+    Ret (mkloc key) (mkEnv (c + 1)%sint63 (mkbind key val :: refs)).
 
 Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
@@ -202,6 +202,13 @@ Definition nat_of_int (n : int) : M nat :=
 Definition bounded_nat_of_int (m : nat) (n : int) : M nat :=
   do n <- nat_of_int n;
   if n < m then Ret n else Fail BoundedNat.
+
+Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
+  if h is h.+1 then
+    if Sint63.compare n_1 n_2 is Gt then
+      Ret tt
+    else (do _ <- b n_1 ; forloop h (n_1 + 1)%sint63 n_2 b)
+  else FailGas.
 
 (* Subtyping for encoding the relaxed value restriction *)
 Definition cast_empty T (v : empty) : coq_type T :=
