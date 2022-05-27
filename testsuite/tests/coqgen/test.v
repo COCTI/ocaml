@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrnat seq.
-Require Import Int63 Ascii String Floats cocti_defs.
+Require Import Sint63 Ascii String Floats cocti_defs.
 
 (* Generated representation of all ML types *)
 Inductive ml_type :=
@@ -107,7 +107,7 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
   if h is h.+1 then
     let compare_rec := compare_rec h in
     match T as T return coq_type T -> coq_type T -> M comparison with
-    | ml_int => fun x y => Ret (Int63.compare x y)
+    | ml_int => fun x y => Ret (Sint63.compare x y)
     | ml_char => fun x y => Ret (compare_ascii x y)
     | ml_float => fun x y => Ret (compare_float x y)
     | ml_bool => fun x y => Ret (Bool.compare x y)

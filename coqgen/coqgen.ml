@@ -187,7 +187,7 @@ let transl_implementation _modname st =
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in
 
   CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
-\nRequire Import Int63 Ascii String Floats cocti_defs.\
+\nRequire Import Sint63 Ascii String Floats cocti_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
   CTverbatim "(* Module argument for monadic functor *)\
