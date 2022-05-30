@@ -42,6 +42,11 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * (Longident.t * type_expr) list
+  | Texpand of type_expr * Path.t
+        (* Texpand is like Tlink but the result of an expansion;
+           Path.t remembers the original name. *)
+        (* NB: let's move Tlink and Tsubst (temporary nodes) to the end of
+           this definition *)
 
 and row_desc =
     { row_fields: (label * row_field) list;
@@ -65,6 +70,7 @@ and _ row_field_gen =
 and abbrev_memo =
     Mnil
   | Mcons of private_flag * Path.t * type_expr * type_expr * abbrev_memo
+        (* NB: should use an inline record *)
   | Mlink of abbrev_memo ref
 
 and any = [`some | `none | `var]
@@ -510,18 +516,31 @@ let commu_var () = Cvar {commu=Cunknown}
 
 let rec repr_link (t : type_expr) d : type_expr -> type_expr =
  function
-   {desc = Tlink t' as d'} ->
+   {desc = Tlink t' | Texpand (t', _) as d'}->
+     let d' = match d with
+     | Texpand (_, p) -> Texpand (t', p)
+           (* keep the original name if it exists *)
+           (* NB: Texpand is allocated at each recursion;
+              could be optimized *)
+     | _ -> d'
+     in
      repr_link t d' t'
  | {desc = Tfield (_, k, _, t') as d'}
    when field_kind_internal_repr k = FKabsent ->
      repr_link t d' t'
+     (* In the case of Tfield, d does not contain an abbreviation,
+        thus we do not need a case analysis like above. *)
  | t' ->
      log_change (Ccompress (t, t.desc, d));
      t.desc <- d;
      t'
 
-let repr_link1 t = function
-   {desc = Tlink t' as d'} ->
+let repr_link1 t d = function
+   {desc = Tlink t' | Texpand (t', _) as d'}->
+     let d' = match d with
+     | Texpand (_, p) -> Texpand (t', p)
+     | _ -> d'
+     in
      repr_link t d' t'
  | {desc = Tfield (_, k, _, t') as d'}
    when field_kind_internal_repr k = FKabsent ->
@@ -529,11 +548,12 @@ let repr_link1 t = function
  | t' -> t'
 
 let repr t =
-  match t.desc with
-   Tlink t' ->
-     repr_link1 t t'
+  let d = t.desc in
+  match d with
+   Tlink t' | Texpand (t', _) ->
+     repr_link1 t d t'
  | Tfield (_, k, _, t') when field_kind_internal_repr k = FKabsent ->
-     repr_link1 t t'
+     repr_link1 t d t'
  | _ -> t
 
 (* getters for type_expr *)
