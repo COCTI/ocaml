@@ -132,6 +132,12 @@ type type_desc =
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
 
+  | Texpand of type_expr * Path.t
+  (** [Texpand] is like [Tlink] but the result of an expansion;
+      [Path.t] remembers the original name pointing to a member in
+      [abbrevs] field of [transient_expr]. *)
+
+
 and fixed_explanation =
   | Univar of type_expr (** The row type was bound to an univar *)
   | Fixed_private (** The row type is private *)
@@ -217,6 +223,7 @@ val field_kind_internal_repr: field_kind -> field_kind
 (** Getters for type_expr; calls repr before answering a value *)
 
 val get_desc: type_expr -> type_desc
+val get_abbrevs: type_expr -> (Path.t * type_expr list) list
 val get_level: type_expr -> int
 val get_scope: type_expr -> int
 val get_id: type_expr -> int
@@ -225,6 +232,7 @@ val get_id: type_expr -> int
     Should only be used immediately after [Transient_expr.repr] *)
 type transient_expr = private
       { mutable desc: type_desc;
+        mutable abbrevs: (Path.t * type_expr list) list;
         mutable level: int;
         mutable scope: int;
         id: int }
@@ -232,7 +240,9 @@ type transient_expr = private
 module Transient_expr : sig
   (** Operations on [transient_expr] *)
 
-  val create: type_desc -> level: int -> scope: int -> id: int -> transient_expr
+  val create:
+      type_desc -> abbrevs: (Path.t * type_expr list) list ->
+      level: int -> scope: int -> id: int -> transient_expr
   val set_desc: transient_expr -> type_desc -> unit
   val set_level: transient_expr -> int -> unit
   val set_scope: transient_expr -> int -> unit
@@ -246,7 +256,10 @@ module Transient_expr : sig
           Fail if already instantiated. *)
 end
 
-val create_expr: type_desc -> level: int -> scope: int -> id: int -> type_expr
+val create_expr:
+    type_desc -> abbrevs: (Path.t * type_expr list) list ->
+    level: int -> scope: int -> id: int -> type_expr
+
 
 (** Functions and definitions moved from Btype *)
 
@@ -706,9 +719,18 @@ val undo_compress: snapshot -> unit
     The old values are logged and reverted on backtracking.
  *)
 
+val link_expand: type_expr -> type_expr -> unit
+        (* Set the desc field of [t1] to [Texpand (t2, p)],
+           assuming that [t1] is [Tconstr (p, args, _)], and
+           logging the old values if there is an active snapshot.
+           To be used only when expanding a type abbreviation. *)
 val link_type: type_expr -> type_expr -> unit
         (* Set the desc field of [t1] to [Tlink t2], logging the old
-           value if there is an active snapshot *)
+           values if there is an active snapshot.
+           To be used during unification.
+           Must only be used if
+           - [t1] is [Tvar], or
+           - [t1] and [t2] have the same [type_desc] constructor. *)
 val set_type_desc: type_expr -> type_desc -> unit
         (* Set directly the desc field, without sharing *)
 val set_level: type_expr -> int -> unit

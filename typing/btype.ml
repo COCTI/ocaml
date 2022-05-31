@@ -276,21 +276,22 @@ let fold_type_desc f init = function
       let result = f init ty1 in
       f result ty2
   | Tnil                -> init
-  | Tlink _
-  | Tsubst _            -> assert false
   | Tunivar _           -> init
   | Tpoly (ty, tyl)     ->
     let result = f init ty in
     List.fold_left f result tyl
-  | Tpackage (_, fl)  ->
+  | Tpackage (_, fl)    ->
     List.fold_left (fun result (_n, ty) -> f result ty) init fl
+  | Tlink _
+  | Tsubst _
+  | Texpand _           -> assert false
 
-and fold_type_expr f init ty =
+let rec fold_type_expr f init ty =
   let result = fold_type_desc f init (get_desc ty) in
   let abbrevs = get_abbrevs ty in
   if abbrevs = [] then result else
   let fold_abbrev init (_, args) =
-    List.fold_left (fold_type_desc f) init args in
+    List.fold_left (fold_type_expr f) init args in
   List.fold_left fold_abbrev result abbrevs
 
 let iter_type_expr f ty =
@@ -444,7 +445,7 @@ let copy_row f fixed row keep more =
 
 let copy_commu c = if is_commu_ok c then commu_ok else commu_var ()
 
-let rec copy_type_desc ?(keep_names=false) f = function
+let copy_type_desc ?(keep_names=false) f = function
     Tvar _ as ty        -> if keep_names then ty else Tvar None
   | Tarrow (p, ty1, ty2, c)-> Tarrow (p, f ty1, f ty2, copy_commu c)
   | Ttuple l            -> Ttuple (List.map f l)
@@ -457,13 +458,14 @@ let rec copy_type_desc ?(keep_names=false) f = function
       Tfield (p, field_kind_internal_repr k, f ty1, f ty2)
       (* the kind is kept shared, with indirections removed for performance *)
   | Tnil                -> Tnil
-  | Tlink ty            -> copy_type_desc f (get_desc ty)
-  | Tsubst _            -> assert false
   | Tunivar _ as ty     -> ty (* always keep the name *)
   | Tpoly (ty, tyl)     ->
       let tyl = List.map f tyl in
       Tpoly (f ty, tyl)
-  | Tpackage (p, fl)  -> Tpackage (p, List.map (fun (n, ty) -> (n, f ty)) fl)
+  | Tpackage (p, fl)    -> Tpackage (p, List.map (fun (n, ty) -> (n, f ty)) fl)
+  | Tlink _
+  | Tsubst _
+  | Texpand _           -> assert false
 
 (* Utilities for copying *)
 

@@ -186,7 +186,7 @@ let rec typexp copy_scope s ty =
       else newgenstub ~scope:(get_scope ty)
     in
     For_copy.redirect_desc copy_scope ty (Tsubst (ty', None));
-    let desc =
+    let desc' =
       if has_fixed_row then
         match get_desc tm with (* PR#7348 *)
           Tconstr (Pdot(m,i), tl, _abbrev) ->
@@ -263,7 +263,7 @@ let rec typexp copy_scope s ty =
           Tlink (typexp copy_scope s t2)
       | _ -> copy_type_desc (typexp copy_scope s) desc
     in
-    Transient_expr.set_stub_desc ty' desc;
+    Transient_expr.set_stub_desc ty' desc';
     ty'
 
 (*

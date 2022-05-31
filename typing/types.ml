@@ -43,8 +43,6 @@ and type_desc =
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * (Longident.t * type_expr) list
   | Texpand of type_expr * Path.t
-        (* Texpand is like Tlink but the result of an expansion;
-           Path.t remembers the original name. *)
         (* NB: let's move Tlink and Tsubst (temporary nodes) to the end of
            this definition *)
 
@@ -458,6 +456,7 @@ let signature_item_id = function
 
 type change =
     Ctype of type_expr * type_desc
+  | Cabbrevs of type_expr * (Path.t * type_expr list) list
   | Ccompress of type_expr * type_desc * type_desc
   | Clevel of type_expr * int
   | Cscope of type_expr * int
@@ -564,21 +563,13 @@ let get_scope t = (repr t).scope
 let get_id t = (repr t).id
 let get_abbrevs t = (repr t).abbrevs
 
-let add_abbrev ty path args =
-  let ty = repr ty in
-  if List.exists (fun (p,_) -> Path.same p path) ty.abbrevs then () else
-  ty.abbrevs <- (path, args) :: ty.abbrevs
-
-let inherit_abbrevs ~from:ty ty' =
-  let abbrevs = get_abbrevs ty in
-  List.iter (fun (path,args) -> add_abbrev ty' path args) abbrevs
-
 (* transient type_expr *)
 
 module Transient_expr = struct
-  let create desc ~level ~scope ~id = {desc; level; scope; id}
+  let create desc ~abbrevs ~level ~scope ~id = {desc; abbrevs; level; scope; id}
   let set_desc ty d = ty.desc <- d
   let set_stub_desc ty d = assert (ty.desc = Tvar None); ty.desc <- d
+  let set_abbrevs ty a = ty.abbrevs <- a
   let set_level ty lv = ty.level <- lv
   let set_scope ty sc = ty.scope <- sc
   let coerce ty = ty
@@ -676,7 +667,7 @@ let rec row_field_ext (fi : row_field) =
   | RFeither {ext = {contents = RFnone} as ext} -> ext
   | RFeither {ext = {contents = RFeither _ | RFpresent _ | RFabsent as rf}} ->
       row_field_ext rf
-  | _ -> Misc.fatal_error "Types.row_field_ext "
+  | _ -> Misc.fatal_error "Types.row_field_ext"
 
 let rf_present oty = RFpresent oty
 let rf_absent = RFabsent
@@ -723,7 +714,7 @@ let create_expr = Transient_expr.create
 
 let newty3 ~level ~scope desc  =
   incr new_id;
-  create_expr desc ~level ~scope ~id:!new_id
+  create_expr desc ~abbrevs:[] ~level ~scope ~id:!new_id
 
 let newty2 ~level desc =
   newty3 ~level ~scope:Ident.lowest_scope desc
@@ -734,6 +725,7 @@ let newty2 ~level desc =
 
 let undo_change = function
     Ctype  (ty, desc) -> Transient_expr.set_desc ty desc
+  | Cabbrevs (ty, abbrevs) -> Transient_expr.set_abbrevs ty abbrevs
   | Ccompress (ty, desc, _) -> Transient_expr.set_desc ty desc
   | Clevel (ty, level) -> Transient_expr.set_level ty level
   | Cscope (ty, scope) -> Transient_expr.set_scope ty scope
@@ -748,10 +740,39 @@ let last_snapshot = Local_store.s_ref 0
 
 let log_type ty =
   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+let log_abbrevs ty =
+  if ty.id <= !last_snapshot then log_change (Cabbrevs (ty, ty.abbrevs))
+
+(* Never forget to [log_abbrevs] before using [add_abbrev] *)
+let add_abbrev ty path args =
+  let ty = repr ty in
+  if List.exists (fun (p,_) -> Path.same p path) ty.abbrevs then () else
+  ty.abbrevs <- (path, args) :: ty.abbrevs
+
+let inherit_abbrevs ~from:ty ty' =
+  let abbrevs = get_abbrevs ty in
+  if abbrevs = [] then () else
+  let () = log_abbrevs ty' in
+  List.iter (fun (path,args) -> add_abbrev ty' path args) abbrevs
+
+let link_expand ty ty'  =
+  let ty = repr ty in
+  let ty' = repr ty' in
+  if ty == ty' then () else
+  match ty.desc with
+    Tconstr (path, args, _) ->
+      inherit_abbrevs ~from:ty ty';
+      log_abbrevs ty';
+      add_abbrev ty' path args;
+      log_type ty;
+      Transient_expr.set_desc ty (Texpand (ty', path))
+  | _ -> Misc.fatal_error "Types.link_expand"
+
 let link_type ty ty' =
   let ty = repr ty in
   let ty' = repr ty' in
   if ty == ty' then () else begin
+  inherit_abbrevs ~from:ty ty';
   log_type ty;
   let desc = ty.desc in
   Transient_expr.set_desc ty (Tlink ty');
@@ -771,7 +792,7 @@ let link_type ty ty' =
   end
   (* ; assert (check_memorized_abbrevs ()) *)
   (*  ; check_expans [] ty' *)
-(* TODO: consider eliminating set_type_desc, replacing it with link types *)
+
 let set_type_desc ty td =
   let ty = repr ty in
   if td != ty.desc then begin
@@ -805,7 +826,7 @@ let rec link_row_field_ext ~(inside : row_field) (v : row_field) =
       log_change (Crow e); e := v
   | RFeither {ext = {contents = RFeither _ | RFpresent _ | RFabsent as rf}} ->
       link_row_field_ext ~inside:rf v
-  | _ -> invalid_arg "Types.link_row_field_ext"
+  | _ -> Misc.fatal_error "Types.link_row_field_ext"
 
 let rec link_kind ~(inside : field_kind) (k : field_kind) =
   match inside with
@@ -818,7 +839,7 @@ let rec link_kind ~(inside : field_kind) (k : field_kind) =
       end
   | FKvar {field_kind = FKvar _ | FKpublic | FKabsent as inside} ->
       link_kind ~inside k
-  | _ -> invalid_arg "Types.link_kind"
+  | _ -> Misc.fatal_error "Types.link_kind"
 
 let rec commu_repr : commutable -> commutable = function
   | Cvar {commu = Cvar _ | Cok as commu} -> commu_repr commu
@@ -835,7 +856,7 @@ let rec link_commu ~(inside : commutable) (c : commutable) =
       end
   | Cvar {commu = Cvar _ | Cok as inside} ->
       link_commu ~inside c
-  | _ -> invalid_arg "Types.link_commu"
+  | _ -> Misc.fatal_error "Types.link_commu"
 
 let set_commu_ok c = link_commu ~inside:c Cok
 

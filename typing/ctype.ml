@@ -1548,9 +1548,7 @@ let expand_abbrev_gen kind find_type_expansion env ty =
             update_scope scope ty';
             ty'
       in
-      inherit_abbrevs ~from:ty ty';
-      link_type ty ty';
-      add_abbrev ty' path args;
+      link_expand ty ty';
       ty'
   | _ ->
       assert false
@@ -5168,7 +5166,7 @@ let rec nondep_type_rec ?(expand_private=false) env ids ty =
   with Not_found ->
     let ty' = newgenstub ~scope:(get_scope ty) in
     TypeHash.add nondep_hash ty ty';
-    let desc =
+    let desc' =
       match get_desc ty with
       | Tconstr(p, tl, _abbrev) as desc ->
           begin try
@@ -5230,7 +5228,7 @@ let rec nondep_type_rec ?(expand_private=false) env ids ty =
           end
       | desc -> copy_type_desc (nondep_type_rec env ids) desc
     in
-    Transient_expr.set_stub_desc ty' desc;
+    Transient_expr.set_stub_desc ty' desc';
     ty'
 
 let nondep_type env id ty =
