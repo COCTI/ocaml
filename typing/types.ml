@@ -563,6 +563,15 @@ let get_scope t = (repr t).scope
 let get_id t = (repr t).id
 let get_abbrevs t = (repr t).abbrevs
 
+let get_expand t =
+  ignore (repr t);
+  match t.desc with Texpand (_, p) -> Some p | _ -> None
+(*
+let fold_expand t f default =
+  ignore (repr t);
+  match t.desc with Texpand (_, p, args) -> f p args | _ -> default
+*)
+
 (* transient type_expr *)
 
 module Transient_expr = struct

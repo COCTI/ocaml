@@ -132,10 +132,10 @@ type type_desc =
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
 
-  | Texpand of type_expr * Path.t
+  | Texpand of type_expr * Path.t * type_expr list
   (** [Texpand] is like [Tlink] but the result of an expansion;
-      [Path.t] remembers the original name pointing to a member in
-      [abbrevs] field of [transient_expr]. *)
+      [Path.t] and [type_expr list] remember the original declaration
+      that is also a member in [abbrevs] field of [transient_expr]. *)
 
 
 and fixed_explanation =
