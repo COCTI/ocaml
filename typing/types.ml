@@ -42,7 +42,7 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * (Longident.t * type_expr) list
-  | Texpand of type_expr * Path.t
+  | Texpand of type_expr * Path.t * type_expr list
         (* NB: let's move Tlink and Tsubst (temporary nodes) to the end of
            this definition *)
 
@@ -515,10 +515,10 @@ let commu_var () = Cvar {commu=Cunknown}
 
 let rec repr_link (t : type_expr) d : type_expr -> type_expr =
  function
-   {desc = Tlink t' | Texpand (t', _) as d'}->
+   {desc = Tlink t' | Texpand (t', _, _) as d'} ->
      let d' = match d with
-     | Texpand (_, p) -> Texpand (t', p)
-           (* keep the original name if it exists *)
+     | Texpand (_, path, args) -> Texpand (t', path, args)
+           (* keep the original name and args if they exist *)
            (* NB: Texpand is allocated at each recursion;
               could be optimized *)
      | _ -> d'
@@ -535,9 +535,9 @@ let rec repr_link (t : type_expr) d : type_expr -> type_expr =
      t'
 
 let repr_link1 t d = function
-   {desc = Tlink t' | Texpand (t', _) as d'}->
+   {desc = Tlink t' | Texpand (t', _, _) as d'} ->
      let d' = match d with
-     | Texpand (_, p) -> Texpand (t', p)
+     | Texpand (_, path, args) -> Texpand (t', path, args)
      | _ -> d'
      in
      repr_link t d' t'
@@ -549,7 +549,7 @@ let repr_link1 t d = function
 let repr t =
   let d = t.desc in
   match d with
-   Tlink t' | Texpand (t', _) ->
+   Tlink t' | Texpand (t', _, _) ->
      repr_link1 t d t'
  | Tfield (_, k, _, t') when field_kind_internal_repr k = FKabsent ->
      repr_link1 t d t'
@@ -565,12 +565,7 @@ let get_abbrevs t = (repr t).abbrevs
 
 let get_expand t =
   ignore (repr t);
-  match t.desc with Texpand (_, p) -> Some p | _ -> None
-(*
-let fold_expand t f default =
-  ignore (repr t);
-  match t.desc with Texpand (_, p, args) -> f p args | _ -> default
-*)
+  match t.desc with Texpand (_, path, args) -> Some (path, args) | _ -> None
 
 (* transient type_expr *)
 
@@ -752,36 +747,46 @@ let log_type ty =
 let log_abbrevs ty =
   if ty.id <= !last_snapshot then log_change (Cabbrevs (ty, ty.abbrevs))
 
-(* Never forget to [log_abbrevs] before using [add_abbrev] *)
+(* Be careful not to forget [log_abbrevs] before using [add_abbrev] *)
 let add_abbrev ty path args =
   let ty = repr ty in
   if List.exists (fun (p,_) -> Path.same p path) ty.abbrevs then () else
   ty.abbrevs <- (path, args) :: ty.abbrevs
 
-let inherit_abbrevs ~from:ty ty' =
+let inherit_abbrevs ~from:ty ~into:ty' =
   let abbrevs = get_abbrevs ty in
   if abbrevs = [] then () else
   let () = log_abbrevs ty' in
   List.iter (fun (path,args) -> add_abbrev ty' path args) abbrevs
+
+let inherit_map_abbrevs ~from:ty ~into:ty' ~fpath ~farg =
+  let abbrevs = get_abbrevs ty in
+  if abbrevs = [] then () else
+  let () = log_abbrevs ty' in
+  List.iter
+    (fun (path, args) -> add_abbrev ty' (fpath path) (List.map farg args))
+    abbrevs
+        
+
 
 let link_expand ty ty'  =
   let ty = repr ty in
   let ty' = repr ty' in
   if ty == ty' then () else
   match ty.desc with
-    Tconstr (path, args, _) ->
-      inherit_abbrevs ~from:ty ty';
+    Tconstr (path, args, _memo) ->
+      inherit_abbrevs ~from:ty ~into:ty';
       log_abbrevs ty';
       add_abbrev ty' path args;
       log_type ty;
-      Transient_expr.set_desc ty (Texpand (ty', path))
+      Transient_expr.set_desc ty (Texpand (ty', path, args))
   | _ -> Misc.fatal_error "Types.link_expand"
 
 let link_type ty ty' =
   let ty = repr ty in
   let ty' = repr ty' in
   if ty == ty' then () else begin
-  inherit_abbrevs ~from:ty ty';
+  inherit_abbrevs ~from:ty ~into:ty';
   log_type ty;
   let desc = ty.desc in
   Transient_expr.set_desc ty (Tlink ty');

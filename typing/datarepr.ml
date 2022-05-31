@@ -172,8 +172,9 @@ let extension_descr ~current_unit path_ext ext =
       cstr_uid = ext.ext_uid;
     }
 
-let none =
-  create_expr (Ttuple []) ~level:(-1) ~scope:Btype.generic_level ~id:(-1)
+let none : type_expr =
+  create_expr
+    (Ttuple []) ~abbrevs:[] ~level:(-1) ~scope:Btype.generic_level ~id:(-1)
     (* Clearly ill-formed type *)
 
 let dummy_label =

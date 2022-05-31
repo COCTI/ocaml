@@ -288,10 +288,11 @@ let fold_type_desc f init = function
 
 let rec fold_type_expr f init ty =
   let result = fold_type_desc f init (get_desc ty) in
-  let abbrevs = get_abbrevs ty in
-  if abbrevs = [] then result else
   let fold_abbrev init (_, args) =
     List.fold_left (fold_type_expr f) init args in
+  let result =
+    Option.fold ~none:result ~some:(fold_abbrev result) (get_expand ty) in
+  let abbrevs = get_abbrevs ty in
   List.fold_left fold_abbrev result abbrevs
 
 let iter_type_expr f ty =

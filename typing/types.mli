@@ -228,6 +228,8 @@ val get_level: type_expr -> int
 val get_scope: type_expr -> int
 val get_id: type_expr -> int
 
+val get_expand: type_expr -> (Path.t * type_expr list) option
+
 (** Transient [type_expr].
     Should only be used immediately after [Transient_expr.repr] *)
 type transient_expr = private
@@ -244,6 +246,7 @@ module Transient_expr : sig
       type_desc -> abbrevs: (Path.t * type_expr list) list ->
       level: int -> scope: int -> id: int -> transient_expr
   val set_desc: transient_expr -> type_desc -> unit
+  val set_abbrevs: transient_expr -> (Path.t * type_expr list) list -> unit
   val set_level: transient_expr -> int -> unit
   val set_scope: transient_expr -> int -> unit
   val repr: type_expr -> transient_expr
@@ -259,7 +262,6 @@ end
 val create_expr:
     type_desc -> abbrevs: (Path.t * type_expr list) list ->
     level: int -> scope: int -> id: int -> type_expr
-
 
 (** Functions and definitions moved from Btype *)
 
@@ -718,6 +720,10 @@ val undo_compress: snapshot -> unit
 (** Functions to use when modifying a type (only Ctype?).
     The old values are logged and reverted on backtracking.
  *)
+
+val inherit_map_abbrevs:
+    from:type_expr -> into:type_expr ->
+      fpath:(Path.t -> Path.t) -> farg:(type_expr -> type_expr) -> unit
 
 val link_expand: type_expr -> type_expr -> unit
         (* Set the desc field of [t1] to [Texpand (t2, p)],

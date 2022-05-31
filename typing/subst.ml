@@ -141,7 +141,7 @@ let reset_for_saving () = new_id := -1
 let newpersty desc =
   decr new_id;
   create_expr
-    desc ~level:generic_level ~scope:Btype.lowest_level ~id:!new_id
+    desc ~abbrevs:[] ~level:generic_level ~scope:Btype.lowest_level ~id:!new_id
 
 (* ensure that all occurrences of 'Tvar None' are physically shared *)
 let tvar_none = Tvar None
@@ -264,6 +264,8 @@ let rec typexp copy_scope s ty =
       | _ -> copy_type_desc (typexp copy_scope s) desc
     in
     Transient_expr.set_stub_desc ty' desc';
+    inherit_map_abbrevs
+      ~from:ty ~into:ty' ~fpath:(type_path s) ~farg:(typexp copy_scope s);
     ty'
 
 (*

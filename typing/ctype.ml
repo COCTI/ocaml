@@ -1339,7 +1339,7 @@ let rec copy_sep ~cleanup_scope ~fixed ~free ~bound ~may_share
           (get_id ty, (t, bound)) :: visited
       | Tvar _ | Tfield _ | Tnil | Tpoly _ | Tunivar _ ->
           visited
-      | Tlink _ | Tsubst _ ->
+      | Tlink _ | Tsubst _ | Texpand _ ->
           assert false
     in
     let copy_rec = copy_sep ~cleanup_scope ~fixed ~free ~bound visited in
@@ -1370,6 +1370,8 @@ let rec copy_sep ~cleanup_scope ~fixed ~free ~bound ~may_share
       | _ -> copy_type_desc (copy_rec ~may_share:true) desc
     in
     Transient_expr.set_stub_desc t desc';
+    inherit_map_abbrevs
+      ~from:ty ~into:t ~fpath:(fun x -> x) ~farg:(copy_rec ~may_share:true);
     t
   end
 
