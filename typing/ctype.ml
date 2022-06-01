@@ -1646,7 +1646,7 @@ let rec extract_concrete_typedecl env ty =
   | Tarrow _ | Ttuple _ | Tobject _ | Tfield _ | Tnil
   | Tvariant _ | Tpackage _ -> Has_no_typedecl
   | Tvar _ | Tunivar _ -> May_have_typedecl
-  | Tlink _ | Tsubst _ -> assert false
+  | Tlink _ | Tsubst _ | Texpand _ -> assert false
 
 (* Implementing function [expand_head_opt], the compiler's own version of
    [expand_head] used for type-based optimisations.
@@ -4678,14 +4678,14 @@ let rec build_subtype env (visited : transient_expr list)
         warn := true;
         (t, Unchanged)
       end
-  | Tsubst _ | Tlink _ ->
-      assert false
   | Tpoly(t1, tl) ->
       let (t1', c) = build_subtype env visited loops posi level t1 in
       if c > Unchanged then (newty (Tpoly(t1', tl)), c)
       else (t, Unchanged)
   | Tunivar _ | Tpackage _ ->
       (t, Unchanged)
+  | Tsubst _ | Tlink _ | Texpand _ ->
+      assert false
 
 let enlarge_type env ty =
   warn := false;

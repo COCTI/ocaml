@@ -492,6 +492,7 @@ let rec raw_type ppf ty =
   let ty = safe_repr [] ty in
   if List.memq ty !visited then fprintf ppf "{id=%d}" ty.id else begin
     visited := ty :: !visited;
+    (* TODO: print abbrevs *)
     fprintf ppf "@[<1>{id=%d;level=%d;scope=%d;desc=@,%a}@]" ty.id ty.level
       ty.scope raw_type_desc ty.desc
   end
@@ -519,10 +520,6 @@ and raw_type_desc ppf = function
         (string_of_field_kind k)
         raw_type t1 raw_type t2
   | Tnil -> fprintf ppf "Tnil"
-  | Tlink t -> fprintf ppf "@[<1>Tlink@,%a@]" raw_type t
-  | Tsubst (t, None) -> fprintf ppf "@[<1>Tsubst@,(%a,None)@]" raw_type t
-  | Tsubst (t, Some t') ->
-      fprintf ppf "@[<1>Tsubst@,(%a,@ Some%a)@]" raw_type t raw_type t'
   | Tunivar name -> fprintf ppf "Tunivar %a" print_name name
   | Tpoly (t, tl) ->
       fprintf ppf "@[<hov1>Tpoly(@,%a,@,%a)@]"
@@ -547,6 +544,13 @@ and raw_type_desc ppf = function
   | Tpackage (p, fl) ->
       fprintf ppf "@[<hov1>Tpackage(@,%a@,%a)@]" path p
         raw_type_list (List.map snd fl)
+  | Tlink t -> fprintf ppf "@[<1>Tlink@,%a@]" raw_type t
+  | Tsubst (t, None) -> fprintf ppf "@[<1>Tsubst(@,%a,None)@]" raw_type t
+  | Tsubst (t, Some t') ->
+      fprintf ppf "@[<1>Tsubst(@,%a,@,Some%a)@]" raw_type t raw_type t'
+  | Texpand (t, p, args) ->
+      fprintf ppf "@[<1>Texpand(@,%a,@,%a,@,%a)@]" raw_type t path p
+        raw_type_list args
 and raw_row_fixed ppf = function
 | None -> fprintf ppf "None"
 | Some Types.Fixed_private -> fprintf ppf "Some Fixed_private"
@@ -1145,11 +1149,6 @@ let rec tree_of_typexp mode ty =
         tree_of_typobject mode fi !nm
     | Tnil | Tfield _ ->
         tree_of_typobject mode ty None
-    | Tsubst _ ->
-        (* This case should only happen when debugging the compiler *)
-        Otyp_stuff "<Tsubst>"
-    | Tlink _ ->
-        fatal_error "Printtyp.tree_of_typexp"
     | Tpoly (ty, []) ->
         tree_of_typexp mode ty
     | Tpoly (ty, tyl) ->
@@ -1178,6 +1177,11 @@ let rec tree_of_typexp mode ty =
               tree_of_typexp mode ty
             )) fl in
         Otyp_module (tree_of_path Module_type p, fl)
+    | Tsubst _ ->
+        (* This case should only happen when debugging the compiler *)
+        Otyp_stuff "<Tsubst>"
+    | Tlink _ | Texpand _ ->
+        fatal_error "Printtyp.tree_of_typexp"
   in
   if List.memq px !delayed then delayed := List.filter ((!=) px) !delayed;
   if is_aliased_proxy px && aliasable ty then begin

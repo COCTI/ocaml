@@ -721,7 +721,7 @@ let check_recursion ~orig_env env loc path decl to_check =
   let rec check_regular cpath args prev_exp prev_expansions ty =
     if not (TypeSet.mem ty !visited) then begin
       visited := TypeSet.add ty !visited;
-      match (get_desc ty, get_abbrevs ty) with
+      match get_desc ty with
       | Tconstr(path', args', _) ->
           if Path.same path path' then begin
             if not (Ctype.is_equal orig_env false args args') then
