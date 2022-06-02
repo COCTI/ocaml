@@ -176,6 +176,7 @@ let type_declarations ~loc env ~mark ?old_env:_ subst id decl1 decl2 =
   with
   | None -> Ok Tcoerce_none
   | Some err ->
+      prerr_endline "Here 4";
       Error Error.(Core(Type_declarations (diff decl1 decl2 err)))
 
 (* Inclusion between extension constructors *)

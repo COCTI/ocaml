@@ -490,6 +490,7 @@ let closed_type ty =
       []           -> ()
   | (v, real) :: _ -> raise (Non_closed (v, real))
 
+(*
 let closed_parameterized_type params ty =
   List.iter mark_type params;
   let ok =
@@ -497,6 +498,7 @@ let closed_parameterized_type params ty =
   List.iter unmark_type params;
   unmark_type ty;
   ok
+*)
 
 let closed_type_decl decl =
   try
@@ -732,6 +734,12 @@ let update_scope_for tr_exn scope ty =
 let rec update_level env level expand ty =
   if get_level ty > level then begin
     if level < get_scope ty then raise_scope_escape_exn ty;
+    (* Should we remove out-of-scope abbreviations ?
+    let abbrevs = get_abbrevs ty in
+    let abbrevs' =
+      List.filter (fun (p,_) -> level >= Path.scope p) abbrevs in
+    if List.length abbrevs <> List.length abbrevs' then
+      Transient_expr.(set_abbrevs (repr ty) abbrevs'); *)
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
@@ -752,6 +760,7 @@ let rec update_level env level expand ty =
             (fun var ty -> var = Variance.null && get_level ty > level)
             variance tl
         in
+        (* Do not lower the level of nodes that may be unrelated *)
         begin try
           if not needs_expand then raise Cannot_expand;
           let ty' = !forward_try_expand_safe env ty in
@@ -1128,6 +1137,7 @@ let rec copy ?partial ?keep_names scope ty =
       | _ -> copy_type_desc ?keep_names copy desc
     in
     Transient_expr.set_stub_desc t desc';
+    inherit_map_abbrevs ~from:ty ~into:t ~fpath:(fun x -> x) ~farg:copy;
     t
 
 (**** Variants of instantiations ****)
@@ -1550,7 +1560,9 @@ let expand_abbrev_gen kind find_type_expansion env ty =
             update_scope scope ty';
             ty'
       in
-      link_expand ty ty';
+      (* set [ty.desc] to [Texpand (ty', path, args)].
+         [eq_type ty ty'] is true, but they are distinct *)
+      if kind = Public then link_expand ty ty';
       ty'
   | _ ->
       assert false
@@ -2197,15 +2209,9 @@ let compatible_paths p1 p2 =
   Path.same p1 path_string && Path.same p2 path_bytes
 
 (* Check for datatypes carefully; see PR#6348 *)
-let rec expands_to_datatype env ty =
-  match get_desc ty with
-    Tconstr (p, _, _) ->
-      begin try
-        is_datatype (Env.find_type p env) ||
-        expands_to_datatype env (try_expand_safe env ty)
-      with Not_found | Cannot_expand -> false
-      end
-  | _ -> false
+let expands_to_datatype env p =
+  try is_datatype (Env.find_type p env)
+  with Not_found -> false
 
 (* [mcomp] tests if two types are "compatible" -- i.e., if they could ever
    unify.  (This is distinct from [eqtype], which checks if two types *are*
@@ -2420,6 +2426,7 @@ let mcomp_for tr_exn env t1 t2 =
 
 (* Real unification *)
 
+(*
 let find_lowest_level ty =
   let lowest = ref generic_level in
   let rec find ty =
@@ -2430,6 +2437,7 @@ let find_lowest_level ty =
       iter_type_expr find ty
     end
   in find ty; unmark_type ty; !lowest
+*)
 
 let find_expansion_scope env path =
   (Env.find_type path env).type_expansion_scope
@@ -2573,10 +2581,10 @@ let record_equation t1 t2 =
       TypePairs.add equated_types (t1, t2)
 
 (* Called from unify3 *)
-let unify3_var env t1' t2 t2' =
-  occur_for Unify !env t1' t2;
-  match occur_univar_for Unify !env t2 with
-  | () -> link_type t1' t2
+let unify3_var env t1' t2' =
+  occur_for Unify !env t1' t2';
+  match occur_univar_for Unify !env t2' with
+  | () -> link_type t1' t2'
   | exception Unify_trace _ when !umode = Pattern ->
       reify env t1';
       reify env t2';
@@ -2673,46 +2681,28 @@ and unify2 env t1 t2 =
   update_level_for Unify !env lv t1;
   update_scope_for Unify scope t2;
   update_scope_for Unify scope t1;
-  if unify_eq t1' t2' then () else
+  if unify_eq t1' t2' then () else unify3 env t1' t2'
 
-  let t1, t2 =
-    if !Clflags.principal
-    && (find_lowest_level t1' < lv || find_lowest_level t2' < lv) then
-      (* Expand abbreviations hiding a lower level *)
-      (* Should also do it for parameterized types, after unification... *)
-      (match get_desc t1 with Tconstr (_, [], _) -> t1' | _ -> t1),
-      (match get_desc t2 with Tconstr (_, [], _) -> t2' | _ -> t2)
-    else (t1, t2)
-  in
-  if unify_eq t1 t1' || not (unify_eq t2 t2') then
-    unify3 env t1 t1' t2 t2'
-  else
-    try unify3 env t2 t2' t1 t1' with Unify_trace trace ->
-      raise_trace_for Unify (swap_trace trace)
-
-and unify3 env t1 t1' t2 t2' =
+and unify3 env t1' t2' =
   (* Third step: truly unification *)
-  (* Assumes either [t1 == t1'] or [t2 != t2'] *)
   let tt1' = Transient_expr.repr t1' in
   let d1 = tt1'.desc and d2 = get_desc t2' in
-  let create_recursion =
-    (not (eq_type t2 t2')) && (deep_occur t1'  t2) in
 
   begin match (d1, d2) with (* handle vars and univars specially *)
     (Tunivar _, Tunivar _) ->
       unify_univar_for Unify t1' t2' !univar_pairs;
       link_type t1' t2'
   | (Tvar _, _) ->
-      unify3_var env t1' t2 t2'
+      unify3_var env t1' t2'
   | (_, Tvar _) ->
-      unify3_var env t2' t1 t1'
+      unify3_var env t2' t1'
   | (Tfield _, Tfield _) -> (* special case for GADTs *)
       unify_fields env t1' t2'
   | _ ->
     begin match !umode with
     | Expression ->
-        occur_for Unify !env t1' t2;
-        link_type t1' t2
+        occur_for Unify !env t1' t2';
+        link_type t1' t2'
     | Pattern ->
         add_type_equality t1' t2'
     end;
@@ -2738,7 +2728,8 @@ and unify3 env t1 t1' t2 t2' =
               ~allow_recursive:!allow_recursive_equation
               (fun () -> unify_list env tl1 tl2)
           else if in_current_module p1 (* || in_pervasives p1 *)
-               || List.exists (expands_to_datatype !env) [t1'; t1; t2]
+               || List.exists (fun (p, _) -> expands_to_datatype !env p)
+                              (get_abbrevs t1' @ get_abbrevs t2')
           then
             unify_list env tl1 tl2
           else
@@ -2837,7 +2828,7 @@ and unify3 env t1 t1' t2 t2' =
       | (Tpackage (p1, fl1), Tpackage (p2, fl2)) ->
           begin try
             unify_package !env (unify_list env)
-              (get_level t1) p1 fl1 (get_level t2) p2 fl2
+              (get_level t1') p1 fl1 (get_level t2') p2 fl2
           with Not_found ->
             if !umode = Expression then raise_unexplained_for Unify;
             List.iter (fun (_n, ty) -> reify env ty) (fl1 @ fl2);
@@ -2848,18 +2839,7 @@ and unify3 env t1 t1' t2 t2' =
       | (Tconstr _,  Tnil ) ->
           raise_for Unify (Obj (Abstract_row First))
       | (_, _) -> raise_unexplained_for Unify
-      end;
-      (* XXX Commentaires + changer "create_recursion"
-         ||| Comments + change "create_recursion" *)
-      if create_recursion then
-        match get_desc t2 with
-          Tconstr (p, tl, abbrev) ->
-            forget_abbrev abbrev p;
-            let t2'' = expand_head_unif !env t2 in
-            if not (closed_parameterized_type tl t2'') then
-              link_type t2 t2'
-        | _ ->
-            () (* t2 has already been expanded by update_level *)
+      end
     with Unify_trace trace ->
       Transient_expr.set_desc tt1' d1;
       raise_trace_for Unify trace

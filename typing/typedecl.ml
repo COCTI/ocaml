@@ -642,8 +642,14 @@ let check_abbrev env sdecl (id, decl) =
 let check_well_founded env loc path to_check ty =
   let visited = ref TypeMap.empty in
   let rec check ty0 parents ty =
-    if TypeSet.mem ty parents then begin
-      (*Format.eprintf "@[%a@]@." Printtyp.raw_type_expr ty;*)
+    let check_parent ty' =
+      match get_expand ty, get_expand ty' with
+        Some (p, _), Some (p', _) -> Path.same p p'
+      (* | None, None -> eq_type ty ty' *)
+      | _ -> false
+    in
+    if TypeSet.exists check_parent parents then begin
+      Format.eprintf "@[%a@]@." Printtyp.raw_type_expr ty;
       if match get_desc ty0 with
       | Tconstr (p, _, _) -> Path.same p path
       | _ -> false
@@ -718,7 +724,7 @@ let check_recursion ~orig_env env loc path decl to_check =
 
   let visited = ref TypeSet.empty in
 
-  let rec check_regular cpath args prev_exp prev_expansions ty =
+  let rec check_regular args prev_exp prev_expansions ty =
     if not (TypeSet.mem ty !visited) then begin
       visited := TypeSet.add ty !visited;
       match get_desc ty with
@@ -750,18 +756,18 @@ let check_recursion ~orig_env env loc path decl to_check =
                 with Ctype.Unify err ->
                   raise (Error(loc, Constraint_failed (orig_env, err)));
               end;
-              check_regular path' args
+              check_regular args
                 (path' :: prev_exp) ((ty,body) :: prev_expansions)
                 body
             with Not_found -> ()
           end;
-          List.iter (check_regular cpath args prev_exp prev_expansions) args'
+          List.iter (check_regular args prev_exp prev_expansions) args'
       | Tpoly (ty, tl) ->
           let (_, ty) = Ctype.instance_poly ~keep_names:true false tl ty in
-          check_regular cpath args prev_exp prev_expansions ty
+          check_regular args prev_exp prev_expansions ty
       | _ ->
           Btype.iter_type_expr
-            (check_regular cpath args prev_exp prev_expansions) ty
+            (check_regular args prev_exp prev_expansions) ty
     end in
 
   Option.iter
@@ -769,8 +775,8 @@ let check_recursion ~orig_env env loc path decl to_check =
       let (args, body) =
         Ctype.instance_parameterized_type
           ~keep_names:true decl.type_params body in
-      List.iter (check_regular path args [] []) args;
-      check_regular path args [] [] body)
+      List.iter (check_regular args [] []) args;
+      check_regular args [] [] body)
     decl.type_manifest
 
 let check_abbrev_recursion ~orig_env env id_loc_list to_check tdecl =
@@ -975,6 +981,10 @@ let transl_type_decl env rec_flag sdecl_list =
   let final_env = add_types_to_env decls env in
   (* Check re-exportation *)
   List.iter2 (check_abbrev final_env) sdecl_list decls;
+  (* Unexpand abbreviations *)
+  (* let it = { Btype.type_iterators with
+             it_type_expr = fun _ -> Btype.unexpand_type_expr } in
+  List.iter (fun (_, decl) -> it.it_type_declaration it decl) decls; *)
   (* Keep original declaration *)
   let final_decls =
     List.map2

@@ -549,11 +549,11 @@ let repr_link1 t d = function
 let repr t =
   let d = t.desc in
   match d with
-   Tlink t' | Texpand (t', _, _) ->
-     repr_link1 t d t'
- | Tfield (_, k, _, t') when field_kind_internal_repr k = FKabsent ->
-     repr_link1 t d t'
- | _ -> t
+    Tlink t' | Texpand (t', _, _) ->
+      repr_link1 t d t'
+  | Tfield (_, k, _, t') when field_kind_internal_repr k = FKabsent ->
+      repr_link1 t d t'
+  | _ -> t
 
 (* getters for type_expr *)
 

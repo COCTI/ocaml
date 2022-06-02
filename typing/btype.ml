@@ -298,6 +298,22 @@ let rec fold_type_expr f init ty =
 let iter_type_expr f ty =
   fold_type_expr (fun () v -> f v) () ty
 
+let rec unexpand_type_expr visited ty =
+  if TypeSet.mem ty !visited then () else begin
+    visited := TypeSet.add ty !visited;
+    match get_expand ty with
+    | Some (path, args) ->
+        let tt = Transient_expr.repr ty in
+        Transient_expr.set_abbrevs tt [];
+        Transient_expr.set_desc tt (Tconstr (path, args, ref Mnil));
+        List.iter (unexpand_type_expr visited) args
+    | None ->
+        (* There may still be abbrevs, but we ignore them for now *)
+        iter_type_expr (unexpand_type_expr visited) ty
+  end
+
+let unexpand_type_expr ty = unexpand_type_expr (ref TypeSet.empty) ty
+
 let rec iter_abbrev f = function
     Mnil                   -> ()
   | Mcons(_, _, ty, ty', rem) -> f ty; f ty'; iter_abbrev f rem

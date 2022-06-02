@@ -230,6 +230,11 @@ val forget_abbrev:
         abbrev_memo ref -> Path.t -> unit
         (* Remove an abbreviation from the cache *)
 
+(**** Cleaning a type ****)
+
+val unexpand_type_expr: type_expr -> unit
+        (* roll backs [Texpand] nodes *)
+
 (**** Backtracking ****)
 
 val snapshot: unit -> snapshot
