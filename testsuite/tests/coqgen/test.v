@@ -131,8 +131,7 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
     | ml_string => fun x y => Ret (compare_string x y)
-    | ml_empty =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+    | ml_empty => fun x y => match x with end
     | ml_array_t T1 =>
       fun x y =>
         match x, y with
