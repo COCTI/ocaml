@@ -46,7 +46,8 @@ let init_type_map vars =
      ct_compare =
      Some (CTapp (CTid"compare_ref", CTid"compare_rec" :: CTid"T1" :: xy))});
    (path_empty, [],
-    {ctd with ct_name = "ml_empty"; ct_type = CTid "empty"});
+    {ctd with ct_name = "ml_empty"; ct_type = CTid "empty";
+     ct_compare = Some (CTmatch (CTid"x", None, []))});
    (Predef.path_int, [],
     {ctd with ct_name = "ml_int";
      ct_type = CTid "Int63.int";

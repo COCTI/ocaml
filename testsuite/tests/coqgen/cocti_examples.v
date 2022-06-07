@@ -301,6 +301,20 @@ Definition int_not_empty (x : eqw ml_int ml_empty) : empty.
   Show Proof.
 Defined.
 
+(* let cast_fst : type a b. (a * b, int * bool) eq -> a -> int =
+   function Refl -> fun x -> x
+ *)
+
+Definition proj_ml_pair1 defT T :=
+  match T with ml_pair T1 _ => T1 | _ => defT end.
+
+Definition cast_fst (A B : ml_type)
+           (w : eqw (ml_pair A  B) (ml_pair ml_int ml_bool))
+           (x : coq_type A) : int :=
+  match w with
+    Refl H => eq_rect A coq_type x ml_int (f_equal (proj_ml_pair1 A) H)
+  end.
+
 (*
 let rec ack m n =
     if m <= 0 then n + 1 else
