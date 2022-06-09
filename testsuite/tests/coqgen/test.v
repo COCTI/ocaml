@@ -263,6 +263,20 @@ Definition newton's_method (h : nat) (e : coq_type ml_float)
         setref ml_float r v));
   getref ml_float r.
 
+Definition fact (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
+  do i <- newref ml_int n;
+  do v <- newref ml_int 1%int63;
+  do _ <-
+  whileloop h (do v_1 <- getref ml_int i; ml_gt h ml_int v_1 0%int63)
+    (do _ <-
+     (do v_1 <-
+      (do v_1 <- getref ml_int i;
+       do v_2 <- getref ml_int v; Ret (Int63.mul v_2 v_1));
+      setref ml_int v v_1);
+     do v_1 <- (do v_1 <- getref ml_int i; Ret (Int63.sub v_1 1%int63));
+     setref ml_int i v_1);
+  getref ml_int v.
+
 Definition ref' (T : ml_type) := newref T.
 
 Definition foo1 (T : ml_type) (x : coq_type T) : M (coq_type T) :=

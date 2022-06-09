@@ -9,7 +9,8 @@ compile_only = "true"
 (* float *)
 let div x y = x /. y;;
 let harmonic x y = 2. /. ((1. /. x) +. (1. /. y));;
-(* float loop *)
+
+(*  float loop *)
 let rec float_sum l = match l with
   | [] -> 0.0
   | first :: rest -> first +. float_sum rest;;
@@ -21,6 +22,24 @@ let newton's_method e f =
     r := !r -. (f !r /. diff e f !r)
   done;
   !r;;
+
+(* for loop *)
+(*let fact n =
+  let v = ref 1 in
+  for i = 2 to n do
+    v := !v * i
+  done;
+  !v
+*)
+(* while loop *)
+let fact n =
+  let i = ref n in
+  let v = ref 1 in
+  while !i > 0 do
+    v := !v * !i;
+    i := !i - 1
+  done;
+  !v
 
 (* redefinition *)
 let ref' = ref;;
