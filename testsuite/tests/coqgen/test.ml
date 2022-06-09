@@ -14,6 +14,13 @@ let rec float_sum l = match l with
   | [] -> 0.0
   | first :: rest -> first +. float_sum rest;;
 
+let newton's_method e f =
+  let diff e f = fun x -> ((f (x +. e) -. f x)) /. e in
+  let r = ref 1.0 in
+  for i = 1 to 10 do
+    r := !r -. (f !r /. diff e f !r)
+  done;
+  !r;;
 
 (* redefinition *)
 let ref' = ref;;

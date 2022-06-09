@@ -410,6 +410,32 @@ let rec transl_exp ~vars e =
         let ct1 = shrink_purary ~vars ct1 pary
         and ct2 = shrink_purary ~vars ct2 pary in
         {pterm = CTif (ct.pterm, ct1.pterm, ct2.pterm); prec; pary}
+  | Texp_while (cond, body) ->
+      let ct = transl_exp ~vars cond
+      and ct1 = transl_exp ~vars body in
+      let ct = nullary ~vars ct
+      and ct1 = nullary ~vars ct1  in
+      {pterm =
+        ctapp (CTid "whileloop") [CTid "h";ct.pterm; ct1.pterm];
+        prec = Recursive; pary = 0}
+  | Texp_for (pram, _, low, high, dir, body) ->
+    let ct = transl_exp ~vars low
+    and ct1 = transl_exp ~vars high in
+    let ti = Ctype.generic_instance Predef.type_int in
+    let (name, vars) = add_pat_variable ~vars pram ti in
+    let ct2 = transl_exp ~vars body in
+    let ct = nullary ~vars ct
+    and ct1 = nullary ~vars ct1
+    and ct2 = nullary ~vars ct2 in
+      let u = fresh_name ~vars "u" in
+      let vars = add_reserved u vars in
+      let v = fresh_name ~vars "v" in
+    let x = if dir = Upto then "forloop" else "downforloop" in
+      {pterm =
+        ctBind ct.pterm (CTabs (u, None,
+        ctBind ct1.pterm (CTabs (v, None,
+          ctapp (CTid x) [CTid "h"; CTid u; CTid v; CTabs (name, None, ct2.pterm)]))));
+        prec = Recursive; pary = 0}
   | Texp_match (e, cases, [], partial) ->
       let ct = transl_exp ~vars e in
       transl_match ~vars ct cases partial

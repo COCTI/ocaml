@@ -234,7 +234,38 @@ Definition fact (n : int) : M int :=
 
 Print fact.
 
-Eval compute in fact 5 empty_env.
+Eval compute in fact 2 empty_env.
 
+Definition fact' (n : int) : M int :=
+  do r <- newref ml_int 1%sint63 ;
+  do _ <- downforloop h n 2
+    (fun i => do v <- getref ml_int r ; setref ml_int r (v * i)%sint63) ;
+    getref ml_int r.
 
-Eval compute in fact 3.
+Eval compute in fact' 5 empty_env.
+
+Definition newton (n : float) : M float :=
+  do r <- newref ml_float 1.0%float ;
+  do _ <- forloop h 1 10
+    (fun i => do v <- getref ml_float r;
+      setref ml_float r ((v * v + n) / (2 * v))%float);
+    getref ml_float r.
+
+Eval compute in newton 2.0 empty_env.
+Eval compute in newton 100.0 empty_env.
+
+Definition newton' (e x_0 : float) (f : float -> float) : M float :=
+  let diff (e : float) (f : float -> float) 
+    := fun x => (((f (x + e)) - (f x)) / e)%float in
+  do r <- newref ml_float x_0%float;
+  do _ <- forloop h 1 10
+    (fun i => do v <- getref ml_float r;
+       setref ml_float r (v - (f v / diff e f v))%float);
+    getref ml_float r.
+
+Definition e := (1 / 1000000)%float.
+
+Eval compute in newton' e 1.0 (fun x => (x * x - 2)%float) empty_env.
+Eval compute in newton' e 1.0 (fun x => (x * x - 100)%float) empty_env.
+Eval compute in newton' e 1.0 (fun x => (x * x * x - 5)%float) empty_env.
+Eval compute in newton' e 1.0 (fun x => (x * x * x - 8)%float) empty_env.

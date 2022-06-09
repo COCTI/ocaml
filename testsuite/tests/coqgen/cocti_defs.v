@@ -205,9 +205,22 @@ Definition bounded_nat_of_int (m : nat) (n : int) : M nat :=
 
 Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
   if h is h.+1 then
-    if Sint63.compare n_1 n_2 is Gt then
-      Ret tt
-    else (do _ <- b n_1 ; forloop h (n_1 + 1)%sint63 n_2 b)
+    if Sint63.compare n_1 n_2 is Gt then Ret tt
+    else (do _ <- b n_1; forloop h (n_1 + 1)%sint63 n_2 b)
+  else FailGas.
+
+Fixpoint downforloop (h : nat) (n_1 n_2 : int ) (b : int -> M unit) : M unit :=
+  if h is h.+1 then
+    if Sint63.compare n_1 n_2 is Lt then Ret tt
+    else (do _ <- b n_1; downforloop h (n_1 - 1)%sint63 n_2 b)
+  else FailGas.
+
+Fixpoint whileloop (h : nat) (f : M bool) (b : M unit) : M unit :=
+  if h is h.+1 then
+    do v <- f;
+    if v then
+        (do _ <- b; whileloop h f b)
+    else Ret tt
   else FailGas.
 
 (* Subtyping for encoding the relaxed value restriction *)
