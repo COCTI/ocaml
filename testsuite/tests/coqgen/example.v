@@ -269,3 +269,15 @@ Eval compute in newton' e 1.0 (fun x => (x * x - 2)%float) empty_env.
 Eval compute in newton' e 1.0 (fun x => (x * x - 100)%float) empty_env.
 Eval compute in newton' e 1.0 (fun x => (x * x * x - 5)%float) empty_env.
 Eval compute in newton' e 1.0 (fun x => (x * x * x - 8)%float) empty_env.
+Eval compute in fact 5 empty_env.
+Check whileloop.
+
+Definition fact'' (n : int) : M int :=
+  do i <- newref ml_int n; do v <- newref ml_int 1%sint63;
+  do _ <- whileloop h
+          (do x <- getref ml_int i; Ret (if Sint63.compare x 0%sint63 is Gt then true else false))
+          (do x <- getref ml_int v; do y <- getref ml_int i; do _ <- setref ml_int v (x * y)%sint63;
+           setref ml_int i (y - 1)%sint63);
+  getref ml_int v.
+
+Eval compute in fact'' 5 empty_env.

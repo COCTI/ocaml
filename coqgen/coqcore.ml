@@ -379,9 +379,9 @@ let rec transl_exp ~vars e =
     let ct = nullary ~vars ct
     and ct1 = nullary ~vars ct1
     and ct2 = nullary ~vars ct2 in
-      let u = fresh_name ~vars "u" in
-      let vars = add_reserved u vars in
-      let v = fresh_name ~vars "v" in
+    let u = fresh_name ~vars "u" in
+    let vars = add_reserved u vars in
+    let v = fresh_name ~vars "v" in
     let x = if dir = Upto then "forloop" else "downforloop" in
       {pterm =
         ctBind ct.pterm (CTabs (u, None,
