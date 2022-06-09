@@ -210,6 +210,17 @@ Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
     else (do _ <- b n_1 ; forloop h (n_1 + 1)%sint63 n_2 b)
   else FailGas.
 
+(*Variables n_1 n_2 : int.*)
+
+
+Fixpoint whileloop (h : nat) (f : M bool) (b : M unit) : M unit :=
+  if h is h.+1 then
+    do v <- f;
+    if v then
+      (do _ <- b ; whileloop h f b)
+    else Ret tt
+  else FailGas.
+
 (* Subtyping for encoding the relaxed value restriction *)
 Definition cast_empty T (v : empty) : coq_type T :=
   match v with end.
