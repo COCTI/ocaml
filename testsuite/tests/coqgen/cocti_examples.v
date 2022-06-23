@@ -262,6 +262,7 @@ End Test.
 
 Section examples.
 
+(* let x = ref [] in !x *)
 Definition nil_1 := Eval vm_compute in
   Restart it0
           ((fun T : ml_type =>
