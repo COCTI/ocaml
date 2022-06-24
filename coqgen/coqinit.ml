@@ -196,6 +196,13 @@ let init_term_map vars =
      ce_vars = [tv];
      ce_rec = Nonrecursive;
      ce_purary = 1});
+   (["Lazy";"force"],
+    let tv = newgenvar () in
+    {ce_name = "force";
+     ce_type = newgenarrow (Predef.type_lazy_t tv) tv;
+     ce_vars = [tv];
+     ce_rec = Nonrecursive;
+     ce_purary = 1});
   ] @
   List.map
     (fun (ml, coq) ->
