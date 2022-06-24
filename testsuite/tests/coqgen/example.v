@@ -333,13 +333,14 @@ Definition force a (lz : coq_type (ml_lazy a)) :=
   match lz with
   | Lval x => Ret x
   | Lref r =>
-      do r' <- getref (ml_lazy_val a) r;
-      match r' with
-      | Val x => Ret x
-      | MLtypes.Exn e => raise _ e
-      | Thunk f =>
-          handle _ (do x <- f; do _ <- setref (ml_lazy_val a) r (Val _ x); Ret x) (raise _)
-      end
+    do r' <- getref (ml_lazy_val a) r;
+    match r' with
+    | Val x => Ret x
+    | MLtypes.Exn e => raise _ e
+    | Thunk f => handle _
+        (do x <- f; do _ <- setref (ml_lazy_val a) r (Val _ x); Ret x)
+        (raise _)
+    end
   end.
 Check force.
 Eval compute in force ml_int (Lval _ _ 2%int63) empty_env.

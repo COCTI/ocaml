@@ -210,7 +210,12 @@ let transl_implementation _modname st =
 \nContext [M : Type -> Type].\
 \n\n(* Generated type definitions *)" ::
   typedefs @
-  CTverbatim "Local (* Generated type translation function *)" ::
+  CTverbatim "\
+\nInductive lazy_val (a : Type) :=\
+\n  LzVal of a | LzThunk of M a | LzExn of ml_exns.\
+\nInductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).\
+\n\
+\nLocal (* Generated type translation function *)" ::
   make_coq_type vars ::
   CTverbatim "End with_monad.\
 \nLocal Definition ml_exn := ml_exn.\
@@ -251,6 +256,24 @@ let transl_implementation _modname st =
 \n  let: ArrayVal s := s in\
 \n  do n <- bounded_nat_of_int (seq.size s) n;\
 \n  setref (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).\
+\n\n(* Lazy values *)\
+\nDefinition force a (lz : coq_type (ml_lazy a)) :=\
+\n  match lz with\
+\n  | Lval x => Ret x\
+\n  | Lref r =>\
+\n    do r' <- getref (ml_lazy_val a) r;\
+\n    match r' with\
+\n    | LzVal x => Ret x\
+\n    | LzExn e => raise _ e\
+\n    | LzThunk f => handle _\
+\n        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)\
+\n        (raise _)\
+\n    end\
+\n  end.\
+\nDefinition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=\
+\n  do x <- newref (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).\
+\nDefinition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=\
+\n  Lval _ _ b.\
 \n\n(* Default amount of gas *)\
 \nDefinition h := 100000.\
 \n\n(* Translated code *)\n"

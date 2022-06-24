@@ -94,8 +94,14 @@ let init_type_map vars =
                ctapp (CTid"ml_array_t") [CTid "T1"] :: xy))});
    (Predef.path_lazy_t, [],
     {ctd with ct_name = "ml_lazy";
-     ct_arity = 1; ct_mlargs = [0, "a"];
-     ct_type = CTapp (CTid"lazy_t", [CTid"a"]);
+     ct_arity = 1;ct_args = [0, "a"];  ct_mlargs = [0, "a_1"];
+     ct_type = CTapp (CTid"lazy_t", [CTid"a"; CTid"a_1"]);
+     ct_compare = None
+    });
+   (stdlib, ["lazy_val"],
+    {ctd with ct_name = "ml_lazy_val";
+     ct_arity = 1; ct_args = [0, "a"];
+     ct_type = CTapp (CTid"lazy_val", [CTid"a"]);
      ct_compare = None
     });
    (Path.Pident (Ident.create_predef "array_t"), [],
