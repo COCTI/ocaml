@@ -221,21 +221,21 @@ Definition Omega_False : M False :=
 Check Omega_False empty_env.
 
 (* Proof of inconsistency *)
-Definition extract_list [T] (r : W (list T)) : list T :=
-  if snd r is inl l then l else nil.
+Definition extract [T] def (r : W T) : T :=
+  if snd r is inl x then x else def.
 
-Definition omega' : M (list bool) :=
+Definition trues : M (list bool) :=
   do r_1 <- newref (ml_arrow ml_bool (ml_list ml_bool)) (fun x => Ret nil);
   let delta _ : M (list bool) :=
     (* produce an infinite stream by breaking the monad *)
-    do f <- getref _ r_1; fun e => Ret (true :: extract_list (f true e)) e in
+    do f <- getref _ r_1; fun e => Ret (true :: extract nil (f true e)) e in
   do _ <- setref _ r_1 delta; delta true.
 
-Lemma contrad : let x := extract_list (omega' empty_env) in x = true :: x.
+Lemma contrad : let x := extract nil (trues empty_env) in x = true :: x.
 Proof. done. Qed.
 
 Lemma inconsistency : False.
-Proof. by elim: (extract_list _) contrad => //= a l IH [] ->. Qed.
+Proof. by elim: (extract _ _) contrad => //= a l IH [] ->. Qed.
 
 (* Evaluation loops *)
 (* Eval cbv in Omega empty_env. *)
