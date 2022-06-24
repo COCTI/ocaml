@@ -228,8 +228,6 @@ Fixpoint whileloop (h : nat) (f : M bool) (b : M unit) : M unit :=
     else Ret tt
   else FailGas.
 
-(*Variables n_1 n_2 : int.*)
-
 (* Subtyping for encoding the relaxed value restriction *)
 Definition cast_empty T (v : empty) : coq_type T :=
   match v with end.
