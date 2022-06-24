@@ -67,7 +67,6 @@ Module Type MLTY.
 Parameter ml_type : Set.
 Parameter ml_type_eq_dec : forall x y : ml_type, {x=y}+{x<>y}.
 Parameter ml_exn : ml_type.
-Parameter ml_lazy_val : ml_type -> ml_type.
 Record key := mkkey {key_id : int; key_type : ml_type}.
 Variant loc : ml_type -> Type :=
   mkloc : forall k : key, loc (key_type k).
@@ -171,10 +170,6 @@ Definition handle T (c : M (coq_type T))
     | (env', inr (Catchable e)) => h e env'
     | (env', r) => (env', r)
     end.
-
-Inductive lazy_val (a : Type) := Val of a | Thunk of M a | Exn of ml_exns.
-
-Inductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).
 
 Section Comparison.
 Definition lexi_compare (cmp1 cmp2 : M comparison) :=
