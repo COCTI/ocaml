@@ -436,6 +436,15 @@ let rec transl_exp ~vars e =
         ctBind ct1.pterm (CTabs (v, None,
           ctapp (CTid x) [CTid "h"; CTid u; CTid v; CTabs (name, None, ct2.pterm)]))));
         prec = Recursive; pary = 0}
+  | Texp_lazy e ->
+    let ct = transl_exp ~vars e in
+    let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in
+    if ct.pary = 0 then 
+      {ct with pterm = ctapp (CTid "make_lazy") [cty; ct.pterm]}
+    else
+      let ct = shrink_purary ~vars ct 1 in
+      {pterm = ctapp (CTid "make_lazy_val") [cty; ct.pterm];
+       pary = 1; prec = ct.prec}
   | Texp_match (e, cases, [], partial) ->
       let ct = transl_exp ~vars e in
       transl_match ~vars ct cases partial

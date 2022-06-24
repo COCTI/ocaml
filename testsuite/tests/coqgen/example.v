@@ -21,7 +21,9 @@ Inductive ml_type :=
   | ml_endo (_ : ml_type)
   | ml_option (_ : ml_type)
   | ml_ref (_ : ml_type)
-  | ml_arrow (_ : ml_type) (_ : ml_type).
+  | ml_arrow (_ : ml_type) (_ : ml_type)
+  | ml_lazy_val (_ : ml_type)
+  | ml_lazy (_ : ml_type).
 
 (* Module argument for monadic functor *)
 Module MLtypes.
@@ -65,6 +67,10 @@ Inductive ml_exns :=
   | Failure (_ : string)
   | Not_found.
 
+Inductive lazy_val (a : Type) := Val of a | Thunk of M a | Exn of ml_exns.
+
+Inductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).
+
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
@@ -87,6 +93,8 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_option T1 => option (coq_type T1)
   | ml_ref T1 => loc T1
   | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
+  | ml_lazy_val T => lazy_val (coq_type T)
+  | ml_lazy T => lazy_t (coq_type T) T
   end.
 
 End with_monad.
@@ -100,6 +108,12 @@ Export REFmonadML.
 Definition coq_type := @MLtypes.coq_type M.
 Definition empty_env := mkEnv 0%int63 nil.
 Definition it : W unit := (empty_env, inl tt).
+
+Definition get_lazy_val T (a : lazy_t (coq_type T) T) : M (lazy_val (coq_type T)) :=
+  match a with
+  | Lval x => Ret (Val _ x)
+  | Lref x => getref _ x
+  end.
 
 (* Generated comparison function *)
 Fixpoint compare_rec (h : nat) (T : ml_type)
@@ -190,7 +204,19 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
         end
     | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
     | ml_arrow T1 T2 =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+      fun x y => Fail (Catchable (Invalid_argument "compare: functional value"%string))
+    | ml_lazy_val T =>
+      fun x y =>
+        match x, y with
+        | Val x1, Val y1 => compare_rec T x1 y1
+        | Val x, _ => Ret Lt
+        | _ , Val y1 => Ret Gt
+        | _ , _ => Fail (Catchable (Invalid_argument "compare: functional value"%string))
+        end
+    | ml_lazy T =>
+      fun x y =>
+        do x <- get_lazy_val _ x; do y <- get_lazy_val _ y;
+        compare_rec (ml_lazy_val T) x y
     end
   else fun _ _ => FailGas.
 
@@ -272,3 +298,59 @@ Eval compute in newton' e 1.0 (fun x => (x * x - 2)%float) empty_env.
 Eval compute in newton' e 1.0 (fun x => (x * x - 100)%float) empty_env.
 Eval compute in newton' e 1.0 (fun x => (x * x * x - 5)%float) empty_env.
 Eval compute in newton' e 1.0 (fun x => (x * x * x - 8)%float) empty_env.
+Eval compute in fact 5 empty_env.
+Check whileloop.
+
+Definition fact'' (n : int) : M int :=
+  do i <- newref ml_int n; do v <- newref ml_int 1%sint63;
+  do _ <- whileloop h
+          (do x <- getref ml_int i; Ret (if Sint63.compare x 0%sint63 is Gt then true else false))
+          (do x <- getref ml_int v; do y <- getref ml_int i; do _ <- setref ml_int v (x * y)%sint63;
+           setref ml_int i (y - 1)%sint63);
+  getref ml_int v.
+
+Eval compute in fact'' 5 empty_env.
+
+(* lazy_1 *)
+
+(* Definition lazy_t a := loc (ml_lazy a).
+Print lazy_t.
+Definition force a lz :=
+  do lz' <- newref (ml_lazy a) lz;
+  do lz'' <- getref (ml_lazy a) lz';
+  match lz'' with
+  | Val x => Ret x
+  | Thunk f => do x <- Ret (f tt); do _ <- setref _ lz' (Val _ x); Ret x
+  | MLtypes.Exn e => raise _ e
+  end.
+Check force.
+Eval compute in force ml_int (Thunk Int63.int (fun tt => 2%int63)) empty_env.
+*)
+
+(* lazy_2 *)
+
+Definition force a (lz : coq_type (ml_lazy a)) :=
+  match lz with
+  | Lval x => Ret x
+  | Lref r =>
+      do r' <- getref (ml_lazy_val a) r;
+      match r' with
+      | Val x => Ret x
+      | MLtypes.Exn e => raise _ e
+      | Thunk f =>
+          handle _ (do x <- f; do _ <- setref (ml_lazy_val a) r (Val _ x); Ret x) (raise _)
+      end
+  end.
+Check force.
+Eval compute in force ml_int (Lval _ _ 2%int63) empty_env.
+Definition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=
+  do x <- newref (ml_lazy_val a) (Thunk _ b); Ret (Lref _ _ x).
+Definition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) := Lval _ _ b.
+Definition lz := make_lazy (ml_arrow ml_int ml_int) 
+                     (Ret (fun x => Ret (x * 2)%sint63)).
+Definition lazy_counter (c : loc(ml_int)) : M (coq_type (ml_lazy ml_int)) :=
+  make_lazy ml_int (do n <- getref _ c; do _ <- setref _ c (n + 1)%sint63; Ret (n + 1)%sint63).
+Eval compute in (do c <- newref ml_int 0%sint63; do m <- lazy_counter c; do n <- lazy_counter c;
+  do n <- force _ n; do m <- force _ m; Ret (m, n)) empty_env.
+Check lz.
+Eval compute in (do lz <- lz; force (ml_arrow ml_int ml_int) lz) empty_env.

@@ -11,6 +11,7 @@ Inductive ml_type :=
   | ml_exn
   | ml_array (_ : ml_type)
   | ml_list (_ : ml_type)
+  | ml_lazy (_ : ml_type)
   | ml_string
   | ml_empty
   | ml_array_t (_ : ml_type)
@@ -76,6 +77,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_exn => ml_exns
   | ml_array T1 => loc (ml_array_t T1)
   | ml_list T1 => list (coq_type T1)
+  | ml_lazy T1 => lazy_t T1
   | ml_string => String.string
   | ml_empty => empty
   | ml_array_t T1 => array_t (coq_type T1)
@@ -130,6 +132,8 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
         end
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
+    | ml_lazy T1 =>
+      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
     | ml_string => fun x y => Ret (compare_string x y)
     | ml_empty => fun x y => match x with end
     | ml_array_t T1 =>
@@ -299,6 +303,10 @@ Definition incr (r : coq_type (ml_ref ml_int)) : M (coq_type ml_unit) :=
 
 Definition it_1 := Restart it (do r <- newref ml_int 1%int63; incr r).
 Eval vm_compute in it_1.
+
+Definition lazy_counter (c : coq_type (ml_ref ml_int))
+  : M (coq_type (ml_lazy ml_int)) :=
+  make_lazy ml_int (do _ <- incr c; getref ml_int c).
 
 Definition it_2 :=
   Restart it_1

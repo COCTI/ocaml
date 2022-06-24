@@ -92,6 +92,12 @@ let init_type_map vars =
        (CTapp (CTid"compare_ref",
                CTid"compare_rec" ::
                ctapp (CTid"ml_array_t") [CTid "T1"] :: xy))});
+   (Predef.path_lazy_t, [],
+    {ctd with ct_name = "ml_lazy";
+     ct_arity = 1; ct_mlargs = [0, "a"];
+     ct_type = CTapp (CTid"lazy_t", [CTid"a"]);
+     ct_compare = None
+    });
    (Path.Pident (Ident.create_predef "array_t"), [],
     {ctd with ct_name = "ml_array_t";
      ct_arity = 1; ct_args = [0, "a"];
