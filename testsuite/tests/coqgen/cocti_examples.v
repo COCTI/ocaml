@@ -235,7 +235,7 @@ Lemma contrad : let x := extract_list (omega' empty_env) in x = true :: x.
 Proof. done. Qed.
 
 Lemma inconsistency : False.
-Proof. move: contrad; by elim: (extract_list _) => //= a l IH [] ->. Qed.
+Proof. by elim: (extract_list _) contrad => //= a l IH [] ->. Qed.
 
 (* Evaluation loops *)
 (* Eval cbv in Omega empty_env. *)
