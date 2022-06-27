@@ -231,11 +231,11 @@ Definition trues : M (list bool) :=
     do f <- getref _ r_1; fun e => Ret (true :: extract nil (f true e)) e in
   do _ <- setref _ r_1 delta; delta true.
 
-Lemma contrad : let x := extract nil (trues empty_env) in x = true :: x.
+Lemma infinity : let x := extract nil (trues empty_env) in x = true :: x.
 Proof. done. Qed.
 
 Lemma inconsistency : False.
-Proof. by elim: (extract _ _) contrad => //= a l IH [] ->. Qed.
+Proof. by elim: (extract _ _) infinity => //= a l IH [] ->. Qed.
 
 (* Evaluation loops *)
 (* Eval cbv in Omega empty_env. *)
@@ -262,6 +262,7 @@ End Test.
 
 Section examples.
 
+(* let x = ref [] in !x *)
 Definition nil_1 := Eval vm_compute in
   Restart it0
           ((fun T : ml_type =>

@@ -158,10 +158,13 @@ and print_args is_def ppf ct =
   ct
   (* else may_app (fun cty ct -> CTann (ct, cty)) ann ct *)
 
-let emit_def ppf def s ct =
+let emit_def ppf def s ~eval ct =
   fprintf ppf "@[<2>@[<2>%s %s" def s;
   let ct = print_args true ppf ct in
-  fprintf ppf " :=@]@ %a.@]" print_term ct;
+  fprintf ppf " :=@]";
+  if eval then fprintf ppf "@ Eval compute in";
+  fprintf ppf "@ %a.@]" print_term ct;
+  if eval then fprintf ppf "@ Print %s." s;
   let is_it = s = "it" || String.length s >= 3 && String.sub s 0 3 = "it_" in
   if not is_it then pp_print_newline ppf ()
 
@@ -172,10 +175,11 @@ let newlines = ref 1
 
 let emit_vernacular ppf = function
   | CTverbatim s            -> fprintf ppf "%s" s
-  | CTdefinition (s, ct) -> emit_def ppf "Definition" s ct
-  | CTfixpoint (s, ct)   -> emit_def ppf "Fixpoint" s ct
+  | CTdefinition (s, ct, eval) ->
+      emit_def ppf "Definition" s ~eval ct
+  | CTfixpoint (s, ct)   -> emit_def ppf "Fixpoint" s ~eval:false ct
   | CTeval ct ->
-      fprintf ppf "@[<2>Eval vm_compute in@ %a.@]" print_term ct;
+      fprintf ppf "@[<2>Eval compute in@ %a.@]" print_term ct;
       newlines := 2
   | CTinductive tds ->
       let first = ref true in

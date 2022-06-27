@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrnat seq.
-Require Import Sint63 Ascii String Floats cocti_defs.
+Require Import PrimInt63 Ascii String Floats cocti_defs.
 
 (* Generated representation of all ML types *)
 Inductive ml_type :=
@@ -11,6 +11,7 @@ Inductive ml_type :=
   | ml_exn
   | ml_array (_ : ml_type)
   | ml_list (_ : ml_type)
+  | ml_lazy (_ : ml_type)
   | ml_string
   | ml_empty
   | ml_array_t (_ : ml_type)
@@ -18,6 +19,7 @@ Inductive ml_type :=
   | ml_t0
   | ml_t1
   | ml_t2
+  | ml_lazy_val (_ : ml_type)
   | ml_ref (_ : ml_type)
   | ml_arrow (_ : ml_type) (_ : ml_type).
 
@@ -53,10 +55,15 @@ Inductive t2 := T0 (_ : t0)
 with t0 := | O | T1_1 (_ : t1)
 with t1 := T2_1 (_ : t2).
 
+
+Inductive lazy_val (a : Type) :=
+  LzVal of a | LzThunk of M a | LzExn of ml_exns.
+Inductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).
+
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
-  | ml_int => Int63.int
+  | ml_int => PrimInt63.int
   | ml_char => Ascii.ascii
   | ml_float => float
   | ml_bool => bool
@@ -64,6 +71,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_exn => ml_exns
   | ml_array T1 => loc (ml_array_t T1)
   | ml_list T1 => list (coq_type T1)
+  | ml_lazy T1 => lazy_t (coq_type T1) T1
   | ml_string => String.string
   | ml_empty => empty
   | ml_array_t T1 => array_t (coq_type T1)
@@ -71,6 +79,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_t0 => t0
   | ml_t1 => t1
   | ml_t2 => t2
+  | ml_lazy_val T1 => lazy_val (coq_type T1)
   | ml_ref T1 => loc T1
   | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
   end.
@@ -115,6 +124,8 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
         end
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
+    | ml_lazy T1 =>
+      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
     | ml_string => fun x y => Ret (compare_string x y)
     | ml_empty => fun x y => match x with end
     | ml_array_t T1 =>
@@ -138,6 +149,8 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_t2 =>
       fun x y =>
         match x, y with | T0 x1, T0 y1 => compare_rec ml_t0 x1 y1 end
+    | ml_lazy_val T1 =>
+      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
     | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
     | ml_arrow T1 T2 =>
       fun x y => Fail (Catchable (Invalid_argument "compare"%string))
@@ -171,6 +184,25 @@ Definition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=
   do n <- bounded_nat_of_int (seq.size s) n;
   setref (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).
 
+(* Lazy values *)
+Definition force a (lz : coq_type (ml_lazy a)) :=
+  match lz with
+  | Lval x => Ret x
+  | Lref r =>
+    do r' <- getref (ml_lazy_val a) r;
+    match r' with
+    | LzVal x => Ret x
+    | LzExn e => raise _ e
+    | LzThunk f => handle _
+        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)
+        (raise _)
+    end
+  end.
+Definition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=
+  do x <- newref (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).
+Definition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=
+  Lval _ _ b.
+
 (* Default amount of gas *)
 Definition h := 100000.
 
@@ -178,7 +210,7 @@ Definition h := 100000.
 
 Definition x := T0 O.
 
-Eval vm_compute in T2_1 x.
+Eval compute in T2_1 x.
 
 Definition failwith (T_1 : ml_type) (s : coq_type ml_string)
   : M (coq_type T_1) := raise T_1 (Failure s).
@@ -188,7 +220,7 @@ Fixpoint length_aux (h : nat) (T_1 : ml_type) (len : coq_type ml_int)
   if h is h.+1 then
     match param with
     | @nil _ => Ret len
-    | _ :: l => length_aux h T_1 (Int63.add len 1%int63) l
+    | _ :: l => length_aux h T_1 (PrimInt63.add len 1%int63) l
     end
   else FailGas.
 
@@ -201,4 +233,21 @@ Definition cons_1 (T_1 : ml_type) (a : coq_type T_1)
 Definition hd (T_1 : ml_type) (param : coq_type (ml_list T_1))
   : M (coq_type T_1) :=
   match param with | @nil _ => failwith T_1 "hd"%string | a :: _ => Ret a end.
+
+Fixpoint insert (h : nat) (T_1 : ml_type) (a : coq_type T_1)
+  (l : coq_type (ml_list T_1)) : M (coq_type (ml_list T_1)) :=
+  if h is h.+1 then
+    match l with
+    | @nil _ => Ret (a :: @nil (coq_type T_1))
+    | b :: l' =>
+      do v <- ml_le h T_1 a b;
+      if v then Ret (a :: l) else
+        do v <- insert h T_1 a l'; Ret (@cons (coq_type T_1) b v)
+    end
+  else FailGas.
+
+Definition l :=
+  Restart it
+    (insert h ml_int 3%int63
+       (1%int63 :: 2%int63 :: 4%int63 :: @nil (coq_type ml_int))).
 

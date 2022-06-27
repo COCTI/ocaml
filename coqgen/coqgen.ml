@@ -187,7 +187,7 @@ let transl_implementation _modname st =
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in
 
   CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
-\nRequire Import Sint63 Ascii String Floats cocti_defs.\
+\nRequire Import PrimInt63 Ascii String Floats cocti_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
   CTverbatim "(* Module argument for monadic functor *)\
@@ -267,7 +267,7 @@ let transl_implementation _modname st =
 \n    | LzExn e => raise _ e\
 \n    | LzThunk f => handle _\
 \n        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)\
-\n        (raise _)\
+\n        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)\
 \n    end\
 \n  end.\
 \nDefinition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=\

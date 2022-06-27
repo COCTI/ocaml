@@ -434,7 +434,8 @@ let rec transl_exp ~vars e =
       {pterm =
         ctBind ct.pterm (CTabs (u, None,
         ctBind ct1.pterm (CTabs (v, None,
-          ctapp (CTid x) [CTid "h"; CTid u; CTid v; CTabs (name, None, ct2.pterm)]))));
+          ctapp (CTid x) [CTid "h"; CTid u; CTid v;
+                          CTabs (name, None, ct2.pterm)]))));
         prec = Recursive; pary = 0}
   | Texp_lazy e ->
     let ct = transl_exp ~vars e in
@@ -600,7 +601,7 @@ let rec transl_structure ~vars = function
              ce_type = e.exp_type; ce_vars = []} in
           let vars = add_term ~toplevel:true (Path.Pident id) desc vars in
           let cmds, vars = transl_structure ~vars rem in
-          (CTdefinition (name, pt.pterm) :: CTeval (CTid name) :: cmds, vars)
+          (CTdefinition (name, pt.pterm, true) :: cmds, vars)
     | Tstr_value (rec_flag, [vb]) ->
         let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
         let pt = close_top ~vars ~ce_vars:desc.ce_vars pt in
@@ -625,7 +626,7 @@ let rec transl_structure ~vars = function
             then abstract_recursive pt.pterm
             else pt.pterm
           in
-          CTdefinition (name, ct) :: cmds, vars'
+          CTdefinition (name, ct, false) :: cmds, vars'
     | Tstr_type (Recursive, tds) ->
         let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
         let cmds, vars = transl_structure ~vars rem in

@@ -1,5 +1,6 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Sint63 BinNums Ascii String ZArith Floats.
+Require Sint63.
+Require Import PrimInt63 BinNums Ascii String ZArith Floats.
 
 (* Extra predefined types *)
 Inductive empty :=. (* for the value restriction *)
@@ -54,7 +55,7 @@ Notation "'do' x <- m ; e" := (Bind m (fun x => e))
   (at level 60, x name, m at level 200, e at level 60).
 Notation "'do' x : T <- m ; e" := (Bind m (fun x : T => e))
   (at level 60, x name, m at level 200, e at level 60).
-Notation "m >> f" := (Bind m (fun _ => f)).
+Notation "m >> f" := (Bind m (fun _ => f)) (at level 49).
 Notation "'Delay' f" := (Ret tt >> f) (at level 200).
 
 Definition App {A B} (f : M (A -> M B)) (x : M A) := do x <- x; do f <- f; f x.
@@ -108,7 +109,7 @@ Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
   fun env =>
     let: mkEnv c refs := env in
     let key := mkkey c T in
-    Ret (mkloc key) (mkEnv (c + 1)%sint63 (mkbind key val :: refs)).
+    Ret (mkloc key) (mkEnv (PrimInt63.add c 1) (mkbind key val :: refs)).
 
 Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
@@ -120,7 +121,7 @@ Fixpoint lookup key env :=
   match env with
   | nil => None
   | mkbind k v :: rest =>
-    if Int63.eqb (key_id key) (key_id k) then
+    if PrimInt63.eqb (key_id key) (key_id k) then
       coerce (key_type k) (key_type key) v
     else lookup key rest
   end.
@@ -138,7 +139,7 @@ Fixpoint update b (env : seq binding) :=
   | nil => None
   | mkbind k v :: rest =>
     let: mkbind k' _ := b in
-    if Int63.eqb (key_id k') (key_id k) then
+    if PrimInt63.eqb (key_id k') (key_id k) then
       if ml_type_eq_dec (key_type k') (key_type k)
       then Some (b :: rest)
       else None
@@ -193,7 +194,7 @@ Definition compare_ref T (r1 r2 : loc T) :=
 End Comparison.
 
 Definition nat_of_int (n : int) : M nat :=
-  match to_Z n with
+  match Sint63.to_Z n with
   | Z0 => Ret 0
   | Zpos pos => Ret (Pos.to_nat pos)
   | Zneg _ => Fail BoundedNat
@@ -206,13 +207,13 @@ Definition bounded_nat_of_int (m : nat) (n : int) : M nat :=
 Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
   if h is h.+1 then
     if Sint63.compare n_1 n_2 is Gt then Ret tt
-    else (do _ <- b n_1; forloop h (n_1 + 1)%sint63 n_2 b)
+    else (do _ <- b n_1; forloop h (PrimInt63.add n_1 1) n_2 b)
   else FailGas.
 
 Fixpoint downforloop (h : nat) (n_1 n_2 : int ) (b : int -> M unit) : M unit :=
   if h is h.+1 then
     if Sint63.compare n_1 n_2 is Lt then Ret tt
-    else (do _ <- b n_1; downforloop h (n_1 - 1)%sint63 n_2 b)
+    else (do _ <- b n_1; downforloop h (PrimInt63.sub n_1 1) n_2 b)
   else FailGas.
 
 Fixpoint whileloop (h : nat) (f : M bool) (b : M unit) : M unit :=
