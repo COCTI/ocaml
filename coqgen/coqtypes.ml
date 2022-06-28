@@ -150,7 +150,7 @@ let enter_tvars ~loc ~vars ~def tvl =
 
 let transl_constructor ~vars (cd : Types.constructor_declaration) =
   let loc = cd.cd_loc in
-  if cd.cd_res <> None then not_allowed ~loc "GADT";
+  (* if cd.cd_res <> None then not_allowed ~loc "GADT"; *)
   let cname = fresh_name ~vars (Ident.name cd.cd_id) in
   let vars = add_reserved cname vars in
   let args =
@@ -159,7 +159,7 @@ let transl_constructor ~vars (cd : Types.constructor_declaration) =
     | Cstr_record _ ->
         not_allowed ~loc "Inline record"
   in
-  (vars, cname, args)
+  (vars, cname, args, cd.cd_res)
 
 let transl_typedecl ~env ~vars id td =
   let loc = td.type_loc in
@@ -190,14 +190,22 @@ let transl_typedecl ~env ~vars id td =
       let names_types, vars =
         List.fold_left
           (fun (ntl, vars) cd ->
-            let vars, cname, args = transl_constructor ~vars cd in
-            ((cname, args) :: ntl, vars))
+            let vars, cname, args, res = transl_constructor ~vars cd in
+            ((cname, args, res) :: ntl, vars))
           ([],vars) cl
       in
       let names_types = List.rev names_types in
       let all_types =
         List.map
-          (fun (cname, args) ->
+          (fun (cname, args, res) ->
+            let (rebinds, vnames, equations, vars) =
+              match res with
+                None -> ([], [], [], vars)
+              | Some res -> match get_desc res with
+                  Tconstr (_, tyl, _) ->
+                    List.fold_left2
+                      (fun (rebinds,vnames,equations,vars) ty (tc,tc0) ->
+
             let ctl_def =
               List.map (transl_type ~loc ~env ~vars ~def:true) args in
             ctapp (CTid cname) ctl_def)
