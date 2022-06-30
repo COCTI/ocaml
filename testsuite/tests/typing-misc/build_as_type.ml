@@ -51,8 +51,6 @@ val f : [< `A | `B ] -> [> `A ] = <fun>
 
 let f = function (`A : t) as x -> x | `B -> `A;;
 [%%expect{|
-val f : t -> [ `A | `B ] = <fun>
-|}, Principal{|
 val f : t -> t = <fun>
 |}]
 

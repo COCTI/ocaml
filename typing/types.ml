@@ -546,6 +546,25 @@ let repr_link1 t d = function
      repr_link t d' t'
  | t' -> t'
 
+(* A non-normalized type may contain an arbitrarily long chain of
+   [Tlink] or [Texpand] prefixing the actual node (neither
+   [Tlink] nor [Texpand]).
+   [repr t] returns the actual node [t'], and also normalizes [t]
+   so that it is either [t'] itself (if there was no prefix) or
+   either [Tlink t'] or [Texpand (t', path, args)] where [path] and [args]
+   are taken from the first [Texpand] in the chain.
+   For instance, with "t1 -> t2" for [t1.desc = Tlink t2] and
+   "t1 -(path,args)-> t2" for [t1.desc = Texpand (t2, path, args)], we have
+   Before:
+      t -> t1 -(path1,args2)-> t2 -> t3 -(path2,args2)-> t'
+   After:
+      t -(path1,args1)-> t'
+   Before:
+      t -> t1 -> t2 -> t'
+   After:
+      t -> t'
+ *)
+
 let repr t =
   let d = t.desc in
   match d with
@@ -796,22 +815,27 @@ let forget_expand ty =
 
 let link_type ty ty' =
   let ty = repr ty in
-  let ty' = repr ty' in
-  if ty == ty' then () else begin
-  inherit_abbrevs ~from:ty ~into:ty';
+  let ty'' = repr ty' in
+  if ty == ty'' then () else begin
+  inherit_abbrevs ~from:ty ~into:ty'';
   log_type ty;
   let desc = ty.desc in
-  Transient_expr.set_desc ty (Tlink ty');
+  begin match ty'.desc with
+    Tlink _ | Texpand _ as d -> (* Keep [Texpand] for printing *)
+      Transient_expr.set_desc ty d
+  | _ ->
+      Transient_expr.set_desc ty (Tlink ty')
+  end;
   (* Name is a user-supplied name for this unification variable (obtained
    * through a type annotation for instance). *)
-  match desc, ty'.desc with
+  match desc, ty''.desc with
     Tvar name, Tvar name' ->
       begin match name, name' with
-      | Some _, None -> log_type ty'; Transient_expr.set_desc ty' (Tvar name)
+      | Some _, None -> log_type ty''; Transient_expr.set_desc ty'' (Tvar name)
       | None, Some _ -> ()
       | Some _, Some _ ->
-          if ty.level < ty'.level then
-            (log_type ty'; Transient_expr.set_desc ty' (Tvar name))
+          if ty.level < ty''.level then
+            (log_type ty''; Transient_expr.set_desc ty'' (Tvar name))
       | None, None   -> ()
       end
   | _ -> ()
