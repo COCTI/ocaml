@@ -386,7 +386,8 @@ let rec transl_exp ~vars e =
       {pterm =
         ctBind ct.pterm (CTabs (u, None,
         ctBind ct1.pterm (CTabs (v, None,
-          ctapp (CTid x) [CTid "h"; CTid u; CTid v; CTabs (name, None, ct2.pterm)]))));
+          ctapp (CTid x) [CTid "h"; CTid u; CTid v;
+                          CTabs (name, None, ct2.pterm)]))));
         prec = Recursive; pary = 0}
   | Texp_lazy e ->
     let ct = transl_exp ~vars e in

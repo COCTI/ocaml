@@ -245,7 +245,7 @@ Definition force a (lz : coq_type (ml_lazy a)) :=
     | LzExn e => raise _ e
     | LzThunk f => handle _
         (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)
-        (raise _)
+        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)
     end
   end.
 Definition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=

@@ -267,7 +267,7 @@ let transl_implementation _modname st =
 \n    | LzExn e => raise _ e\
 \n    | LzThunk f => handle _\
 \n        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)\
-\n        (raise _)\
+\n        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)\
 \n    end\
 \n  end.\
 \nDefinition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=\
