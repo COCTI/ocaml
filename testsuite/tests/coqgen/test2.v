@@ -234,3 +234,19 @@ Definition hd (T_1 : ml_type) (param : coq_type (ml_list T_1))
   : M (coq_type T_1) :=
   match param with | @nil _ => failwith T_1 "hd"%string | a :: _ => Ret a end.
 
+Fixpoint insert (h : nat) (T_1 : ml_type) (a : coq_type T_1)
+  (l : coq_type (ml_list T_1)) : M (coq_type (ml_list T_1)) :=
+  if h is h.+1 then
+    match l with
+    | @nil _ => Ret (a :: @nil (coq_type T_1))
+    | b :: l' =>
+      do v <- ml_le h T_1 a b;
+      if v then Ret (a :: l) else
+        do v <- insert h T_1 a l'; Ret (@cons (coq_type T_1) b v)
+    end
+  else FailGas.
+
+Definition l :=
+  Restart it
+    (insert h ml_int 3%int63
+       (1%int63 :: 2%int63 :: 4%int63 :: @nil (coq_type ml_int))).

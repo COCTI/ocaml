@@ -26,6 +26,14 @@ let hd = function
     [] -> failwith "hd"
   | a::_ -> a
 
+let rec insert a l =
+  match l with
+  | [] -> [a]
+  | b :: l' -> if a <= b then a :: l else b :: insert a l'
+;;
+
+let l = insert 3 [1;2;4]
+
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.
