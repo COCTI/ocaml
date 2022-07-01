@@ -47,7 +47,7 @@ type inductive =
       cases: (string * (string * coq_term) list * coq_term option) list }
 
 type vernacular =
-  | CTdefinition of string * coq_term
+  | CTdefinition of string * coq_term * bool
   | CTfixpoint of string * coq_term
   | CTeval of coq_term
   | CTinductive of inductive list

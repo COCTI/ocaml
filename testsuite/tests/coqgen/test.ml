@@ -61,6 +61,11 @@ let incr r =
 
 let r = ref 1 in incr r;;
 
+(* lazy *)
+let lazy_counter c = lazy (incr c; !c);;
+let c = ref 0 in let m = lazy_counter c in let n = lazy_counter c in
+let n = Lazy.force n in let m = Lazy.force m in [m; n];;
+
 (* relaxed value restriction? *)
 let x = ref [] in !x;;
 let nil = let x = ref [] in !x;;
