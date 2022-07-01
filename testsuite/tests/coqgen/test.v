@@ -232,6 +232,51 @@ Definition harmonic (x y : coq_type ml_float) : coq_type ml_float :=
   div%float (2.0%float)
     (add%float (div%float (1.0%float) x) (div%float (1.0%float) y)).
 
+Fixpoint float_sum (h : nat) (l : coq_type (ml_list ml_float))
+  : M (coq_type ml_float) :=
+  if h is h.+1 then
+    match l with
+    | @nil _ => Ret (0.0%float)
+    | first :: rest => do v <- float_sum h rest; Ret (add%float first v)
+    end
+  else FailGas.
+
+Definition newton's_method (h : nat) (e : coq_type ml_float)
+  (f : coq_type (ml_arrow ml_float ml_float)) : M (coq_type ml_float) :=
+  let diff (e_1 : coq_type ml_float)
+  (f_1 : coq_type (ml_arrow ml_float ml_float)) (x : coq_type ml_float)
+  : M (coq_type ml_float) :=
+    do v <-
+    (do v <- f_1 x; do v_1 <- f_1 (add%float x e_1); Ret (sub%float v_1 v));
+    Ret (div%float v e_1) in
+  do r <- newref ml_float (1.0%float);
+  do _ <-
+  (do u <- Ret 1%int63;
+   do v <- Ret 10%int63;
+   forloop h u v
+     (fun i =>
+        do v <-
+        (do v <-
+         (do v <- (do v <- getref ml_float r; diff e f v);
+          do v_1 <- (do v <- getref ml_float r; f v); Ret (div%float v_1 v));
+         do v_1 <- getref ml_float r; Ret (sub%float v_1 v));
+        setref ml_float r v));
+  getref ml_float r.
+
+Definition fact (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
+  do i <- newref ml_int n;
+  do v <- newref ml_int 1%int63;
+  do _ <-
+  whileloop h (do v_1 <- getref ml_int i; ml_gt h ml_int v_1 0%int63)
+    (do _ <-
+     (do v_1 <-
+      (do v_1 <- getref ml_int i;
+       do v_2 <- getref ml_int v; Ret (Int63.mul v_2 v_1));
+      setref ml_int v v_1);
+     do v_1 <- (do v_1 <- getref ml_int i; Ret (Int63.sub v_1 1%int63));
+     setref ml_int i v_1);
+  getref ml_int v.
+
 Definition ref' (T : ml_type) := newref T.
 
 Definition foo1 (T : ml_type) (x : coq_type T) : M (coq_type T) :=
