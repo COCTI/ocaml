@@ -3,6 +3,9 @@ OCaml 4.14 maintenance branch
 
 ### Bug fixes:
 
+- #10348: Expand GADT equations lazily during unification to avoid ambiguity
+  (Jacques Garrigue, review by Leo White)
+
 - #11204: Fix regression introduced in 4.14.0 that would trigger Warning 17 when
   calling virtual methods introduced by constraining the self type from within
   the class definition.
