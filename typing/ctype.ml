@@ -723,6 +723,14 @@ let update_scope_for tr_exn scope ty =
     update_scope scope ty
   with Escape e -> raise_for tr_exn (Escape e)
 
+let needs_expand env level path args =
+  let variance =
+    try (Env.find_type path env).type_variance
+    with Not_found -> List.map (fun _ -> Variance.unknown) args in
+  List.exists2
+    (fun var ty -> var = Variance.null && get_level ty > level)
+    variance args
+
 (* Note: the level of a type constructor must be greater than its binding
     time. That way, a type constructor cannot escape the scope of its
     definition, as would be the case in
@@ -741,33 +749,31 @@ let rec update_level env level expand ty =
     if List.length abbrevs <> List.length abbrevs' then
       Transient_expr.(set_abbrevs (repr ty) abbrevs'); *)
     (* Remove out-of-scope Texpand *)
-    iter_expand (fun p _ -> if level < Path.scope p then forget_expand ty) ty;
+    iter_expand
+      (fun p args ->
+        if level < Path.scope p then forget_expand ty else
+        if List.for_all (fun ty -> get_level ty <= level) args then () else
+        if expand || needs_expand env level p args then forget_expand ty else
+        List.iter (update_level env level expand) args)
+      ty;
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
         begin try
           let ty' = !forward_try_expand_safe env ty in
           link_type ty ty';
-          update_level env level expand ty'
+          update_level env level expand ty
         with Cannot_expand ->
           raise_escape_exn (Constructor p)
         end
     | Tconstr(p, (_ :: _ as tl), _) ->
-        let variance =
-          try (Env.find_type p env).type_variance
-          with Not_found -> List.map (fun _ -> Variance.unknown) tl in
-        let needs_expand =
-          expand ||
-          List.exists2
-            (fun var ty -> var = Variance.null && get_level ty > level)
-            variance tl
-        in
+        let needs_expand = expand || needs_expand env level p tl in
         (* Do not lower the level of nodes that may be unrelated *)
         begin try
           if not needs_expand then raise Cannot_expand;
           let ty' = !forward_try_expand_safe env ty in
           link_type ty ty';
-          update_level env level expand ty'
+          update_level env level expand ty
         with Cannot_expand ->
           set_level ty level;
           iter_type_expr (update_level env level expand) ty
@@ -1680,9 +1686,8 @@ let expand_head link env ty =
 let expand_head_nolink = expand_head false
 let expand_head = expand_head true
 
+let () = forward_try_expand_safe := try_expand_safe false
 let try_expand_safe = try_expand_safe true
-let _ = forward_try_expand_safe := try_expand_safe
-
 
 (* Expand until we find a non-abstract type declaration,
    use try_expand_safe to avoid raising "Unify _" when

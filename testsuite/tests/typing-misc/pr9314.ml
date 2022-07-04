@@ -24,15 +24,7 @@ type 'a gamma = 'b constraint 'a = < gamma : 'b >
 let o : < gamma : 'a gamma > as 'a = object method gamma = 1 end
 [%%expect{|
 type 'a gamma = 'b constraint 'a = < gamma : 'b >
-Line 1:
-Error: Values do not match:
-         val o : < gamma : int >
-       is not included in
-         val o : < gamma : 'a gamma > as 'a
-       The type < gamma : int > is not compatible with the type
-         < gamma : 'b > as 'a
-       Type int is not compatible with type 'b
-       Types for method gamma are incompatible
+val o : < gamma : int > = <obj>
 |}, Principal{|
 type 'a gamma = 'b constraint 'a = < gamma : 'b >
 Line 2, characters 37-64:

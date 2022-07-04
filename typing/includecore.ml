@@ -858,9 +858,6 @@ let type_declarations ?(equality = false) ~loc env ~mark name
     decl1.type_attributes decl2.type_attributes
     name;
   if decl1.type_arity <> decl2.type_arity then Some Arity else
-  let it = { Btype.type_iterators with
-             it_type_expr = fun _ -> Ctype.unexpand_type_expr env } in
-  List.iter (it.it_type_declaration it) [decl1; decl2];
   let err =
     match privacy_mismatch env decl1 decl2 with
     | Some err -> Some (Privacy err)
