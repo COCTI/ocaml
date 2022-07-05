@@ -595,6 +595,7 @@ let rec generalize ty =
   let level = get_level ty in
   if (level > !current_level) && (level <> generic_level) then begin
     set_level ty generic_level;
+    iter_expand (fun _ -> List.iter generalize) ty;
     (* recur into abbrev for the speed *)
     begin match get_desc ty with
       Tconstr (_, _, abbrev) ->
@@ -623,6 +624,7 @@ let rec generalize_structure ty =
       | _ -> true
     then begin
       set_level ty generic_level;
+      iter_expand (fun _ -> List.iter generalize_structure) ty;
       iter_type_expr generalize_structure ty
     end
   end
@@ -635,7 +637,8 @@ let generalize_structure ty =
 
 let rec generalize_spine ty =
   let level = get_level ty in
-  if level < !current_level || level = generic_level then () else
+  if level < !current_level || level = generic_level then () else begin
+  iter_expand (fun _ -> List.iter generalize_spine) ty;
   match get_desc ty with
     Tarrow (_, ty1, ty2, _) ->
       set_level ty generic_level;
@@ -655,7 +658,7 @@ let rec generalize_spine ty =
       memo := Mnil;
       List.iter generalize_spine tyl
   | _ -> ()
-
+  end
 let forward_try_expand_safe = (* Forward declaration *)
   ref (fun _env _ty -> assert false)
 
@@ -1821,6 +1824,13 @@ exception Occur
 
 let rec occur_rec env allow_recursive visited ty0 ty =
   if eq_type ty ty0 then raise Occur;
+  iter_expand
+    (fun _p args -> try
+      if TypeSet.mem ty visited then raise Occur;
+      let visited = TypeSet.add ty visited in
+      List.iter (occur_rec env allow_recursive visited ty0) args
+    with Occur -> forget_expand ty)
+    ty;
   match get_desc ty with
     Tconstr(p, _tl, _abbrev) ->
       if allow_recursive && is_contractive env p then () else
@@ -1829,7 +1839,7 @@ let rec occur_rec env allow_recursive visited ty0 ty =
         let visited = TypeSet.add ty visited in
         iter_type_expr (occur_rec env allow_recursive visited ty0) ty
       with Occur -> try
-        let ty' = try_expand_head (try_expand_once true) env ty in
+        let ty' = try_expand_head (try_expand_once false) env ty in
         (* This call used to be inlined, but there seems no reason for it.
            Message was referring to change in rev. 1.58 of the CVS repo. *)
         occur_rec env allow_recursive visited ty0 ty'
@@ -5205,11 +5215,7 @@ let rec nondep_type_rec ?(expand_private=false) env ids ty =
     if expand_private then try_expand_safe_opt env t
     else try_expand_safe env t
   in
-  let desc =
-    match get_expand ty with
-      Some (path, tyl) -> Tconstr (path, tyl, ref Mnil)
-    | None -> get_desc ty
-  in
+  let desc = get_constr_desc ty in
   match desc with
     Tvar _ | Tunivar _ -> ty
   | _ -> try TypeHash.find nondep_hash ty

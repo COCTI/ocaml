@@ -77,6 +77,7 @@ val is_Tvar: type_expr -> bool
 val is_Tunivar: type_expr -> bool
 val is_Tconstr: type_expr -> bool
 val dummy_method: label
+val get_constr_desc: type_expr -> type_desc
 
 (**** polymorphic variants ****)
 

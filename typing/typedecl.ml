@@ -501,7 +501,7 @@ module TypeMap = Btype.TypeMap
 let rec check_constraints_rec env loc visited ty =
   if TypeSet.mem ty !visited then () else begin
   visited := TypeSet.add ty !visited;
-  match get_desc ty with
+  match Btype.get_constr_desc ty with
   | Tconstr (path, args, _) ->
       let decl =
         try Env.find_type path env
@@ -604,7 +604,7 @@ let check_coherence env loc dpath decl =
   match decl with
     { type_kind = (Type_variant _ | Type_record _| Type_open);
       type_manifest = Some ty } ->
-      begin match get_desc ty with
+      begin match Btype.get_constr_desc ty with
         Tconstr(path, args, _) ->
           begin try
             let decl' = Env.find_type path env in
@@ -650,10 +650,8 @@ let check_well_founded env loc path to_check ty =
     in
     if TypeSet.exists check_parent parents then begin
       (*Format.eprintf "@[%a@]@." Printtyp.raw_type_expr ty;*)
-      if match get_desc ty0 with
+      if match Btype.get_constr_desc ty0 with
       | Tconstr (p, _, _) -> Path.same p path
-      | _ -> match get_expand ty0 with
-      | Some (p, _) -> Path.same p path
       | _ -> false
       then raise (Error (loc, Recursive_abbrev (Path.name path)))
       else raise (Error (loc, Cycle_in_def (Path.name path, ty0)))
@@ -668,7 +666,7 @@ let check_well_founded env loc path to_check ty =
     in
     if fini then () else
     let rec_ok =
-      match get_desc ty with
+      match Btype.get_constr_desc ty with
         Tconstr(p,_,_) ->
           !Clflags.recursive_types && Ctype.is_contractive env p
       | Tobject _ | Tvariant _ -> true
@@ -729,7 +727,7 @@ let check_recursion ~orig_env env loc path decl to_check =
   let rec check_regular args prev_exp prev_expansions ty =
     if not (TypeSet.mem ty !visited) then begin
       visited := TypeSet.add ty !visited;
-      match get_desc ty with
+      match Btype.get_constr_desc ty with
       | Tconstr(path', args', _) ->
           if Path.same path path' then begin
             if not (Ctype.is_equal orig_env false args args') then

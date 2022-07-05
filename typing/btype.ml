@@ -127,6 +127,11 @@ let is_Tconstr ty = match get_desc ty with Tconstr _ -> true | _ -> false
 
 let dummy_method = "*dummy method*"
 
+let get_constr_desc ty =
+  match get_expand ty with
+    Some (path, tyl) -> Tconstr (path, tyl, ref Mnil)
+  | None -> get_desc ty
+
 (**** Representative of a type ****)
 
 let merge_fixed_explanation fixed1 fixed2 =
@@ -286,11 +291,10 @@ let fold_type_desc f init = function
   | Tsubst _
   | Texpand _           -> assert false
 
-let rec fold_type_expr f init ty =
-  let result = fold_type_desc f init (get_desc ty) in
-  Option.fold ~none:result ~some:(fold_abbrev f result) (get_expand ty)
+let fold_type_expr f init ty =
+  fold_type_desc f init (get_desc ty)
 
-and fold_abbrev f init (_, args) =
+let fold_abbrev f init (_, args) =
   List.fold_left (fold_type_expr f) init args
 
 let fold_abbrevs f init ty =
