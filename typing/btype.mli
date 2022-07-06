@@ -164,6 +164,10 @@ val copy_row:
     (type_expr -> type_expr) ->
     bool -> row_desc -> bool -> type_expr -> row_desc
 
+val deep_occur: type_expr -> type_expr -> bool
+   (* [deep_occur t0 ty] return whether [t0] occurs in [ty].
+      Objects are also traversed. *)
+
 module For_copy : sig
 
   type copy_scope

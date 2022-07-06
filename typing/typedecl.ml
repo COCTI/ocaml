@@ -643,9 +643,10 @@ let check_well_founded env loc path to_check ty =
   let visited = ref TypeMap.empty in
   let rec check ty0 parents ty =
     let check_parent ty' =
+      eq_type ty ty' &&
       match get_expand ty, get_expand ty' with
-        Some (p, _), Some (p', _) -> Path.same p p'
-      | None, None -> eq_type ty ty'
+        Some (p, tl), Some (p', tl') -> p == p' && tl == tl'
+      | None, None -> true
       | _ -> false
     in
     if TypeSet.exists check_parent parents then begin
@@ -665,17 +666,27 @@ let check_well_founded env loc path to_check ty =
         (false, parents)
     in
     if fini then () else
+    let visited' = TypeMap.add ty parents !visited in
+    visited := visited';
+    iter_expand
+      (fun path args ->
+        if to_check path then
+        let rec_ok =
+          !Clflags.recursive_types && Ctype.is_contractive env path in
+        let parents =
+          if rec_ok then TypeSet.empty else TypeSet.add ty parents in
+        List.iter (check ty0 parents) args)
+      ty;
     let rec_ok =
-      match Btype.get_constr_desc ty with
+      match get_desc ty with
         Tconstr(p,_,_) ->
           !Clflags.recursive_types && Ctype.is_contractive env p
       | Tobject _ | Tvariant _ -> true
       | _ -> !Clflags.recursive_types
     in
-    let visited' = TypeMap.add ty parents !visited in
     let arg_exn =
+      let visited' = !visited in
       try
-        visited := visited';
         let parents =
           if rec_ok then TypeSet.empty else TypeSet.add ty parents in
         Btype.iter_type_expr (check ty0 parents) ty;
@@ -822,7 +833,7 @@ let name_recursion sdecl id decl =
       type_manifest = Some ty;
       type_private = Private; } when is_fixed_type sdecl ->
     let ty' = newty2 ~level:(get_level ty) (get_desc ty) in
-    if Ctype.deep_occur ty ty' then
+    if Btype.deep_occur ty ty' then
       let td = Tconstr(Path.Pident id, decl.type_params, ref Mnil) in
       link_type ty (newty2 ~level:(get_level ty) td);
       {decl with type_manifest = Some ty'}
@@ -982,14 +993,15 @@ let transl_type_decl env rec_flag sdecl_list =
   (* Check re-exportation *)
   List.iter2 (check_abbrev final_env) sdecl_list decls;
   (* Unexpand abbreviations *)
-  let it = { Btype.type_iterators with
+  (* let it = { Btype.type_iterators with
              it_type_expr = fun _ -> Ctype.unexpand_type_expr env } in
-  List.iter (fun (_, decl) -> it.it_type_declaration it decl) decls;
+  List.iter (fun (_, decl) -> it.it_type_declaration it decl) decls; *)
   (* Keep original declaration *)
   let final_decls =
     List.map2
       (fun tdecl (_id2, decl) ->
-        { tdecl with typ_type = decl }
+        (* Using [Subst] reverts expansions *)
+        { tdecl with typ_type = Subst.type_declaration Subst.identity decl }
       ) tdecls decls
   in
   (* Done *)
@@ -1639,7 +1651,7 @@ open Format
 
 let explain_unbound_gen ppf tv tl typ kwd pr =
   try
-    let ti = List.find (fun ti -> Ctype.deep_occur tv (typ ti)) tl in
+    let ti = List.find (fun ti -> Btype.deep_occur tv (typ ti)) tl in
     let ty0 = (* Hack to force aliasing when needed *)
       Btype.newgenty (Tobject(tv, ref None)) in
     Printtyp.prepare_for_printing [typ ti; ty0];

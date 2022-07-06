@@ -487,7 +487,7 @@ and transl_type_aux env policy styp =
       end_def();
       generalize ty;
       let ty_list = check_poly_univars env styp.ptyp_loc new_univars in
-      let ty_list = List.filter (fun v -> deep_occur v ty) ty_list in
+      let ty_list = List.filter (fun v -> Btype.deep_occur v ty) ty_list in
       let ty' = Btype.newgenty (Tpoly(ty, ty_list)) in
       unify_var env (newvar()) ty';
       ctyp (Ttyp_poly (vars, cty)) ty'

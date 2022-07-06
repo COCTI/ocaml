@@ -47,9 +47,9 @@ module type T =
     type 'a beta = 'b constraint 'a = < beta : 'b >
     type 'a gamma = 'b constraint 'a = < delta : 'c; gamma : 'b >
     type 'a delta = 'b constraint 'a = < delta : 'b; gamma : 'c >
-    type 'a alpha_of_gamma = 'a gamma alpha
+    type 'a alpha_of_gamma = 'c
       constraint 'a = < delta : 'b; gamma : < alpha : 'c > >
-    type 'a beta_of_delta = 'a delta beta
+    type 'a beta_of_delta = 'b
       constraint 'a = < delta : < beta : 'b >; gamma : 'c >
     type ('a, 'b) w = W
     type ('a, 'just_alpha) x = { field : ('a beta, 'just_alpha) w; }
@@ -100,9 +100,9 @@ type 'a alpha = 'b constraint 'a = < alpha : 'b >
 type 'a beta = 'b constraint 'a = < beta : 'b >
 type 'a gamma = 'b constraint 'a = < delta : 'c; gamma : 'b >
 type 'a delta = 'b constraint 'a = < delta : 'b; gamma : 'c >
-type 'a alpha_of_gamma = 'a gamma alpha
+type 'a alpha_of_gamma = 'c
   constraint 'a = < delta : 'b; gamma : < alpha : 'c > >
-type 'a beta_of_delta = 'a delta beta
+type 'a beta_of_delta = 'b
   constraint 'a = < delta : < beta : 'b >; gamma : 'c >
 type ('a, 'b) alphabeta
 module Alphabeta :

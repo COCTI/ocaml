@@ -288,8 +288,8 @@ let fold_type_desc f init = function
   | Tpackage (_, fl)    ->
     List.fold_left (fun result (_n, ty) -> f result ty) init fl
   | Tlink _
-  | Tsubst _
   | Texpand _           -> assert false
+  | Tsubst _            -> init
 
 let fold_type_expr f init ty =
   fold_type_desc f init (get_desc ty)
@@ -781,6 +781,22 @@ let unmark_class_signature sign =
 
 let unmark_class_type cty =
   unmark_iterators.it_class_type unmark_iterators cty
+
+(**** Type traversal ****)
+
+(* Return whether [t0] occurs in [ty]. Objects are also traversed. *)
+exception Occur
+let deep_occur t0 ty =
+  let rec occur_rec ty =
+    if get_level ty >= get_level t0 && try_mark_node ty then begin
+      if eq_type ty t0 then raise Occur;
+      iter_type_expr occur_rec ty
+    end
+  in
+  try
+    occur_rec ty; unmark_type ty; false
+  with Occur ->
+    unmark_type ty; true
 
 (**** Type information getter ****)
 

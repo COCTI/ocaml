@@ -150,7 +150,7 @@ type 'a t = 'b constraint 'a = <b:'b>
 type !'b u = <b:'b> t
 [%%expect{|
 type 'a t = 'b constraint 'a = < b : 'b >
-type 'b u = < b : 'b > t
+type +'a u = 'a constraint 'a = < b : 'a > t
 |}]
 
 (* Ignore injectivity for nominal types *)
