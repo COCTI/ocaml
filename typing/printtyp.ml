@@ -2117,8 +2117,8 @@ let same_path t t' =
           List.for_all2 eq_type tl tl'
       | _ -> false
       end
-  | _ ->
-      false
+  | Tconstr _, _ | _, Tconstr _ -> false
+  | _ -> true
 
 type 'a diff = Same of 'a | Diff of 'a * 'a
 
@@ -2128,8 +2128,8 @@ let trees_of_type_expansion mode Errortrace.{ty = t; expanded = t'} =
   if same_path t t'
   then begin add_delayed (proxy t); Same (tree_of_typexp mode t) end
   else begin
-    mark_loops t';
     let t' = if proxy t == proxy t' then unalias t' else t' in
+    mark_loops t';
     (* beware order matter due to side effect,
        e.g. when printing object types *)
     let first = tree_of_typexp mode t in
