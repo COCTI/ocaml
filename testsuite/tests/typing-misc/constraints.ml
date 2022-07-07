@@ -170,7 +170,7 @@ Here is an example of a case that is not matched:
 
 type 'a t = 'b  constraint 'a = 'b t;;
 [%%expect{|
-type 'a t = 'a
+type 'b t = 'b
 |}]
 
 type 'a t = 'b constraint 'a = ('b * 'b) t;;
@@ -180,16 +180,16 @@ Line 1, characters 0-42:
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: This recursive type is not regular.
        The type constructor t is defined as
-         type 'a t
+         type 'b t
        but it is used as
-         'a.
+         'b.
        All uses need to match the definition for the recursive type to be regular.
 |}]
 
 type 'a t = 'a * 'b constraint _ * 'a = 'b t;;
 type 'a t = 'a * 'b constraint 'a = 'b t;;
 [%%expect{|
-type 'a t = 'a * 'a
+type 'b t = 'b * 'b
 Line 2, characters 0-40:
 2 | type 'a t = 'a * 'b constraint 'a = 'b t;;
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -222,7 +222,7 @@ Error: A type variable is unbound in this type declaration.
 
 module rec M : sig type 'a t = 'b constraint 'a = 'b t end = M;;
 [%%expect{|
-module rec M : sig type 'a t = 'a end
+module rec M : sig type 'b t = 'b end
 |}]
 module rec M : sig type 'a t = 'b constraint 'a = ('b * 'b) t end = M;;
 [%%expect{|
@@ -231,9 +231,9 @@ Line 1, characters 19-61:
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: This recursive type is not regular.
        The type constructor t is defined as
-         type 'a t
+         type 'b t
        but it is used as
-         'a.
+         'b.
        All uses need to match the definition for the recursive type to be regular.
 |}]
 

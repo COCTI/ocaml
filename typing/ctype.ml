@@ -2730,15 +2730,21 @@ and unify2 env t1 t2 =
   (* Expansion may change the representative of the types. *)
   ignore (expand_head_unif !env t1);
   ignore (expand_head_unif !env t2);
-  let t1' = expand_head_unif !env t1 in
-  let t2' = expand_head_unif !env t2 in
-  let lv = Int.min (get_level t1') (get_level t2') in
-  let scope = Int.max (get_scope t1') (get_scope t2') in
+  ignore (expand_head_unif !env t1);
+  ignore (expand_head_unif !env t2);
+  let lv = Int.min (get_level t1) (get_level t2) in
+  let scope = Int.max (get_scope t1) (get_scope t2) in
   update_level_for Unify !env lv t2;
   update_level_for Unify !env lv t1;
   update_scope_for Unify scope t2;
   update_scope_for Unify scope t1;
-  if unify_eq t1' t2' then () else unify3 env t1' t2'
+
+  if unify_eq t1 t2 then () else
+  if get_expand t1 = None || get_expand t2 <> None then
+    unify3 env t1 t2
+  else
+    try unify3 env t2 t1 with Unify_trace trace ->
+      raise_trace_for Unify (swap_trace trace)
 
 and unify3 env t1' t2' =
   (* Third step: truly unification *)
