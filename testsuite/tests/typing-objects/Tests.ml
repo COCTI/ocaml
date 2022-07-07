@@ -18,7 +18,7 @@ end and ['a] d () = object
   inherit ['a] c ()
 end;;
 [%%expect{|
-class ['a] c : unit -> object constraint 'a = int method f : int c end
+class ['a] c : unit -> object constraint 'a = int method f : 'a c end
 and ['a] d : unit -> object constraint 'a = int method f : 'a c end
 |}];;
 (* class ['a] c : unit -> object constraint 'a = int method f : 'a c end *)
@@ -93,7 +93,7 @@ class ['a] c :
 |}];;
 new c;;
 [%%expect{|
-- : ('a c as 'a) -> 'a = <fun>
+- : (< f : 'a > as 'a) -> 'a = <fun>
 |}];;
 (* class ['a] c :
   'a -> object ('a) constraint 'a = < f : 'a; .. > method f : 'a end *)
@@ -219,19 +219,23 @@ and 'a d = < f : int c >
 type 'a u = < x : 'a>
 and 'a t = 'a t u;;
 [%%expect{|
-Line 2, characters 0-17:
-2 | and 'a t = 'a t u;;
-    ^^^^^^^^^^^^^^^^^
-Error: The definition of t contains a cycle:
-       'a t u
+type 'a u = 'a constraint 'a = < x : 'a >
+and 'a t = < x : 'b > as 'b
 |}];; (* fails since 4.04 *)
 type 'a u = 'a
 and 'a t = 'a t u;;
 [%%expect{|
-Line 2, characters 0-17:
-2 | and 'a t = 'a t u;;
-    ^^^^^^^^^^^^^^^^^
-Error: The type abbreviation t is cyclic
+Line 1, characters 0-14:
+1 | type 'a u = 'a
+    ^^^^^^^^^^^^^^
+Error: This recursive type is not regular.
+       The type constructor u is defined as
+         type 'a u
+       but it is used as
+         'b
+       after the following expansion(s):
+         'a = 'a
+       All uses need to match the definition for the recursive type to be regular.
 |}];;
 type 'a u = 'a;;
 [%%expect{|
@@ -255,11 +259,11 @@ type 'a u = 'a
 |}];;
 fun (x : t) (y : 'a u) -> x = y;;
 [%%expect{|
-- : t -> t u -> bool = <fun>
+- : t -> (< x : 'a > as 'a) -> bool = <fun>
 |}];;
 fun (x : t) (y : 'a u) -> y = x;;
 [%%expect{|
-- : t -> t u -> bool = <fun>
+- : t -> t -> bool = <fun>
 |}];;
 (* - : t -> t u -> bool = <fun> *)
 
@@ -652,6 +656,8 @@ class c : unit -> object method m : c end
 |}];;
 (new c ())#m;;
 [%%expect{|
+- : < m : 'a > as 'a = <obj>
+|}, Principal{|
 - : c = <obj>
 |}];;
 module M = struct class c () = object method m = new c () end end;;
@@ -660,6 +666,8 @@ module M : sig class c : unit -> object method m : c end end
 |}];;
 (new M.c ())#m;;
 [%%expect{|
+- : < m : 'a > as 'a = <obj>
+|}, Principal{|
 - : M.c = <obj>
 |}];;
 
@@ -700,8 +708,6 @@ Error: Signature mismatch:
        is not included in
          val f : #c -> #c
        The type (#c as 'a) -> 'a is not compatible with the type #c -> #c
-       Type #c as 'a = < m : 'a; .. > is not compatible with type
-         #c as 'b = < m : 'b; .. >
        Type 'a is not compatible with type 'b
 |}];;
 
@@ -785,7 +791,7 @@ type 'a t = < x : 'a >
 |}];;
 fun (x : 'a t as 'a) -> ();;
 [%%expect{|
-- : ('a t as 'a) -> unit = <fun>
+- : (< x : 'a > as 'a) -> unit = <fun>
 |}];;
 fun (x : 'a t) -> (x : 'a); ();;
 [%%expect{|
@@ -793,7 +799,7 @@ Line 1, characters 18-26:
 1 | fun (x : 'a t) -> (x : 'a); ();;
                       ^^^^^^^^
 Warning 10 [non-unit-statement]: this expression should have type unit.
-- : ('a t as 'a) t -> unit = <fun>
+- : (< x : 'a > as 'a) t -> unit = <fun>
 |}];;
 
 class ['a] c () = object
