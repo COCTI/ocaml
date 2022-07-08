@@ -34,6 +34,18 @@ let rec insert a l =
 
 let l = insert 3 [1;2;4]
 
+let rec isort l =
+  match l with 
+  | [] -> []
+  | a :: l' -> insert a (isort l')
+;;
+
+Inductive le_list (T_1 : ml_type) (x : coq_type T_1)
+  : (coq_type (ml_list T_1 )) -> Prop :=
+  | le_nil : le_list _ x nil
+  | le_cons : forall y l,
+  do v <- ml_le _ _ x y;
+  v -> le_list x l -> le_list x (y::l).
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.

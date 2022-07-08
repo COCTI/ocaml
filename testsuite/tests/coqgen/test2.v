@@ -19,6 +19,7 @@ Inductive ml_type :=
   | ml_t0
   | ml_t1
   | ml_t2
+  | ml_prod (_ : ml_type) (_ : ml_type)
   | ml_lazy_val (_ : ml_type)
   | ml_ref (_ : ml_type)
   | ml_arrow (_ : ml_type) (_ : ml_type).
@@ -55,6 +56,8 @@ Inductive t2 := T0 (_ : t0)
 with t0 := | O | T1_1 (_ : t1)
 with t1 := T2_1 (_ : t2).
 
+Inductive prod (a : Type) (b : Type) := Pair (_ : a) (_ : b).
+
 
 Inductive lazy_val (a : Type) :=
   LzVal of a | LzThunk of M a | LzExn of ml_exns.
@@ -79,6 +82,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_t0 => t0
   | ml_t1 => t1
   | ml_t2 => t2
+  | ml_prod T1 T2 => prod (coq_type T1) (coq_type T2)
   | ml_lazy_val T1 => lazy_val (coq_type T1)
   | ml_ref T1 => loc T1
   | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
@@ -149,6 +153,12 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_t2 =>
       fun x y =>
         match x, y with | T0 x1, T0 y1 => compare_rec ml_t0 x1 y1 end
+    | ml_prod T1 T2 =>
+      fun x y =>
+        match x, y with
+        | Pair x1 x2, Pair y1 y2 =>
+          lexi_compare (compare_rec T1 x1 y1) (Delay (compare_rec T2 x2 y2))
+        end
     | ml_lazy_val T1 =>
       fun x y => Fail (Catchable (Invalid_argument "compare"%string))
     | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
@@ -250,3 +260,21 @@ Definition l :=
   Restart it
     (insert h ml_int 3%int63
        (1%int63 :: 2%int63 :: 4%int63 :: @nil (coq_type ml_int))).
+
+Fixpoint isort (h : nat) (T_1 : ml_type) (l_1 : coq_type (ml_list T_1))
+  : M (coq_type (ml_list T_1)) :=
+  if h is h.+1 then
+    match l_1 with
+    | @nil _ => Ret (@nil (coq_type T_1))
+    | a :: l' => do v <- isort h T_1 l'; insert h T_1 a v
+    end
+  else FailGas.
+
+(*Inductive le_list (T_1 : ml_type) (x : coq_type T_1)
+  : (coq_type (ml_list T_1 )) -> M Prop :=
+  | le_nil : le_list _ x nil
+  | le_cons : forall y l,
+  do v <- ml_le _ _ x y;
+  v -> le_list x l -> le_list x (y::l).*)
+
+
