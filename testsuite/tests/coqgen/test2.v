@@ -270,11 +270,4 @@ Fixpoint isort (h : nat) (T_1 : ml_type) (l_1 : coq_type (ml_list T_1))
     end
   else FailGas.
 
-(*Inductive le_list (T_1 : ml_type) (x : coq_type T_1)
-  : (coq_type (ml_list T_1 )) -> M Prop :=
-  | le_nil : le_list _ x nil
-  | le_cons : forall y l,
-  do v <- ml_le _ _ x y;
-  v -> le_list x l -> le_list x (y::l).*)
-
 
