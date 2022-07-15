@@ -269,5 +269,3 @@ Fixpoint isort (h : nat) (T_1 : ml_type) (l_1 : coq_type (ml_list T_1))
     | a :: l' => do v <- isort h T_1 l'; insert h T_1 a v
     end
   else FailGas.
-
-
