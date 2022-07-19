@@ -155,9 +155,8 @@ let ctype_apply_env_empty = ref (fun _ -> assert false)
 
 (* Similar to [Ctype.nondep_type_rec]. *)
 let rec typexp copy_scope s ty =
-  let desc = get_desc ty in
-  match desc with
-    Tvar _ | Tunivar _ ->
+  match get_repr_desc ty with
+    Tvar _ | Tunivar _ as desc ->
       if s.for_saving || get_id ty < 0 then
         let ty' =
           if s.for_saving then newpersty (norm desc)
@@ -191,14 +190,14 @@ let rec typexp copy_scope s ty =
         match get_desc tm with (* PR#7348 *)
           Tconstr (Pdot(m,i), tl, _abbrev) ->
             let i' = String.sub i 0 (String.length i - 4) in
-            Tconstr(type_path s (Pdot(m,i')), tl, ref Mnil)
+            Tconstr(type_path s (Pdot(m,i')), tl, Amemo(ref Mnil))
         | _ -> assert false
-      else match desc with
+      else match get_desc ty with
       | Tconstr (p, args, _abbrev) ->
          let args = List.map (typexp copy_scope s) args in
          begin match Path.Map.find p s.types with
-         | exception Not_found -> Tconstr(type_path s p, args, ref Mnil)
-         | Path _ -> Tconstr(type_path s p, args, ref Mnil)
+         | exception Not_found -> Tconstr(type_path s p, args, Amemo(ref Mnil))
+         | Path _ -> Tconstr(type_path s p, args, Amemo(ref Mnil))
          | Type_function { params; body } ->
             Tlink (!ctype_apply_env_empty params body args)
          end
@@ -261,7 +260,7 @@ let rec typexp copy_scope s ty =
           end
       | Tfield(_label, kind, _t1, t2) when field_kind_repr kind = Fabsent ->
           Tlink (typexp copy_scope s t2)
-      | _ -> copy_type_desc (typexp copy_scope s) desc
+      | desc -> copy_type_desc (typexp copy_scope s) desc
     in
     Transient_expr.set_stub_desc ty' desc;
     ty'

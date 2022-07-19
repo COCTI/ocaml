@@ -441,7 +441,7 @@ let rec copy_type_desc ?(keep_names=false) f = function
     Tvar _ as ty        -> if keep_names then ty else Tvar None
   | Tarrow (p, ty1, ty2, c)-> Tarrow (p, f ty1, f ty2, copy_commu c)
   | Ttuple l            -> Ttuple (List.map f l)
-  | Tconstr (p, l, _)   -> Tconstr (p, List.map f l, ref Mnil)
+  | Tconstr (p, l, _)   -> Tconstr (p, List.map f l, Amemo (ref Mnil))
   | Tobject(ty, {contents = Some (p, tl)})
                         -> Tobject (f ty, ref (Some(p, List.map f tl)))
   | Tobject (ty, _)     -> Tobject (f ty, ref None)
@@ -762,6 +762,22 @@ let unmark_class_signature sign =
 
 let unmark_class_type cty =
   unmark_iterators.it_class_type unmark_iterators cty
+
+(**** Type traversal ****)
+
+(* Return whether [t0] occurs in [ty]. Objects are also traversed. *)
+exception Occur
+let deep_occur t0 ty =
+  let rec occur_rec ty =
+    if get_level ty >= get_level t0 && try_mark_node ty then begin
+      if eq_type ty t0 then raise Occur;
+      iter_type_expr occur_rec ty
+    end
+  in
+  try
+    occur_rec ty; unmark_type ty; false
+  with Occur ->
+    unmark_type ty; true
 
 (**** Type information getter ****)
 

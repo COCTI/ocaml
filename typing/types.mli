@@ -76,8 +76,10 @@ type type_desc =
   | Ttuple of type_expr list
   (** [Ttuple [t1;...;tn]] ==> [(t1 * ... * tn)] *)
 
-  | Tconstr of Path.t * type_expr list * abbrev_memo ref
-  (** [Tconstr (`A.B.t', [t1;...;tn], _)] ==> [(t1,...,tn) A.B.t]
+  | Tconstr of Path.t * type_expr list * abbrev_status
+  (** [Tconstr (`A.B.t', [t1;...;tn], None, _)] ==> [(t1,...,tn) A.B.t]
+      The 3rd parameter is a pointer to an expansion of this node, which will
+      be used as normal form by [get_desc].
       The last parameter keep tracks of known expansions, see [abbrev_memo]. *)
 
   | Tobject of type_expr * (Path.t * type_expr list) option ref
@@ -131,6 +133,10 @@ type type_desc =
 
   | Tpackage of Path.t * (Longident.t * type_expr) list
   (** Type of a first-class module (a.k.a package). *)
+
+and abbrev_status =
+    Aexpanded of type_expr
+  | Amemo of abbrev_memo ref  (* optimize representation ? *)
 
 and fixed_explanation =
   | Univar of type_expr (** The row type was bound to an univar *)
@@ -214,12 +220,31 @@ val field_kind_internal_repr: field_kind -> field_kind
         (* Removes indirections in [field_kind].
            Only needed for performance. *)
 
-(** Getters for type_expr; calls repr before answering a value *)
+(** Getters for type_expr; calls [repr_constr] or [repr] before accessing *)
 
-val get_desc: type_expr -> type_desc
-val get_level: type_expr -> int
-val get_scope: type_expr -> int
-val get_id: type_expr -> int
+val get_desc: type_expr -> type_desc  (* [repr_constr] *)
+val get_level: type_expr -> int       (* [repr_constr] *)
+val get_scope: type_expr -> int       (* [repr_constr] *)
+val get_id: type_expr -> int          (* [repr_constr] *)
+
+val get_repr_desc: type_expr -> type_desc  (* [repr] *)
+val get_repr_level: type_expr -> int       (* [repr] *)
+val get_repr_scope: type_expr -> int       (* [repr] *)
+val get_repr_id: type_expr -> int          (* [repr] *)
+
+val repr: type_expr -> type_expr
+    (* Call [repr_constr] and dereference [Aexpanded] nodes recursively *)
+
+(*
+type abbrev_action = Akeep | Adelete
+val iter_abbreviations:
+    (Path.t -> type_expr list -> abbrev_action) -> type_expr -> unit
+    (* [iter_abbreviations f t] calls [f path args] on all the expansion nodes
+       [Tconstr (path, args, Some ty, _)] reached when calling [repr t].
+       If [f path args] returns [Adelete], then the abbreviation is deleted,
+       i.e. replaced by [Tlink ty]. This change is backtrackable.
+     *)
+*)
 
 (** Transient [type_expr].
     Should only be used immediately after [Transient_expr.repr] *)
@@ -237,6 +262,7 @@ module Transient_expr : sig
   val set_level: transient_expr -> int -> unit
   val set_scope: transient_expr -> int -> unit
   val repr: type_expr -> transient_expr
+  val repr_constr: type_expr -> transient_expr
   val type_expr: transient_expr -> type_expr
   val coerce: type_expr -> transient_expr
       (** Coerce without normalizing with [repr] *)
@@ -269,6 +295,7 @@ end
 
 val eq_type: type_expr -> type_expr -> bool
 val compare_type: type_expr -> type_expr -> int
+val eq_type_repr: type_expr -> type_expr -> bool
 
 (** Constructor and accessors for [row_desc] *)
 
@@ -706,6 +733,11 @@ val undo_compress: snapshot -> unit
     The old values are logged and reverted on backtracking.
  *)
 
+val link_expand: type_expr -> type_expr -> unit
+        (* Set the desc field of [t1] to [Tconstr (p, args, Some t2, Mnil)],
+           assuming that [t1] is [Tconstr (p, args, None, _)], and
+           logging the old values if there is an active snapshot.
+           To be used only when expanding a type abbreviation. *)
 val link_type: type_expr -> type_expr -> unit
         (* Set the desc field of [t1] to [Tlink t2], logging the old
            value if there is an active snapshot *)

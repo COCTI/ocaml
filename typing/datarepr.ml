@@ -43,7 +43,7 @@ let free_vars ?(param=false) ty =
   unmark_type ty;
   !ret
 
-let newgenconstr path tyl = newgenty (Tconstr (path, tyl, ref Mnil))
+let newgenconstr path tyl = newgenty (Tconstr (path, tyl, Amemo(ref Mnil)))
 
 let constructor_existentials cd_args cd_res =
   let tyl =

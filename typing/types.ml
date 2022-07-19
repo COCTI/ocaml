@@ -31,7 +31,7 @@ and type_desc =
     Tvar of string option
   | Tarrow of arg_label * type_expr * type_expr * commutable
   | Ttuple of type_expr list
-  | Tconstr of Path.t * type_expr list * abbrev_memo ref
+  | Tconstr of Path.t * type_expr list * abbrev_status
   | Tobject of type_expr * (Path.t * type_expr list) option ref
   | Tfield of string * field_kind * type_expr * type_expr
   | Tnil
@@ -41,6 +41,10 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * (Longident.t * type_expr) list
+
+and abbrev_status =
+    Aexpanded of type_expr
+  | Amemo of abbrev_memo ref  (* optimize representation ? *)
 
 and row_desc =
     { row_fields: (label * row_field) list;
@@ -519,7 +523,7 @@ let rec repr_link (t : type_expr) d : type_expr -> type_expr =
      t.desc <- d;
      t'
 
-let repr_link1 t = function
+and repr_link1 t = function
    {desc = Tlink t' as d'} ->
      repr_link t d' t'
  | {desc = Tfield (_, k, _, t') as d'}
@@ -527,7 +531,7 @@ let repr_link1 t = function
      repr_link t d' t'
  | t' -> t'
 
-let repr t =
+and repr_constr t =
   match t.desc with
    Tlink t' ->
      repr_link1 t t'
@@ -535,12 +539,24 @@ let repr t =
      repr_link1 t t'
  | _ -> t
 
+let rec repr t =
+  match repr_constr t with
+    {desc = Tconstr (_, _, Aexpanded t)} ->
+      repr t
+  | t' ->
+      t'
+
 (* getters for type_expr *)
 
-let get_desc t = (repr t).desc
-let get_level t = (repr t).level
-let get_scope t = (repr t).scope
-let get_id t = (repr t).id
+let get_desc t = (repr_constr t).desc
+let get_level t = (repr_constr t).level
+let get_scope t = (repr_constr t).scope
+let get_id t = (repr_constr t).id
+
+let get_repr_desc t = (repr t).desc
+let get_repr_level t = (repr t).level
+let get_repr_scope t = (repr t).scope
+let get_repr_id t = (repr t).id
 
 (* transient type_expr *)
 
@@ -552,13 +568,16 @@ module Transient_expr = struct
   let set_scope ty sc = ty.scope <- sc
   let coerce ty = ty
   let repr = repr
+  let repr_constr = repr_constr
   let type_expr ty = ty
 end
 
 (* Comparison for [type_expr]; cannot be used for functors *)
 
-let eq_type t1 t2 = t1 == t2 || repr t1 == repr t2
+let eq_type t1 t2 = t1 == t2 || repr_constr t1 == repr_constr t2
 let compare_type t1 t2 = compare (get_id t1) (get_id t2)
+
+let eq_type_repr t1 t2 = t1 == t2 || repr t1 = repr t2
 
 (* Constructor and accessors for [row_desc] *)
 
@@ -717,23 +736,52 @@ let last_snapshot = Local_store.s_ref 0
 
 let log_type ty =
   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
+
+(*
+type abbrev_action = Akeep | Adelete
+let iter_abbreviations f t =
+  ignore (repr t);
+  let rec iter t =
+    match t.desc with
+      Tconstr (path, args, Aexpanded t') ->
+        begin match f path args with
+          Akeep -> ()
+        | Adelete ->
+            log_type t;
+            Transient_expr.set_desc t (Tlink t')
+        end;
+        iter t'
+    | _ -> ()
+  in iter t
+*)
+
+let link_expand ty ty' =
+  let ty = repr ty in
+  let ty'' = repr ty' in
+  if ty == ty'' then () else
+  match ty.desc with
+    Tconstr (path, args, Amemo _memo) ->
+      log_type ty;
+      Transient_expr.set_desc ty (Tconstr (path, args, Aexpanded ty'))
+  | _ -> Misc.fatal_error "Types.link_expand"
+
 let link_type ty ty' =
   let ty = repr ty in
-  let ty' = repr ty' in
-  if ty == ty' then () else begin
+  let ty'' = repr ty' in
+  if ty == ty'' then () else begin
   log_type ty;
   let desc = ty.desc in
   Transient_expr.set_desc ty (Tlink ty');
   (* Name is a user-supplied name for this unification variable (obtained
    * through a type annotation for instance). *)
-  match desc, ty'.desc with
+  match desc, ty''.desc with
     Tvar name, Tvar name' ->
       begin match name, name' with
-      | Some _, None -> log_type ty'; Transient_expr.set_desc ty' (Tvar name)
+      | Some _, None -> log_type ty''; Transient_expr.set_desc ty'' (Tvar name)
       | None, Some _ -> ()
       | Some _, Some _ ->
-          if ty.level < ty'.level then
-            (log_type ty'; Transient_expr.set_desc ty' (Tvar name))
+          if ty.level < ty''.level then
+            (log_type ty''; Transient_expr.set_desc ty'' (Tvar name))
       | None, None   -> ()
       end
   | _ -> ()
@@ -742,7 +790,7 @@ let link_type ty ty' =
   (*  ; check_expans [] ty' *)
 (* TODO: consider eliminating set_type_desc, replacing it with link types *)
 let set_type_desc ty td =
-  let ty = repr ty in
+  let ty = repr_constr ty in
   if td != ty.desc then begin
     log_type ty;
     Transient_expr.set_desc ty td
@@ -750,14 +798,14 @@ let set_type_desc ty td =
 (* TODO: separate set_level into two specific functions: *)
 (*  set_lower_level and set_generic_level *)
 let set_level ty level =
-  let ty = repr ty in
+  let ty = repr_constr ty in
   if level <> ty.level then begin
     if ty.id <= !last_snapshot then log_change (Clevel (ty, ty.level));
     Transient_expr.set_level ty level
   end
 (* TODO: introduce a guard and rename it to set_higher_scope? *)
 let set_scope ty scope =
-  let ty = repr ty in
+  let ty = repr_constr ty in
   if scope <> ty.scope then begin
     if ty.id <= !last_snapshot then log_change (Cscope (ty, ty.scope));
     Transient_expr.set_scope ty scope

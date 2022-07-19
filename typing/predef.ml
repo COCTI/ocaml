@@ -64,24 +64,24 @@ and path_string = Pident ident_string
 and path_extension_constructor = Pident ident_extension_constructor
 and path_floatarray = Pident ident_floatarray
 
-let type_int = newgenty (Tconstr(path_int, [], ref Mnil))
-and type_char = newgenty (Tconstr(path_char, [], ref Mnil))
-and type_bytes = newgenty (Tconstr(path_bytes, [], ref Mnil))
-and type_float = newgenty (Tconstr(path_float, [], ref Mnil))
-and type_bool = newgenty (Tconstr(path_bool, [], ref Mnil))
-and type_unit = newgenty (Tconstr(path_unit, [], ref Mnil))
-and type_exn = newgenty (Tconstr(path_exn, [], ref Mnil))
-and type_array t = newgenty (Tconstr(path_array, [t], ref Mnil))
-and type_list t = newgenty (Tconstr(path_list, [t], ref Mnil))
-and type_option t = newgenty (Tconstr(path_option, [t], ref Mnil))
-and type_nativeint = newgenty (Tconstr(path_nativeint, [], ref Mnil))
-and type_int32 = newgenty (Tconstr(path_int32, [], ref Mnil))
-and type_int64 = newgenty (Tconstr(path_int64, [], ref Mnil))
-and type_lazy_t t = newgenty (Tconstr(path_lazy_t, [t], ref Mnil))
-and type_string = newgenty (Tconstr(path_string, [], ref Mnil))
+let type_int = newgenty (Tconstr(path_int, [], Amemo(ref Mnil)))
+and type_char = newgenty (Tconstr(path_char, [], Amemo(ref Mnil)))
+and type_bytes = newgenty (Tconstr(path_bytes, [], Amemo(ref Mnil)))
+and type_float = newgenty (Tconstr(path_float, [], Amemo(ref Mnil)))
+and type_bool = newgenty (Tconstr(path_bool, [], Amemo(ref Mnil)))
+and type_unit = newgenty (Tconstr(path_unit, [], Amemo(ref Mnil)))
+and type_exn = newgenty (Tconstr(path_exn, [], Amemo(ref Mnil)))
+and type_array t = newgenty (Tconstr(path_array, [t], Amemo(ref Mnil)))
+and type_list t = newgenty (Tconstr(path_list, [t], Amemo(ref Mnil)))
+and type_option t = newgenty (Tconstr(path_option, [t], Amemo(ref Mnil)))
+and type_nativeint = newgenty (Tconstr(path_nativeint, [], Amemo(ref Mnil)))
+and type_int32 = newgenty (Tconstr(path_int32, [], Amemo(ref Mnil)))
+and type_int64 = newgenty (Tconstr(path_int64, [], Amemo(ref Mnil)))
+and type_lazy_t t = newgenty (Tconstr(path_lazy_t, [t], Amemo(ref Mnil)))
+and type_string = newgenty (Tconstr(path_string, [], Amemo(ref Mnil)))
 and type_extension_constructor =
-      newgenty (Tconstr(path_extension_constructor, [], ref Mnil))
-and type_floatarray = newgenty (Tconstr(path_floatarray, [], ref Mnil))
+      newgenty (Tconstr(path_extension_constructor, [], Amemo(ref Mnil)))
+and type_floatarray = newgenty (Tconstr(path_floatarray, [], Amemo(ref Mnil)))
 
 let ident_match_failure = ident_create "Match_failure"
 and ident_out_of_memory = ident_create "Out_of_memory"
