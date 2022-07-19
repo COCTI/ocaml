@@ -750,8 +750,9 @@ let log_type ty =
 let link_type ty ty' =
   let ty = repr ty in
   let ty' = repr ty' in
-  log_type ty;
+  assert (ty != ty');
   let desc = ty.desc in
+  log_type ty;
   Transient_expr.set_desc ty (Tlink ty');
   (* Name is a user-supplied name for this unification variable (obtained
    * through a type annotation for instance). *)

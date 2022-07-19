@@ -399,6 +399,8 @@ module Make(O : OBJ)(EVP : EVALPATH with type valu = O.t) = struct
                         Some t ->
                           begin match get_desc t with
                             Tconstr (_,params,_) ->
+                              List.iter2 (Ctype.unify_var env)
+                                (Ctype.instance_list params) ty_list;
                               params
                           | _ -> assert false end
                       | None -> decl.type_params

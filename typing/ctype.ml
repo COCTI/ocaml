@@ -1961,6 +1961,7 @@ let univar_pairs_match = ref []
 let rec match_rec env lev patt subj =
   if get_level patt < lev then () else
   let patt' = expand_head env patt in
+  if eq_type patt subj then () else
   if get_level patt' < lev then link_type patt patt' else
   match get_desc patt', get_desc subj with
   | Tvar _, _ -> link_type patt subj
@@ -1999,7 +2000,10 @@ let rec match_rec env lev patt subj =
           (List.iter2 (match_rec env lev)) lev1 p1 tl1 lev2 p2 tl2
       with Not_found -> assert false
       end
-  | _ -> assert false
+  | _ ->
+      Format.eprintf "@[patt =@ %a@ subj =@ %a@]@."
+        !Btype.print_raw patt !Btype.print_raw subj;
+      assert false
 
 and match_object env lev ty1 ty2 =
   let (fields1, rest1) = flatten_fields ty1
@@ -2019,6 +2023,7 @@ and match_row env lev row1 row2 =
   assert (r1 = []);
   if (r2 <> [] || row1_closed <> row2_closed || row1_fixed <> row2_fixed)
   then begin
+    assert (is_Tvar rm1);
     let ext =
       newty3 ~level:(get_level rm1) ~scope:(get_scope rm1)
         (Tvariant (create_row ~fields:r2 ~more:rm2 ~name:None
