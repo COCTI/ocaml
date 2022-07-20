@@ -1958,12 +1958,12 @@ let enter_poly_unsafe univar_pairs t1 tl1 t2 tl2 f =
 (**** Matching on an instance ****)
 let univar_pairs_match = ref []
 
+let has_type_expansion env p =
+  try ignore (Env.find_type_expansion p env); true with Not_found -> false
+
 let rec match_rec env lev patt subj =
-  if get_level patt < lev then () else
-  let patt' = expand_head env patt in
-  if eq_type patt subj then () else
-  if get_level patt' < lev then link_type patt patt' else
-  match get_desc patt', get_desc subj with
+  if get_level patt < lev || eq_type patt subj then () else
+  match get_desc patt, get_desc subj with
   | Tvar _, _ -> link_type patt subj
   | Tarrow (_, ty1, ty2, com), Tarrow (_, ty1', ty2', com') ->
       link_type patt subj;
@@ -1974,10 +1974,14 @@ let rec match_rec env lev patt subj =
       assert (List.length tyl1 = List.length tyl2);
       link_type patt subj;
       List.iter2 (match_rec env lev) tyl1 tyl2
+  | Tconstr (p1, _ :: _, _), _ when generic_abbrev env p1 ->
+      match_rec env lev (try_expand_safe env patt) subj
   | Tconstr (p1, tyl1, _m1), Tconstr (p2, tyl2, _m2) when Path.same p1 p2 ->
       assert (List.length tyl1 = List.length tyl2);
       link_type patt subj;
       List.iter2 (match_rec env lev) tyl1 tyl2
+  | Tconstr (p1, _, _), _ when has_type_expansion env p1 ->
+      match_rec env lev (try_expand_safe env patt) subj
   | _, Tconstr _ ->
       match_rec env lev patt (try_expand_safe env subj)
   | Tobject (ty1, _), Tobject (ty2, _) ->
