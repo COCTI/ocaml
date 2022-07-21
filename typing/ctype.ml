@@ -1407,7 +1407,7 @@ let instance_label fixed lbl =
 let unify_var' = (* Forward declaration *)
   ref (fun _env _ty1 _ty2 -> assert false)
 
-let forward_match_rec = ref (fun _env _lev _patt _subj -> assert false)
+let forward_match_type = ref (fun _env _lev _patt _subj -> assert false)
 
 let subst env level priv abbrev oty params args body =
   if List.length params <> List.length args then raise Cannot_subst;
@@ -1431,7 +1431,7 @@ let subst env level priv abbrev oty params args body =
   try
     assert (is_Tvar body0);
     link_type body0 body';
-    List.iter2 (!forward_match_rec env (level+1)) params' args;
+    List.iter2 (!forward_match_type env (level+1)) params' args;
     current_level := old_level;
     update_level env level body';
     body'
@@ -1914,6 +1914,49 @@ let unify_package env unify_list lv1 p1 fl1 lv2 p2 fl2 =
   && !package_subtype env p2 fl2 p1 fl1 then () else raise Not_found
 
 
+(**** Transform error trace ****)
+(* +++ Move it to some other place ? *)
+(* That's hard to do because it relies on the expansion machinery in Ctype,
+   but still might be nice. *)
+
+let expand_type env ty =
+  { ty       = ty;
+    expanded = full_expand ~may_forget_scope:true env ty }
+
+let expand_any_trace map env trace =
+  map (expand_type env) trace
+
+let expand_trace env trace =
+  expand_any_trace Errortrace.map env trace
+
+let expand_subtype_trace env trace =
+  expand_any_trace Subtype.map env trace
+
+let expand_to_unification_error env trace =
+  unification_error ~trace:(expand_trace env trace)
+
+let expand_to_equality_error env trace subst =
+  equality_error ~trace:(expand_trace env trace) ~subst
+
+let expand_to_moregen_error env trace =
+  moregen_error ~trace:(expand_trace env trace)
+
+(* [expand_trace] and the [expand_to_*_error] functions take care of most of the
+   expansion in this file, but we occasionally need to build [Errortrace.error]s
+   in other ways/elsewhere, so we expose some machinery for doing so
+*)
+
+(* Equivalent to [expand_trace env [Diff {got; expected}]] for a single
+   element *)
+let expanded_diff env ~got ~expected =
+  Diff (map_diff (expand_type env) {got; expected})
+
+(* Diff while transforming a [type_expr] into an [expanded_type] without
+   expanding *)
+let unexpanded_diff ~got ~expected =
+  Diff (map_diff trivial_expansion {got; expected})
+
+
                    (*****************************)
                    (*  Polymorphic Unification  *)
                    (*****************************)
@@ -1963,7 +2006,9 @@ let has_type_expansion env p =
 
 let rec match_rec env lev patt subj =
   if get_level patt < lev || eq_type patt subj then () else
-  match get_desc patt, get_desc subj with
+  let patt' = Transient_expr.repr patt in
+  let desc = patt'.desc in
+  try match desc, get_desc subj with
   | Tvar _, _ -> link_type patt subj
   | Tarrow (_, ty1, ty2, com), Tarrow (_, ty1', ty2', com') ->
       link_type patt subj;
@@ -1975,13 +2020,19 @@ let rec match_rec env lev patt subj =
       link_type patt subj;
       List.iter2 (match_rec env lev) tyl1 tyl2
   | Tconstr (p1, _ :: _, _), _ when generic_abbrev env p1 ->
-      match_rec env lev (try_expand_safe env patt) subj
+      let patt' = try_expand_safe env patt in
+      let lev' = get_level subj in
+      if get_level patt > lev' then set_level patt lev';
+      match_rec env lev patt' subj
   | Tconstr (p1, tyl1, _m1), Tconstr (p2, tyl2, _m2) when Path.same p1 p2 ->
       assert (List.length tyl1 = List.length tyl2);
       link_type patt subj;
       List.iter2 (match_rec env lev) tyl1 tyl2
   | Tconstr (p1, _, _), _ when has_type_expansion env p1 ->
-      match_rec env lev (try_expand_safe env patt) subj
+      let patt' = try_expand_safe env patt in
+      let lev' = get_level subj in
+      if get_level patt > lev' then set_level patt lev';
+      match_rec env lev patt' subj
   | _, Tconstr _ ->
       match_rec env lev patt (try_expand_safe env subj)
   | Tobject (ty1, _), Tobject (ty2, _) ->
@@ -2005,9 +2056,12 @@ let rec match_rec env lev patt subj =
       with Not_found -> assert false
       end
   | _ ->
-      Format.eprintf "@[patt =@ %a@ subj =@ %a@]@."
-        !Btype.print_raw patt !Btype.print_raw subj;
-      assert false
+      (*Format.eprintf "@[patt =@ %a@ subj =@ %a@]@."
+        !Btype.print_raw patt !Btype.print_raw subj;*)
+      raise_unexplained_for Unify
+  with Unify_trace trace ->
+    Transient_expr.set_desc patt' desc;
+    raise_trace_for Unify (Diff {got = subj; expected = patt} :: trace)
 
 and match_object env lev ty1 ty2 =
   let (fields1, rest1) = flatten_fields ty1
@@ -2049,7 +2103,13 @@ and match_row env lev row1 row2 =
       | _ -> ())
     pairs
 
-let () = forward_match_rec := match_rec
+let match_type env lev patt subj =
+  try match_rec env lev patt subj
+  with Unify_trace trace ->
+    let trace = map trivial_expansion trace in
+    raise (Matches_failure (env, unification_error ~trace))
+
+let () = forward_match_type := match_type
 
 (* Test the occurrence of free univars in a type *)
 (* That's way too expensive. Must do some kind of caching *)
@@ -2217,48 +2277,6 @@ let rec has_cached_expansion p abbrev =
     Mnil                    -> false
   | Mcons(_, p', _, _, rem) -> Path.same p p' || has_cached_expansion p rem
   | Mlink rem               -> has_cached_expansion p !rem
-
-(**** Transform error trace ****)
-(* +++ Move it to some other place ? *)
-(* That's hard to do because it relies on the expansion machinery in Ctype,
-   but still might be nice. *)
-
-let expand_type env ty =
-  { ty       = ty;
-    expanded = full_expand ~may_forget_scope:true env ty }
-
-let expand_any_trace map env trace =
-  map (expand_type env) trace
-
-let expand_trace env trace =
-  expand_any_trace Errortrace.map env trace
-
-let expand_subtype_trace env trace =
-  expand_any_trace Subtype.map env trace
-
-let expand_to_unification_error env trace =
-  unification_error ~trace:(expand_trace env trace)
-
-let expand_to_equality_error env trace subst =
-  equality_error ~trace:(expand_trace env trace) ~subst
-
-let expand_to_moregen_error env trace =
-  moregen_error ~trace:(expand_trace env trace)
-
-(* [expand_trace] and the [expand_to_*_error] functions take care of most of the
-   expansion in this file, but we occasionally need to build [Errortrace.error]s
-   in other ways/elsewhere, so we expose some machinery for doing so
-*)
-
-(* Equivalent to [expand_trace env [Diff {got; expected}]] for a single
-   element *)
-let expanded_diff env ~got ~expected =
-  Diff (map_diff (expand_type env) {got; expected})
-
-(* Diff while transforming a [type_expr] into an [expanded_type] without
-   expanding *)
-let unexpanded_diff ~got ~expected =
-  Diff (map_diff trivial_expansion {got; expected})
 
 (**** Unification ****)
 

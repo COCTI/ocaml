@@ -687,6 +687,8 @@ let check_well_founded env loc path to_check ty =
           check ty0 (TypeSet.add ty parents) ty'
         with
           Ctype.Cannot_expand -> Option.iter raise arg_exn
+        | Ctype.Matches_failure (env, err) ->
+            raise (Error(loc, Constraint_failed (env, err)))
         end
     | _ -> Option.iter raise arg_exn
   in
