@@ -40,6 +40,8 @@ let rec isort l =
   | a :: l' -> insert a (isort l')
 ;;
 
+let rec gcd m n =
+  if m = 0 then n else gcd (n mod m) m;;
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.
