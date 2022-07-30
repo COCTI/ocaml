@@ -112,6 +112,9 @@ val find_constructor_address: Path.t -> t -> address
 val add_functor_arg: Ident.t -> t -> t
 val is_functor_arg: Path.t -> t -> bool
 
+val add_pending_scope: int -> t -> t
+val has_pending_scope: t -> Path.t -> bool
+
 val normalize_module_path: Location.t option -> t -> Path.t -> Path.t
 (* Normalize the path to a concrete module.
    If the option is None, allow returning dangling paths.

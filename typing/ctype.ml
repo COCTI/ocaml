@@ -1407,22 +1407,22 @@ let instance_label fixed lbl =
 let unify_var' = (* Forward declaration *)
   ref (fun _env _ty1 _ty2 -> assert false)
 
-let forward_match_rec = ref (fun _env _lev _patt _subj -> assert false)
+let forward_match_types = ref (fun _env _patt _subj -> assert false)
 
 let subst env level priv abbrev oty params args body =
   if List.length params <> List.length args then raise Cannot_subst;
   let old_level = !current_level in
   current_level := level + 1;
   let body0 = newvar () in          (* Stub *)
-  let undo_abbrev =
+  let pending, undo_abbrev =
     match oty with
-    | None -> fun () -> () (* No abbreviation added *)
+    | None -> false, fun () -> () (* No abbreviation added *)
     | Some ty ->
         match get_desc ty with
           Tconstr (path, tl, _) ->
             let abbrev = proper_abbrevs path tl abbrev in
             memorize_abbrev abbrev priv path ty body0;
-            fun () -> forget_abbrev abbrev path
+            Env.has_pending_scope env path, fun () -> forget_abbrev abbrev path
         | _ -> assert false
   in
   abbreviations := abbrev;
@@ -1431,7 +1431,9 @@ let subst env level priv abbrev oty params args body =
   try
     assert (is_Tvar body0);
     link_type body0 body';
-    List.iter2 (!forward_match_rec env (level+1)) params' args;
+    let match_param =
+      if pending then !unify_var' env else !forward_match_types env in
+    List.iter2 match_param params' args;
     current_level := old_level;
     update_level env level body';
     body'
@@ -1999,7 +2001,11 @@ let rec match_rec env lev patt subj =
           (List.iter2 (match_rec env lev)) lev1 p1 tl1 lev2 p2 tl2
       with Not_found -> assert false
       end
-  | _ -> assert false
+  | _ ->
+      Format.eprintf "@[Matching failed:@ pattern = %a@ subject = %a@]@."
+        !Btype.print_raw patt !Btype.print_raw subj;
+      assert false
+        (* raise_trace_for Unify [Diff {got = subj; expected = patt}] *)
 
 and match_object env lev ty1 ty2 =
   let (fields1, rest1) = flatten_fields ty1
@@ -2040,7 +2046,13 @@ and match_row env lev row1 row2 =
       | _ -> ())
     pairs
 
-let () = forward_match_rec := match_rec
+let match_types env patt subj =
+  try match_rec env (get_level patt) patt subj
+  with Unify_trace trace ->
+    let trace = Errortrace.map (fun ty -> {ty; expanded = ty}) trace in
+    raise (Unify (unification_error ~trace))
+
+let () = forward_match_types := match_types
 
 (* Test the occurrence of free univars in a type *)
 (* That's way too expensive. Must do some kind of caching *)

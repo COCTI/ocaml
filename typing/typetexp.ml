@@ -308,14 +308,14 @@ and transl_type_aux env policy styp =
                                         List.length stl)));
       let args = List.map (transl_type env policy) stl in
       let params = instance_list decl.type_params in
+      let ty_args = List.map (fun ctyp -> ctyp.ctyp_type) args in
       List.iter2
-        (fun (sty, cty) ty' ->
-           try unify_var env ty' cty.ctyp_type with Unify err ->
+        (fun (sty, ty) ty' ->
+           try unify_var env ty' ty with Unify err ->
              let err = Errortrace.swap_unification_error err in
              raise (Error(sty.ptyp_loc, env, Type_mismatch err))
         )
-        (List.combine stl args) params;
-        let ty_args = List.map (fun ctyp -> ctyp.ctyp_type) args in
+        (List.combine stl ty_args) params;
       let ty = Ctype.expand_head env (newconstr path ty_args) in
       let ty = match get_desc ty with
         Tvariant row ->

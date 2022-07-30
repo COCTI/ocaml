@@ -63,6 +63,8 @@ val newgenvar: ?name:string -> unit -> type_expr
 val newgenstub: scope:int -> type_expr
         (* Return a fresh generic node, to be instantiated
            by [Transient_expr.set_stub_desc] *)
+val newgenconstr: Path.t -> type_expr list -> type_expr
+        (* Return a generic type constructor *)
 
 (* Use Tsubst instead
 val newmarkedvar: int -> type_expr

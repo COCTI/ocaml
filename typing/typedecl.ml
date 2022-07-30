@@ -130,6 +130,7 @@ let update_type temp_env env id loc =
   match decl.type_manifest with None -> ()
   | Some ty ->
       let params = List.map (fun _ -> Ctype.newvar ()) decl.type_params in
+      (*let params = Ctype.instance_list decl.type_params in*)
       try Ctype.unify env (Ctype.newconstr path params) ty
       with Ctype.Unify err ->
         raise (Error(loc, Type_clash (env, err)))
@@ -817,7 +818,7 @@ let name_recursion sdecl id decl =
       type_private = Private; } when is_fixed_type sdecl ->
     let ty' = newty2 ~level:(get_level ty) (get_desc ty) in
     if Ctype.deep_occur ty ty' then
-      let td = Tconstr (Path.Pident id, decl.type_params, ref Mnil) in
+      let td = Tconstr(Path.Pident id, decl.type_params, ref Mnil) in
       link_type ty (newty2 ~level:(get_level ty) td);
       {decl with type_manifest = Some ty'}
     else decl
@@ -917,6 +918,7 @@ let transl_type_decl env rec_flag sdecl_list =
   check_duplicates sdecl_list;
   (* Build the final env. *)
   let new_env = add_types_to_env decls env in
+  let new_env = Env.add_pending_scope scope new_env in
   (* Update stubs *)
   begin match rec_flag with
     | Asttypes.Nonrecursive -> ()

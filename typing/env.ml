@@ -497,6 +497,7 @@ type t = {
   functor_args: unit Ident.tbl;
   summary: summary;
   local_constraints: type_declaration Path.Map.t;
+  pending_scope: int;
   flags: int;
 }
 
@@ -674,6 +675,7 @@ let empty = {
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
   functor_args = Ident.empty;
+  pending_scope = Ident.highest_scope + 1;
  }
 
 let in_signature b env =
@@ -687,6 +689,16 @@ let is_in_signature env = env.flags land in_signature_flag <> 0
 
 let has_local_constraints env =
   not (Path.Map.is_empty env.local_constraints)
+
+let add_pending_scope scope env =
+  {env with pending_scope = min scope env.pending_scope}
+
+let rec has_pending_scope env = function
+  | Pident id ->
+      let scope = Ident.scope id in
+      scope >= env.pending_scope && scope < Ident.highest_scope
+  | Pdot (p, _) -> has_pending_scope env p
+  | Papply (p1, p2) -> has_pending_scope env p1 || has_pending_scope env p2
 
 let is_ident = function
     Pident _ -> true
