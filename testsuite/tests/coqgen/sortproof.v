@@ -1,5 +1,9 @@
-From mathcomp Require Import all_ssreflect.
 Require Import Sint63 Ascii String Floats cocti_defs test2.
+From mathcomp Require Import all_ssreflect.
+
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
 Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
 
@@ -187,11 +191,11 @@ Proof.
     rewrite compare_ok bindretf.
     case: ifPn.
     + move=> leab [] <- /andP [] leall sortedl /=.
-      by rewrite leab leall sortedl (le_seq_trans a b l).
+      by rewrite leab leall sortedl (le_seq_trans leab).
     + move=> nleac.
       case: (insert_pure h.+1 a l) => -[l'' H].
       - rewrite H bindretf => -[] <- /andP [] leall sortedl /=.
-        rewrite (le_seq_insert h.+1 b a l l'') //.
+        rewrite (le_seq_insert H) //.
         rewrite (IH l l'') //.
         by apply le_total.
       - by rewrite H bindfailf.
@@ -206,7 +210,7 @@ Proof.
     + rewrite H bindretf.
       case: (insert_pure h.+1 a l'') => -[l0 H'].
       - rewrite H' => -[] <-.
-        by apply /(insert_ok h.+1 a l'' l0) /(IH l l'').
+        by apply /(insert_ok H') /(IH l l'').
       - by rewrite H'.
     + by rewrite H bindfailf.
 Qed.
@@ -232,54 +236,36 @@ Qed.
 
 Hint Constructors Permutation.
 
-Lemma ret_inj [T] (x y : T) : Ret x = Ret y -> x = y.
+Lemma ret_inj {T} {x y : T} : Ret x = Ret y -> x = y.
 Proof. by move /(happly empty_env) => []. Qed.
 
-Lemma failret [T] (a : T) (e : Env.Exn) : Fail e = Ret a -> false.
+Lemma failret {T} {a : T} {e} : Fail e <> Ret a.
 Proof. by move/(happly empty_env). Qed.
 
 Theorem insert_perm h l a l' :
   insert h ml_int a l = Ret l' -> Permutation (a :: l) l'.
 Proof.
-  elim : h l l' => [l l' | h IH [|b l] l'] //=. (*move/ret_inj_ver*)
-  - by move/(failret _).
-  - move/(ret_inj _ _) <-; auto.
+  elim : h l l' => [_ _ /failret| h IH [|b l] l'] //=.
+  - by move/ret_inj <-; auto.
   - destruct h => //.
-    + rewrite /ml_le /wrap_compare bindfailf.
-      by move/(failret _).
+    + by rewrite bindfailf => /failret.
     + rewrite compare_ok bindretf.
       case: ifPn => _.
-      - move/(ret_inj _ _) <-.
-        exact: perm_refl.
+      - move/ret_inj <-; exact: perm_refl.
       - case: (insert_pure h.+1 a l) => -[c H].
-        + rewrite H bindretf.
-          move/(ret_inj _ _) <-; eauto.
-        + rewrite H bindfailf.
-          by move/(failret _).
-Restart.
-  elim: h l l' => [_ _ | h IH [|b l] l'] /(happly empty_env) //=.
-  - move=> [] <-; auto.
-  - destruct h => //.
-    rewrite compare_ok bindretf.
-    case: ifPn => H.
-    + move=> [] <-.
-      apply perm_refl.
-    + case: (insert_pure h.+1 a l) => -[c H'].
-      - rewrite H' bindretf.
-        move => [] <-; eauto.
-      - by rewrite H' bindfailf.
+        + by rewrite H bindretf => /ret_inj <-; eauto.
+        + by rewrite H bindfailf => /failret.
 Qed.
 
 Theorem isort_perm h l l' :
   isort h ml_int l = Ret l' -> Permutation l l'.
 Proof.
-  elim: h l l' => [l l' | h IH [|a l] l'] //=.
-  - by move/(failret l').
-  - move/(ret_inj _ _) <-; auto.
+  elim: h l l' => [_ _ /failret| h IH [|a l] l'] //=.
+  - by move/ret_inj <-; auto.
   - destruct h.
-    + rewrite /isort bindfailf.
-      by move/(failret _).
+    + by rewrite /isort bindfailf => /failret.
     + case: (isort_pure h.+1 l) => -[l'' H].
-      - rewrite H bindretf.
-        
+      - by rewrite H bindretf => /insert_perm; eauto.
+      - by rewrite H bindfailf => /failret.
 Qed.
+End perm.
