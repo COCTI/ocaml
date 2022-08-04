@@ -882,9 +882,10 @@ let rec lower_contravariant env var_level visited contra ty =
     | exception Not_found -> true
   in
   if must_visit then begin
-    Hashtbl.add visited (get_id ty) contra;
+    let visit () = Hashtbl.add visited (get_id ty) contra in
+    if get_expand ty = None then visit ();
     let lower_rec = lower_contravariant env var_level visited in
-    match get_desc ty with
+    match get_constr_desc ty with
       Tvar _ -> if contra then set_level ty var_level
     | Tconstr (_, [], _) -> ()
     | Tconstr (path, tyl, _abbrev) ->
@@ -900,6 +901,7 @@ let rec lower_contravariant env var_level visited contra ty =
         in
         if List.for_all ((=) Variance.null) variance then () else
           let not_expanded () =
+            visit ();
             List.iter2
               (fun v t ->
                 if v = Variance.null then () else
@@ -908,8 +910,10 @@ let rec lower_contravariant env var_level visited contra ty =
                   else lower_rec contra t)
               variance tyl in
           if maybe_expand then (* we expand cautiously to avoid missing cmis *)
-            match !forward_try_expand_safe env ty with
-            | ty -> lower_rec contra ty
+            if get_expand ty <> None then
+              lower_rec contra Transient_expr.(type_expr (repr ty))
+            else match !forward_try_expand_safe env ty with
+            | ty -> visit (); lower_rec contra ty
             | exception Cannot_expand -> not_expanded ()
           else not_expanded ()
     | Tpackage (_, fl) ->
