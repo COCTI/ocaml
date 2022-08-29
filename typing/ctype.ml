@@ -182,6 +182,20 @@ let end_def () =
 let create_scope () =
   init_def (!current_level + 1);
   !current_level
+let wrap_def f =
+  begin_def ();
+  let result = f () in
+  end_def ();
+  result
+let wrap_principal f ~post =
+  if !Clflags.principal then begin_def ();
+  let result = f () in
+  if !Clflags.principal then begin
+    end_def ();
+    post result;
+  end;
+  result
+
 
 let reset_global_level () =
   global_level := !current_level + 1
@@ -1685,16 +1699,13 @@ let full_expand ~may_forget_scope env ty =
     if may_forget_scope then
       try expand_head_unif env ty with Unify_trace _ ->
         (* #10277: forget scopes when printing trace *)
-        begin_def ();
-        init_def (get_level ty);
-        let ty =
+        wrap_def begin fun () ->
+          init_def (get_level ty);
           (* The same as [expand_head], except in the failing case we return the
-             *original* type, not [correct_levels ty].*)
+           *original* type, not [correct_levels ty].*)
           try try_expand_head try_expand_safe env (correct_levels ty) with
           | Cannot_expand -> ty
-        in
-        end_def ();
-        ty
+        end
     else expand_head env ty
   in
   match get_desc ty with
