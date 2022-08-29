@@ -544,10 +544,9 @@ let rec build_as_type ~refine (env : Env.t ref) p =
          here.
          If we used [generic_instance] we would lose the sharing between
          [instance ty] and [ty].  *)
-      begin_def ();
-      let ty = instance cty.ctyp_type in
-      end_def ();
-      generalize_structure ty;
+      let ty =
+        wrap_def ~post:generalize_structure (fun () -> instance cty.ctyp_type)
+      in
       (* This call to unify can't fail since the pattern is well typed. *)
       unify_pat_types ~refine p.pat_loc env (instance as_ty) (instance ty);
       ty
@@ -621,19 +620,15 @@ let solve_Ppat_poly_constraint ~refine env loc sty expected_ty =
   pattern_force := force :: !pattern_force;
   match get_desc ty with
   | Tpoly (body, tyl) ->
-      begin_def ();
-      init_def generic_level;
-      let _, ty' = instance_poly ~keep_names:true false tyl body in
-      end_def ();
+      let _, ty' =
+        wrap_init_def ~level:generic_level
+          (fun () -> instance_poly ~keep_names:true false tyl body)
+      in
       (cty, ty, ty')
   | _ -> assert false
 
 let solve_Ppat_alias ~refine env pat =
-  begin_def ();
-  let ty_var = build_as_type ~refine env pat in
-  end_def ();
-  generalize ty_var;
-  ty_var
+  wrap_def ~post:generalize (fun () -> build_as_type ~refine env pat)
 
 let solve_Ppat_tuple (type a) ~refine loc env (args : a list) expected_ty =
   let vars = List.map (fun _ -> newgenvar ()) args in
@@ -654,10 +649,10 @@ let solve_constructor_annotation env name_list sty ty_args ty_ex =
         {name with txt = id})
       name_list
   in
-  begin_def ();
-  let cty, ty, force = Typetexp.transl_simple_type_delayed !env sty in
-  end_def ();
-  generalize_structure ty;
+  let cty, ty, force =
+    wrap_def ~post:(fun (_,ty,_) -> generalize_structure ty)
+      (fun () -> Typetexp.transl_simple_type_delayed !env sty)
+  in
   pattern_force := force :: !pattern_force;
   let ty_args =
     let ty1 = instance ty and ty2 = instance ty in
@@ -697,10 +692,9 @@ let solve_Ppat_construct ~refine env loc constr no_existentials
      correct head *)
   if constr.cstr_generalized then
     unify_head_only ~refine loc env (instance expected_ty) constr;
-  begin_def ();
-  let expected_ty = instance expected_ty in
+
   (* PR#7214: do not use gadt unification for toplevel lets *)
-  let unify_res ty_res =
+  let unify_res ty_res expected_ty =
     let refine =
       match refine, no_existentials with
       | None, None when constr.cstr_generalized -> Some false
@@ -708,38 +702,43 @@ let solve_Ppat_construct ~refine env loc constr no_existentials
     in
     unify_pat_types_return_equated_pairs ~refine loc env ty_res expected_ty
   in
-  let expansion_scope = get_gadt_equations_level () in
-  let ty_args, ty_res, equated_types, existential_ctyp =
-    match existential_styp with
-      None ->
-        let ty_args, ty_res, _ =
-          instance_constructor
-            (Make_existentials_abstract { env; scope = expansion_scope }) constr
-        in
-        ty_args, ty_res, unify_res ty_res, None
-    | Some (name_list, sty) ->
-        let existential_treatment =
-          if name_list = [] then
-            Make_existentials_abstract { env; scope = expansion_scope }
-          else
-            (* we will unify them (in solve_constructor_annotation) with the
-               local types provided by the user *)
-            Keep_existentials_flexible
-        in
-        let ty_args, ty_res, ty_ex =
-          instance_constructor existential_treatment constr
-        in
-        let equated_types = unify_res ty_res in
-        let ty_args, existential_ctyp =
-          solve_constructor_annotation env name_list sty ty_args ty_ex in
-        ty_args, ty_res, equated_types, existential_ctyp
+
+  let ty_args, equated_types, existential_ctyp =
+    wrap_def_process ~proc: generalize_structure begin fun () ->
+      let expected_ty = instance expected_ty in
+      let expansion_scope = get_gadt_equations_level () in
+      let ty_args, ty_res, equated_types, existential_ctyp =
+        match existential_styp with
+          None ->
+            let ty_args, ty_res, _ =
+              instance_constructor
+                (Make_existentials_abstract { env; scope = expansion_scope })
+                constr
+            in
+            ty_args, ty_res, unify_res ty_res expected_ty, None
+        | Some (name_list, sty) ->
+            let existential_treatment =
+              if name_list = [] then
+                Make_existentials_abstract { env; scope = expansion_scope }
+              else
+                (* we will unify them (in solve_constructor_annotation) with the
+                   local types provided by the user *)
+                Keep_existentials_flexible
+            in
+            let ty_args, ty_res, ty_ex =
+              instance_constructor existential_treatment constr
+            in
+            let equated_types = unify_res ty_res expected_ty in
+            let ty_args, existential_ctyp =
+              solve_constructor_annotation env name_list sty ty_args ty_ex in
+            ty_args, ty_res, equated_types, existential_ctyp
+      in
+      if constr.cstr_existentials <> [] then
+        lower_variables_only !env expansion_scope ty_res;
+      ((ty_args, equated_types, existential_ctyp),
+       expected_ty :: ty_res :: ty_args)
+    end
   in
-  if constr.cstr_existentials <> [] then
-    lower_variables_only !env expansion_scope ty_res;
-  end_def ();
-  generalize_structure expected_ty;
-  generalize_structure ty_res;
-  List.iter generalize_structure ty_args;
   if !Clflags.principal && refine = None then begin
     (* Do not warn for counter-examples *)
     let exception Warn_only_once in
@@ -765,18 +764,16 @@ let solve_Ppat_construct ~refine env loc constr no_existentials
   (ty_args, existential_ctyp)
 
 let solve_Ppat_record_field ~refine loc env label label_lid record_ty =
-  begin_def ();
-  let (_, ty_arg, ty_res) = instance_label false label in
-  begin try
-    unify_pat_types ~refine loc env ty_res (instance record_ty)
-  with Error(_loc, _env, Pattern_type_clash(err, _)) ->
-    raise(Error(label_lid.loc, !env,
-                Label_mismatch(label_lid.txt, err)))
-  end;
-  end_def ();
-  generalize_structure ty_res;
-  generalize_structure ty_arg;
-  ty_arg
+  wrap_def_process ~proc:generalize_structure begin fun () ->
+    let (_, ty_arg, ty_res) = instance_label false label in
+    begin try
+      unify_pat_types ~refine loc env ty_res (instance record_ty)
+    with Error(_loc, _env, Pattern_type_clash(err, _)) ->
+      raise(Error(label_lid.loc, !env,
+                  Label_mismatch(label_lid.txt, err)))
+    end;
+    (ty_arg, [ty_res; ty_arg])
+  end
 
 let solve_Ppat_array ~refine loc env expected_ty =
   let ty_elt = newgenvar() in
@@ -792,11 +789,11 @@ let solve_Ppat_lazy  ~refine loc env expected_ty =
   nv
 
 let solve_Ppat_constraint ~refine loc env sty expected_ty =
-  begin_def();
-  let cty, ty, force = Typetexp.transl_simple_type_delayed !env sty in
-  end_def();
+  let cty, ty, force =
+    wrap_def ~post:(fun (_, ty, _) -> generalize_structure ty)
+      (fun () -> Typetexp.transl_simple_type_delayed !env sty)
+  in
   pattern_force := force :: !pattern_force;
-  generalize_structure ty;
   let ty, expected_ty' = instance ty, ty in
   unify_pat_types ~refine loc env ty (instance expected_ty);
   (cty, ty, expected_ty')
@@ -1695,19 +1692,22 @@ and type_pat_aux
       let equation_level = !gadt_equations_level in
       let outter_lev = get_current_level () in
       (* introduce a new scope *)
-      begin_def ();
-      let lev = get_current_level () in
-      gadt_equations_level := Some lev;
-      let type_pat_rec env sp = type_pat category sp expected_ty ~env in
-      let env1 = ref !env in
-      let p1 = type_pat_rec env1 sp1 in
-      let p1_variables = !pattern_variables in
-      let p1_module_variables = !module_variables in
-      pattern_variables := initial_pattern_variables;
-      module_variables := initial_module_variables;
-      let env2 = ref !env in
-      let p2 = type_pat_rec env2 sp2 in
-      end_def ();
+      let env1, p1, p1_variables, p1_module_variables, env2, p2 =
+        wrap_def begin fun () ->
+          let lev = get_current_level () in
+          gadt_equations_level := Some lev;
+          let type_pat_rec env sp = type_pat category sp expected_ty ~env in
+          let env1 = ref !env in
+          let p1 = type_pat_rec env1 sp1 in
+          let p1_variables = !pattern_variables in
+          let p1_module_variables = !module_variables in
+          pattern_variables := initial_pattern_variables;
+          module_variables := initial_module_variables;
+          let env2 = ref !env in
+          let p2 = type_pat_rec env2 sp2 in
+          (env1, p1, p1_variables, p1_module_variables, env2, p2)
+        end
+      in
       gadt_equations_level := equation_level;
       let p2_variables = !pattern_variables in
       (* Make sure no variable with an ambiguous type gets added to the
@@ -2488,22 +2488,20 @@ let list_labels env ty =
    ty_expected should already be generalized. *)
 let check_univars env kind exp ty_expected vars =
   let pty = instance ty_expected in
-  begin_def ();
   let exp_ty, vars =
-    match get_desc pty with
-      Tpoly (body, tl) ->
-        (* Enforce scoping for type_let:
-           since body is not generic,  instance_poly only makes
-           copies of nodes that have a Tvar as descendant *)
-        let _, ty' = instance_poly true tl body in
-        let vars, exp_ty = instance_parameterized_type vars exp.exp_type in
-        unify_exp_types exp.exp_loc env exp_ty ty';
-        exp_ty, vars
-    | _ -> assert false
+    wrap_def_process ~proc:generalize begin fun () ->
+      match get_desc pty with
+        Tpoly (body, tl) ->
+          (* Enforce scoping for type_let:
+             since body is not generic,  instance_poly only makes
+             copies of nodes that have a Tvar as descendant *)
+          let _, ty' = instance_poly true tl body in
+          let vars, exp_ty = instance_parameterized_type vars exp.exp_type in
+          unify_exp_types exp.exp_loc env exp_ty ty';
+          ((exp_ty, vars), exp_ty::vars)
+      | _ -> assert false
+    end
   in
-  end_def ();
-  generalize exp_ty;
-  List.iter generalize vars;
   let ty, complete = polyfy env exp_ty vars in
   if not complete then
     let ty_expected = instance ty_expected in
@@ -2998,17 +2996,17 @@ and type_expect_
           | _ -> ()
       in
       let type_sfunct sfunct =
-        begin_def (); (* one more level for non-returning functions *)
-        if !Clflags.principal then begin_def ();
-        let funct = type_exp env sfunct in
-        if !Clflags.principal then begin
-          end_def ();
-          generalize_structure funct.exp_type
-        end;
-        let ty = instance funct.exp_type in
-        end_def ();
-        wrap_trace_gadt_instances env (lower_args TypeSet.empty) ty;
-        funct
+        (* one more level for warning on non-returning functions *)
+        wrap_def_process
+          begin fun () ->
+            let funct =
+              wrap_principal (fun () -> type_exp env sfunct)
+                ~post:(fun {exp_type=t} -> generalize_structure t)
+            in
+            let ty = instance funct.exp_type in
+            (funct, [ty])
+          end
+          ~proc:(wrap_trace_gadt_instances env (lower_args TypeSet.empty))
       in
       let funct, sargs =
         let funct = type_sfunct sfunct in

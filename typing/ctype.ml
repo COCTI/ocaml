@@ -182,20 +182,33 @@ let end_def () =
 let create_scope () =
   init_def (!current_level + 1);
   !current_level
-let wrap_def f =
+let wrap_def ?post f =
   begin_def ();
   let result = f () in
   end_def ();
+  Option.iter (fun g -> g result) post;
   result
-let wrap_principal f ~post =
-  if !Clflags.principal then begin_def ();
+let wrap_init_def ~level f =
+  begin_def ();
+  init_def level;
   let result = f () in
-  if !Clflags.principal then begin
+  end_def ();
+  result
+let wrap_def_process f ~proc =
+  begin_def ();
+  let result, l = f () in
+  end_def ();
+  List.iter proc l;
+  result
+let wrap_def_if cond f ~post =
+  if cond then begin_def ();
+  let result = f () in
+  if cond then begin
     end_def ();
     post result;
   end;
   result
-
+let wrap_principal f ~post = wrap_def_if !Clflags.principal f ~post
 
 let reset_global_level () =
   global_level := !current_level + 1

@@ -43,7 +43,10 @@ val raise_nongen_level: unit -> unit
         (* Raise the nongen level to the current level *)
 val end_def: unit -> unit
         (* Lower the variable level by one at the end of a definition *)
-val wrap_def: (unit -> 'a) -> 'a
+val wrap_def: ?post:('a -> unit) -> (unit -> 'a) -> 'a
+val wrap_init_def: level:int -> (unit -> 'a) -> 'a
+val wrap_def_process: (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
+val wrap_def_if: bool -> (unit -> 'a) -> post:('a -> unit) -> 'a
 val wrap_principal: (unit -> 'a) -> post:('a -> unit) -> 'a
 val reset_global_level: unit -> unit
         (* Reset the global level before typing an expression *)
