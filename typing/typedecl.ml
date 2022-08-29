@@ -670,7 +670,7 @@ let check_well_founded env loc path to_check ty =
     visited := visited';
     iter_expand
       (fun path args ->
-        if to_check path then
+        if args <> [] && to_check path then
         let rec_ok =
           !Clflags.recursive_types && Ctype.is_contractive env path in
         let parents =
