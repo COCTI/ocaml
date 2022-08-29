@@ -141,7 +141,7 @@ let reset_for_saving () = new_id := -1
 let newpersty desc =
   decr new_id;
   create_expr
-    desc ~level:generic_level ~scope:Btype.lowest_level ~id:!new_id
+    desc ~abbrevs:[] ~level:generic_level ~scope:Btype.lowest_level ~id:!new_id
 
 (* ensure that all occurrences of 'Tvar None' are physically shared *)
 let tvar_none = Tvar None
@@ -155,7 +155,13 @@ let ctype_apply_env_empty = ref (fun _ -> assert false)
 
 (* Similar to [Ctype.nondep_type_rec]. *)
 let rec typexp copy_scope s ty =
-  let desc = get_desc ty in
+  let desc =
+    match get_desc ty, get_expand ty with
+      Tsubst _ as desc, _ -> desc
+    | _, Some (path, args) when not (List.exists (deep_occur ty) args) ->
+        Tconstr (path, args, ref Mnil)
+    | desc, _ -> desc
+  in
   match desc with
     Tvar _ | Tunivar _ ->
       if s.for_saving || get_id ty < 0 then
@@ -186,7 +192,7 @@ let rec typexp copy_scope s ty =
       else newgenstub ~scope:(get_scope ty)
     in
     For_copy.redirect_desc copy_scope ty (Tsubst (ty', None));
-    let desc =
+    let desc' =
       if has_fixed_row then
         match get_desc tm with (* PR#7348 *)
           Tconstr (Pdot(m,i), tl, _abbrev) ->
@@ -263,7 +269,9 @@ let rec typexp copy_scope s ty =
           Tlink (typexp copy_scope s t2)
       | _ -> copy_type_desc (typexp copy_scope s) desc
     in
-    Transient_expr.set_stub_desc ty' desc;
+    Transient_expr.set_stub_desc ty' desc';
+    inherit_map_abbrevs
+      ~from:ty ~into:ty' ~fpath:(type_path s) ~farg:(typexp copy_scope s);
     ty'
 
 (*

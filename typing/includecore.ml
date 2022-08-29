@@ -107,7 +107,7 @@ let is_absrow env ty =
          included into (usually numbered with "2" in this file).  In this case,
          the abstract row variable has been substituted for an object or variant
          type. *)
-      begin match get_desc (Ctype.expand_head env ty) with
+      begin match get_desc (Ctype.expand_head_nolink env ty) with
       | Tobject _|Tvariant _ -> true
       | _ -> false
       end
@@ -842,7 +842,10 @@ let type_manifest env ty1 params1 ty2 params2 priv2 kind2 =
         else
           Ctype.equal env true (params1 @ [ty1]) (params2 @ [ty2])
       with
-      | exception Ctype.Equality err -> Some (Manifest err)
+      | exception Ctype.Equality err ->
+          (*Format.eprintf "@[ty1=%a@ ty2=%a@]@." Printtyp.raw_type_expr ty1'
+            Printtyp.raw_type_expr ty2';*)
+          Some (Manifest err)
       | () -> None
     end
 

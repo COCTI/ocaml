@@ -9,7 +9,7 @@ module = "pr3918b.mli"
 script = "rm -f pr3918a.cmi"
 ***** ocamlc.byte
 module = "pr3918c.ml"
-ocamlc_byte_exit_status = "2"
+ocamlc_byte_exit_status = "0"
 ***** check-ocamlc.byte-output
 *)
 

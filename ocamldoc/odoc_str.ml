@@ -29,27 +29,27 @@ let string_of_variance t (co,cn) =
     | _ -> ""
   else
     ""
-let rec is_arrow_type t =
-  match Types.get_desc t with
-    Types.Tarrow _ -> true
-  | Types.Tlink t2 -> is_arrow_type t2
-  | Types.Ttuple _
-  | Types.Tconstr _
-  | Types.Tvar _ | Types.Tunivar _ | Types.Tobject _ | Types.Tpoly _
-  | Types.Tfield _ | Types.Tnil | Types.Tvariant _ | Types.Tpackage _ -> false
-  | Types.Tsubst _ -> assert false
+let is_arrow_type t =
+  let open Types in
+  match get_desc t with
+    Tarrow _ -> true
+  | Ttuple _
+  | Tconstr _
+  | Tvar _ | Tunivar _ | Tobject _ | Tpoly _
+  | Tfield _ | Tnil | Tvariant _ | Tpackage _ -> false
+  | Tlink _ | Texpand _ | Tsubst _ -> assert false
 
 let raw_string_of_type_list sep type_list =
   let buf = Buffer.create 256 in
   let fmt = Format.formatter_of_buffer buf in
-  let rec need_parent t =
-    match Types.get_desc t with
-      Types.Tarrow _ | Types.Ttuple _ -> true
-    | Types.Tlink t2 -> need_parent t2
-    | Types.Tconstr _
-    | Types.Tvar _ | Types.Tunivar _ | Types.Tobject _ | Types.Tpoly _
-    | Types.Tfield _ | Types.Tnil | Types.Tvariant _ | Types.Tpackage _ -> false
-    | Types.Tsubst _ -> assert false
+  let need_parent t =
+    let open Types in
+    match get_desc t with
+      Tarrow _ | Ttuple _ -> true
+    | Tconstr _
+    | Tvar _ | Tunivar _ | Tobject _ | Tpoly _
+    | Tfield _ | Tnil | Tvariant _ | Tpackage _ -> false
+    | Tlink _ | Texpand _ | Tsubst _ -> assert false
   in
   let print_one_type variance t =
     if need_parent t then

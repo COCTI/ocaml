@@ -77,6 +77,7 @@ val is_Tvar: type_expr -> bool
 val is_Tunivar: type_expr -> bool
 val is_Tconstr: type_expr -> bool
 val dummy_method: label
+val get_constr_desc: type_expr -> type_desc
 
 (**** polymorphic variants ****)
 
@@ -119,6 +120,7 @@ val set_static_row_name: type_declaration -> Path.t -> unit
 val iter_type_expr: (type_expr -> unit) -> type_expr -> unit
         (* Iteration on types *)
 val fold_type_expr: ('a -> type_expr -> 'a) -> 'a -> type_expr -> 'a
+val iter_abbrevs: (type_expr -> unit) -> type_expr -> unit
 val iter_row: (type_expr -> unit) -> row_desc -> unit
         (* Iteration on types in a row *)
 val fold_row: ('a -> type_expr -> 'a) -> 'a -> row_desc -> 'a
@@ -161,6 +163,10 @@ val copy_type_desc:
 val copy_row:
     (type_expr -> type_expr) ->
     bool -> row_desc -> bool -> type_expr -> row_desc
+
+val deep_occur: type_expr -> type_expr -> bool
+   (* [deep_occur t0 ty] return whether [t0] occurs in [ty].
+      Objects are also traversed. *)
 
 module For_copy : sig
 
