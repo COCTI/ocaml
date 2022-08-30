@@ -3025,10 +3025,10 @@ and type_expect_
         | _ ->
             funct, sargs
       in
-      begin_def ();
-      let (args, ty_res) = type_application env funct sargs in
-      end_def ();
-      unify_var env (newvar()) funct.exp_type;
+      let (args, ty_res) =
+        wrap_def ~post:(fun (_,ty_res) -> unify_var env (newvar()) ty_res)
+          (fun () -> type_application env funct sargs)
+      in
       rue {
         exp_desc = Texp_apply(funct, args);
         exp_loc = loc; exp_extra = [];
@@ -3036,11 +3036,13 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_match(sarg, caselist) ->
-      begin_def ();
-      let arg = type_exp env sarg in
-      end_def ();
-      if maybe_expansive arg then lower_contravariant env arg.exp_type;
-      generalize arg.exp_type;
+      let arg =
+        wrap_def (fun () -> type_exp env sarg) ~post:
+          begin fun arg ->
+            if maybe_expansive arg then lower_contravariant env arg.exp_type;
+            generalize arg.exp_type
+          end
+      in
       let cases, partial =
         type_cases Computation env
           arg.exp_type ty_expected_explained true loc caselist in
@@ -3127,12 +3129,10 @@ and type_expect_
         match opt_sexp with
           None -> None
         | Some sexp ->
-            if !Clflags.principal then begin_def ();
-            let exp = type_exp ~recarg env sexp in
-            if !Clflags.principal then begin
-              end_def ();
-              generalize_structure exp.exp_type
-            end;
+            let exp =
+              wrap_principal (fun () -> type_exp ~recarg env sexp)
+                ~post:(fun exp -> generalize_structure exp.exp_type)
+            in
             Some exp
       in
       let ty_record, expected_type =
@@ -3163,10 +3163,10 @@ and type_expect_
         | Some(_, _, true), Some _ -> ty_expected, expected_opath
         | (None | Some (_, _, false)), Some (_, p', _) ->
             let decl = Env.find_type p' env in
-            begin_def ();
-            let ty = newconstr p' (instance_list decl.type_params) in
-            end_def ();
-            generalize_structure ty;
+            let ty =
+              wrap_def (fun () -> newconstr p' (instance_list decl.type_params))
+                ~post:generalize_structure
+            in
             ty, opt_exp_opath
       in
       let closed = (opt_sexp = None) in
@@ -3380,11 +3380,11 @@ and type_expect_
         exp_env = env }
   | Pexp_constraint (sarg, sty) ->
       (* Pretend separate = true, 1% slowdown for lablgtk *)
-      begin_def ();
-      let cty = Typetexp.transl_simple_type env false sty in
+      let cty =
+        wrap_def (fun () -> Typetexp.transl_simple_type env false sty)
+          ~post:(fun cty -> generalize_structure cty.ctyp_type)
+      in
       let ty = cty.ctyp_type in
-      end_def ();
-      generalize_structure ty;
       let (arg, ty') = (type_argument env sarg ty (instance ty), instance ty) in
       rue {
         exp_desc = arg.exp_desc;
@@ -3405,12 +3405,15 @@ and type_expect_
             let (cty', ty', force) =
               Typetexp.transl_simple_type_delayed env sty'
             in
-            begin_def ();
-            let arg = type_exp env sarg in
-            end_def ();
-            let tv = newvar () in
-            let gen = generalizable (get_level tv) arg.exp_type in
-            unify_var env tv arg.exp_type;
+            let arg, gen =
+              let lv = get_current_level () in
+              wrap_def
+                ~post:(fun (arg,_) -> unify_var env (newvar ()) arg.exp_type)
+                begin fun () ->
+                  let arg = type_exp env sarg in
+                  (arg, generalizable lv arg.exp_type)
+                end
+            in
             begin match arg.exp_desc, !self_coercion, get_desc ty' with
               Texp_ident(_, _, {val_kind=Val_self _}), (path,r) :: _,
               Tconstr(path',_,_) when Path.same path path' ->
@@ -3448,15 +3451,18 @@ and type_expect_
             end;
             (arg, ty', None, cty')
         | Some sty ->
-            begin_def ();
-            let (cty, ty, force) =
-              Typetexp.transl_simple_type_delayed env sty
-            and (cty', ty', force') =
-              Typetexp.transl_simple_type_delayed env sty'
+            let cty, ty, force, cty', ty', force' =
+              wrap_def_process ~proc:generalize_structure
+                begin fun () ->
+                  let (cty, ty, force) =
+                    Typetexp.transl_simple_type_delayed env sty
+                  and (cty', ty', force') =
+                    Typetexp.transl_simple_type_delayed env sty'
+                  in
+                  ((cty, ty, force, cty', ty', force'),
+                   [ty; ty'])
+                end
             in
-            end_def ();
-            generalize_structure ty;
-            generalize_structure ty';
             begin try
               let force'' = subtype env (instance ty) (instance ty') in
               force (); force' (); force'' ()
@@ -3476,13 +3482,10 @@ and type_expect_
                        arg.exp_extra;
       }
   | Pexp_send (e, {txt=met}) ->
-      if !Clflags.principal then begin_def ();
-      let (obj,meth,typ) = type_send env loc explanation e met
+      let (obj,meth,typ) =
+        wrap_principal (fun () -> type_send env loc explanation e met)
+          ~post:(fun (_,_,typ) -> generalize_structure typ)
       in
-      if !Clflags.principal then begin
-        end_def ();
-        generalize_structure typ;
-      end;
       let typ =
         match get_desc typ with
         | Tpoly (ty, []) ->
