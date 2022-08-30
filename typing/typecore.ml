@@ -1691,7 +1691,7 @@ and type_pat_aux
       let initial_module_variables = !module_variables in
       let equation_level = !gadt_equations_level in
       let outter_lev = get_current_level () in
-      (* introduce a new scope *)
+      (* Introduce a new scope; wrap_def without generalizations *)
       let env1, p1, p1_variables, p1_module_variables, env2, p2 =
         wrap_def begin fun () ->
           let lev = get_current_level () in
