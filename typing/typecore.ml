@@ -2817,6 +2817,9 @@ let with_explanation explanation f =
         let err = Expr_type_clash(err', Some explanation, exp') in
         raise (Error (loc', env', err))
 
+(* Lower the level of a type to the current level *)
+let enforce_current_level env ty = unify_var env (newvar ()) ty
+
 let rec type_exp ?recarg env sexp =
   (* We now delegate everything to type_expect *)
   type_expect ?recarg env sexp (mk_expected (newvar ()))
@@ -2990,7 +2993,7 @@ and type_expect_
         if TypeSet.mem ty seen then () else
           match get_desc ty with
             Tarrow (_l, ty_arg, ty_fun, _com) ->
-              (try unify_var env (newvar()) ty_arg
+              (try enforce_current_level env ty_arg
                with Unify _ -> assert false);
               lower_args (TypeSet.add ty seen) ty_fun
           | _ -> ()
@@ -3026,7 +3029,7 @@ and type_expect_
             funct, sargs
       in
       let (args, ty_res) =
-        wrap_def ~post:(fun (_,ty_res) -> unify_var env (newvar()) ty_res)
+        wrap_def ~post:(fun (_,ty_res) -> enforce_current_level env ty_res)
           (fun () -> type_application env funct sargs)
       in
       rue {
@@ -3408,7 +3411,7 @@ and type_expect_
             let arg, gen =
               let lv = get_current_level () in
               wrap_def
-                ~post:(fun (arg,_) -> unify_var env (newvar ()) arg.exp_type)
+                ~post:(fun (arg,_) -> enforce_current_level env arg.exp_type)
                 begin fun () ->
                   let arg = type_exp env sarg in
                   (arg, generalizable lv arg.exp_type)
@@ -3586,44 +3589,50 @@ and type_expect_
           assert false
       end
   | Pexp_letmodule(name, smodl, sbody) ->
-      let ty = newvar() in
-      (* remember original level *)
-      begin_def ();
-      let context = Typetexp.narrow () in
-      let modl, md_shape = !type_module env smodl in
-      Mtype.lower_nongen (get_level ty) modl.mod_type;
-      let pres =
-        match modl.mod_type with
-        | Mty_alias _ -> Mp_absent
-        | _ -> Mp_present
+      let lv = get_current_level () in
+      let (id, name, pres, modl, _, body) =
+        wrap_def
+          ~post:
+          (fun (_,_,_,_,new_env,body) ->
+            enforce_current_level new_env body.exp_type)
+          begin fun () ->
+            let context = Typetexp.narrow () in
+            let modl, md_shape = !type_module env smodl in
+            Mtype.lower_nongen lv modl.mod_type;
+            let pres =
+              match modl.mod_type with
+              | Mty_alias _ -> Mp_absent
+              | _ -> Mp_present
+            in
+            let scope = create_scope () in
+            let md =
+              { md_type = modl.mod_type; md_attributes = []; md_loc = name.loc;
+                md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()); }
+            in
+            let (id, new_env) =
+              match name.txt with
+              | None -> None, env
+              | Some name ->
+                  let id, env =
+                    Env.enter_module_declaration
+                      ~scope ~shape:md_shape name pres md env
+                  in
+                  Some id, env
+            in
+            Typetexp.widen context;
+            (* ideally, we should catch Expr_type_clash errors
+               in type_expect triggered by escaping identifiers
+               from the local module and refine them into
+               Scoping_let_module errors
+             *)
+            let body = type_expect new_env sbody ty_expected_explained in
+            (id, name, pres, modl, new_env, body)
+          end
       in
-      let scope = create_scope () in
-      let md =
-        { md_type = modl.mod_type; md_attributes = []; md_loc = name.loc;
-          md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()); }
-      in
-      let (id, new_env) =
-        match name.txt with
-        | None -> None, env
-        | Some name ->
-          let id, env =
-            Env.enter_module_declaration ~scope ~shape:md_shape name pres md env
-          in
-          Some id, env
-      in
-      Typetexp.widen context;
-      (* ideally, we should catch Expr_type_clash errors
-         in type_expect triggered by escaping identifiers from the local module
-         and refine them into Scoping_let_module errors
-      *)
-      let body = type_expect new_env sbody ty_expected_explained in
-      (* go back to original level *)
-      end_def ();
-      Ctype.unify_var new_env ty body.exp_type;
       re {
         exp_desc = Texp_letmodule(id, name, pres, modl, body);
         exp_loc = loc; exp_extra = [];
-        exp_type = ty;
+        exp_type = body.exp_type;
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_letexception(cd, sbody) ->
