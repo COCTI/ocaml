@@ -194,12 +194,15 @@ let wrap_init_def ~level f =
   let result = f () in
   end_def ();
   result
-let wrap_def_process f ~proc =
-  begin_def ();
+let wrap_def_process_if cond f ~proc =
+  if cond then begin_def ();
   let result, l = f () in
-  end_def ();
-  List.iter proc l;
+  if cond then begin
+    end_def ();
+    List.iter proc l;
+  end;
   result
+let wrap_def_process f ~proc = wrap_def_process_if true f ~proc
 let wrap_def_if cond f ~post =
   if cond then begin_def ();
   let result = f () in
@@ -209,6 +212,8 @@ let wrap_def_if cond f ~post =
   end;
   result
 let wrap_principal f ~post = wrap_def_if !Clflags.principal f ~post
+let wrap_principal_process f ~proc =
+  wrap_def_process_if !Clflags.principal f ~proc
 
 let reset_global_level () =
   global_level := !current_level + 1

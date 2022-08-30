@@ -2850,6 +2850,7 @@ and type_expect_
   let desc = sexp.pexp_desc in
   (* Record the expression type before unifying it with the expected type *)
   let with_explanation = with_explanation explanation in
+  (* Unify the result with [ty_expected], enforcing the current level *) 
   let rue exp =
     with_explanation (fun () ->
       unify_exp ~sdesc_for_hint:desc env (re exp) (instance ty_expected));
@@ -3029,8 +3030,7 @@ and type_expect_
             funct, sargs
       in
       let (args, ty_res) =
-        wrap_def ~post:(fun (_,ty_res) -> enforce_current_level env ty_res)
-          (fun () -> type_application env funct sargs)
+        wrap_def (fun () -> type_application env funct sargs)
       in
       rue {
         exp_desc = Texp_apply(funct, args);
@@ -3741,33 +3741,31 @@ and type_expect_
         else
           newvar ()
       in
-      (* remember original level *)
-      begin_def ();
-      (* Create a fake abstract type declaration for name. *)
-      let decl = new_local_type ~loc () in
-      let scope = create_scope () in
-      let (id, new_env) = Env.enter_type ~scope name decl env in
+      (* Use [wrap_def] just for scoping *)
+      let body, ety = wrap_def begin fun () ->
+        (* Create a fake abstract type declaration for [name]. *)
+        let decl = new_local_type ~loc () in
+        let scope = create_scope () in
+        let (id, new_env) = Env.enter_type ~scope name decl env in
 
-      let body = type_exp new_env sbody in
-      (* Replace every instance of this type constructor in the resulting
-         type. *)
-      let seen = Hashtbl.create 8 in
-      let rec replace t =
-        if Hashtbl.mem seen (get_id t) then ()
-        else begin
-          Hashtbl.add seen (get_id t) ();
-          match get_desc t with
-          | Tconstr (Path.Pident id', _, _) when id == id' -> link_type t ty
-          | _ -> Btype.iter_type_expr replace t
-        end
+        let body = type_exp new_env sbody in
+        (* Replace every instance of this type constructor in the resulting
+           type. *)
+        let seen = Hashtbl.create 8 in
+        let rec replace t =
+          if Hashtbl.mem seen (get_id t) then ()
+          else begin
+            Hashtbl.add seen (get_id t) ();
+            match get_desc t with
+            | Tconstr (Path.Pident id', _, _) when id == id' -> link_type t ty
+            | _ -> Btype.iter_type_expr replace t
+          end
+        in
+        let ety = Subst.type_expr Subst.identity body.exp_type in
+        replace ety;
+        (body, ety)
+      end
       in
-      let ety = Subst.type_expr Subst.identity body.exp_type in
-      replace ety;
-      (* back to original level *)
-      end_def ();
-      (* lower the levels of the result type *)
-      (* unify_var env ty ety; *)
-
       (* non-expansive if the body is non-expansive, so we don't introduce
          any new extra node in the typed AST. *)
       rue { body with exp_loc = loc; exp_type = ety;
@@ -3823,32 +3821,33 @@ and type_expect_
             let ty_acc = newty (Ttuple [ty_acc; ty]) in
             loop spat_acc ty_acc rest
       in
-      if !Clflags.principal then begin_def ();
-      let let_loc = slet.pbop_op.loc in
-      let op_path, op_desc = type_binding_op_ident env slet.pbop_op in
-      let op_type = instance op_desc.val_type in
-      let spat_params, ty_params = loop slet.pbop_pat (newvar ()) sands in
-      let ty_func_result = newvar () in
-      let ty_func =
-        newty (Tarrow(Nolabel, ty_params, ty_func_result, commu_ok)) in
-      let ty_result = newvar () in
-      let ty_andops = newvar () in
-      let ty_op =
-        newty (Tarrow(Nolabel, ty_andops,
-          newty (Tarrow(Nolabel, ty_func, ty_result, commu_ok)), commu_ok))
+      let op_path, op_desc, op_type, spat_params, ty_params,
+          ty_func_result, ty_result, ty_andops =
+        wrap_principal_process ~proc:generalize_structure
+          begin fun () ->
+            let let_loc = slet.pbop_op.loc in
+            let op_path, op_desc = type_binding_op_ident env slet.pbop_op in
+            let op_type = instance op_desc.val_type in
+            let spat_params, ty_params = loop slet.pbop_pat (newvar ()) sands in
+            let ty_func_result = newvar () in
+            let ty_func =
+              newty (Tarrow(Nolabel, ty_params, ty_func_result, commu_ok)) in
+            let ty_result = newvar () in
+            let ty_andops = newvar () in
+            let ty_op =
+              newty (Tarrow(Nolabel, ty_andops,
+                newty (Tarrow(Nolabel, ty_func, ty_result, commu_ok)), commu_ok))
+            in
+            begin try
+              unify env op_type ty_op
+            with Unify err ->
+              raise(Error(let_loc, env, Letop_type_clash(slet.pbop_op.txt, err)))
+            end;
+            ((op_path, op_desc, op_type, spat_params, ty_params,
+              ty_func_result, ty_result, ty_andops),
+             [ty_andops; ty_params; ty_func_result; ty_result])
+          end
       in
-      begin try
-        unify env op_type ty_op
-      with Unify err ->
-        raise(Error(let_loc, env, Letop_type_clash(slet.pbop_op.txt, err)))
-      end;
-      if !Clflags.principal then begin
-        end_def ();
-        generalize_structure ty_andops;
-        generalize_structure ty_params;
-        generalize_structure ty_func_result;
-        generalize_structure ty_result
-      end;
       let exp, ands = type_andops env slet.pbop_exp sands ty_andops in
       let scase = Ast_helper.Exp.case spat_params sbody in
       let cases, partial =
@@ -3956,38 +3955,38 @@ and type_function ?(in_function : (Location.t * type_expr) option)
     | None -> (loc, instance ty_expected)
   in
   let separate = !Clflags.principal || Env.has_local_constraints env in
-  if separate then begin_def ();
-  let (ty_arg, ty_res) =
-    try filter_arrow env (instance ty_expected) arg_label
-    with Filter_arrow_failed err ->
-      let err = match err with
-        | Unification_error unif_err ->
-            Expr_type_clash(unif_err, explanation, None)
-        | Label_mismatch { got; expected; expected_type} ->
-            Abstract_wrong_label { got; expected; expected_type; explanation }
-        | Not_a_function -> begin
-            match in_function with
-            | Some _ -> Too_many_arguments(ty_fun, explanation)
-            | None   -> Not_a_function(ty_fun, explanation)
-          end
-      in
-      raise (Error(loc_fun, env, err))
+  let ty_arg, ty_res =
+    wrap_def_process_if separate ~proc:generalize_structure
+      begin fun () ->
+        let (ty_arg, ty_res) =
+          try filter_arrow env (instance ty_expected) arg_label
+          with Filter_arrow_failed err ->
+            let err = match err with
+            | Unification_error unif_err ->
+                Expr_type_clash(unif_err, explanation, None)
+            | Label_mismatch { got; expected; expected_type} ->
+                Abstract_wrong_label { got; expected; expected_type; explanation }
+            | Not_a_function -> begin
+                match in_function with
+                | Some _ -> Too_many_arguments(ty_fun, explanation)
+                | None   -> Not_a_function(ty_fun, explanation)
+            end
+            in
+            raise (Error(loc_fun, env, err))
+        in
+        let ty_arg =
+          if is_optional arg_label then
+            let tv = newvar() in
+            begin
+              try unify env ty_arg (type_option tv)
+              with Unify _ -> assert false
+            end;
+            type_option tv
+          else ty_arg
+        in
+        ((ty_arg, ty_res), [ty_arg; ty_res])
+      end
   in
-  let ty_arg =
-    if is_optional arg_label then
-      let tv = newvar() in
-      begin
-        try unify env ty_arg (type_option tv)
-        with Unify _ -> assert false
-      end;
-      type_option tv
-    else ty_arg
-  in
-  if separate then begin
-    end_def ();
-    generalize_structure ty_arg;
-    generalize_structure ty_res
-  end;
   let cases, partial =
     type_cases Value ~in_function:(loc_fun,ty_fun) env
       ty_arg (mk_expected ty_res) true loc caselist in
@@ -4009,12 +4008,9 @@ and type_function ?(in_function : (Location.t * type_expr) option)
 
 
 and type_label_access env srecord usage lid =
-  if !Clflags.principal then begin_def ();
-  let record = type_exp ~recarg:Allowed env srecord in
-  if !Clflags.principal then begin
-    end_def ();
-    generalize_structure record.exp_type
-  end;
+  let record = wrap_principal (fun () -> type_exp ~recarg:Allowed env srecord)
+      ~post:(fun record -> generalize_structure record.exp_type)
+  in
   let ty_exp = record.exp_type in
   let expected_type =
     match extract_concrete_record env ty_exp with
@@ -4280,37 +4276,41 @@ and type_format loc str env =
 and type_label_exp create env loc ty_expected
           (lid, label, sarg) =
   (* Here also ty_expected may be at generic_level *)
-  begin_def ();
   let separate = !Clflags.principal || Env.has_local_constraints env in
-  if separate then (begin_def (); begin_def ());
-  let (vars, ty_arg, ty_res) = instance_label true label in
-  if separate then begin
-    end_def ();
-    (* Generalize label information *)
-    generalize_structure ty_arg;
-    generalize_structure ty_res
-  end;
-  begin try
-    unify env (instance ty_res) (instance ty_expected)
-  with Unify err ->
-    raise (Error(lid.loc, env, Label_mismatch(lid.txt, err)))
-  end;
-  (* Instantiate so that we can generalize internal nodes *)
-  let ty_arg = instance ty_arg in
-  if separate then begin
-    end_def ();
-    (* Generalize information merged from ty_expected *)
-    generalize_structure ty_arg
-  end;
-  if label.lbl_private = Private then
-    if create then
-      raise (Error(loc, env, Private_type ty_expected))
-    else
-      raise (Error(lid.loc, env, Private_label(lid.txt, ty_expected)));
+  let (vars, ty_arg, snap, arg) =
+    wrap_def begin fun () ->
+      let (vars, ty_arg) =
+        wrap_def_process_if separate ~proc:generalize_structure
+          begin fun () ->
+            let (vars, ty_arg, ty_res) =
+              wrap_def_process_if separate ~proc:generalize_structure
+                begin fun () ->
+                  let ((_, ty_arg, ty_res) as r) = instance_label true label in
+                  (r, [ty_arg; ty_res])
+                end
+            in
+            begin try
+              unify env (instance ty_res) (instance ty_expected)
+            with Unify err ->
+              raise (Error(lid.loc, env, Label_mismatch(lid.txt, err)))
+            end;
+            (* Instantiate so that we can generalize internal nodes *)
+            let ty_arg = instance ty_arg in
+            ((vars, ty_arg), [ty_arg])
+          end
+      in
+
+      if label.lbl_private = Private then
+        if create then
+          raise (Error(loc, env, Private_type ty_expected))
+        else
+          raise (Error(lid.loc, env, Private_label(lid.txt, ty_expected)));
+      let snap = if vars = [] then None else Some (Btype.snapshot ()) in
+      let arg = type_argument env sarg ty_arg (instance ty_arg) in
+      (vars, ty_arg, snap, arg)
+    end
+  in
   let arg =
-    let snap = if vars = [] then None else Some (Btype.snapshot ()) in
-    let arg = type_argument env sarg ty_arg (instance ty_arg) in
-    end_def ();
     try
       if (vars = []) then arg
       else begin
@@ -4322,14 +4322,18 @@ and type_label_exp create env loc ty_expected
     with exn when maybe_expansive arg -> try
       (* Try to retype without propagating ty_arg, cf PR#4862 *)
       Option.iter Btype.backtrack snap;
-      begin_def ();
-      let arg = type_exp env sarg in
-      end_def ();
-      lower_contravariant env arg.exp_type;
-      begin_def ();
-      let arg = {arg with exp_type = instance arg.exp_type} in
-      unify_exp env arg (instance ty_arg);
-      end_def ();
+      let arg = wrap_def (fun () -> type_exp env sarg)
+          ~post:(fun arg -> lower_contravariant env arg.exp_type)
+      in
+      let arg =
+        wrap_def ~post:(fun arg -> generalize_and_check_univars
+                                   env "field value" arg label.lbl_arg vars)
+          begin fun () ->
+            let arg = {arg with exp_type = instance arg.exp_type} in
+            unify_exp env arg (instance ty_arg);
+            arg
+          end
+      in
       generalize_and_check_univars env "field value" arg label.lbl_arg vars;
       {arg with exp_type = instance arg.exp_type}
     with Error (_, _, Less_general _) as e -> raise e
@@ -4362,12 +4366,9 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
     Some (safe_expect, lv) ->
       (* apply optional arguments when expected type is "" *)
       (* we must be very careful about not breaking the semantics *)
-      if !Clflags.principal then begin_def ();
-      let texp = type_exp env sarg in
-      if !Clflags.principal then begin
-        end_def ();
-        generalize_structure texp.exp_type
-      end;
+      let texp = wrap_principal (fun () -> type_exp env sarg)
+          ~post:(fun texp -> generalize_structure texp.exp_type)
+      in
       let rec make_args args ty_fun =
         match get_desc (expand_head env ty_fun) with
         | Tarrow (l,ty_arg,ty_fun,_) when is_optional l ->
@@ -4671,27 +4672,34 @@ and type_construct env loc lid sarg ty_expected_explained attrs =
     raise(Error(loc, env, Constructor_arity_mismatch
                             (lid.txt, constr.cstr_arity, List.length sargs)));
   let separate = !Clflags.principal || Env.has_local_constraints env in
-  if separate then (begin_def (); begin_def ());
-  let (ty_args, ty_res, _) =
-    instance_constructor Keep_existentials_flexible constr
+  let ty_args, ty_res, texp =
+    wrap_def_process_if separate ~proc:generalize_structure
+      begin fun () ->
+        let ty_args, ty_res, texp =
+          wrap_def_if separate
+            begin fun () ->
+              let (ty_args, ty_res, _) =
+                instance_constructor Keep_existentials_flexible constr
+              in
+              let texp =
+                re {
+                exp_desc = Texp_construct(lid, constr, []);
+                exp_loc = loc; exp_extra = [];
+                exp_type = ty_res;
+                exp_attributes = attrs;
+                exp_env = env } in
+              (ty_args, ty_res, texp)
+            end
+            ~post: begin fun (_, ty_res, texp) ->
+              generalize_structure ty_res;
+              with_explanation explanation (fun () ->
+                unify_exp env {texp with exp_type = instance ty_res}
+                  (instance ty_expected));
+            end
+        in
+        ((ty_args, ty_res, texp), ty_res::ty_args)
+      end
   in
-  let texp =
-    re {
-      exp_desc = Texp_construct(lid, constr, []);
-      exp_loc = loc; exp_extra = [];
-      exp_type = ty_res;
-      exp_attributes = attrs;
-      exp_env = env } in
-  if separate then begin
-    end_def ();
-    generalize_structure ty_res;
-    with_explanation explanation (fun () ->
-      unify_exp env {texp with exp_type = instance ty_res}
-        (instance ty_expected));
-    end_def ();
-    List.iter generalize_structure ty_args;
-    generalize_structure ty_res;
-  end;
   let ty_args0, ty_res =
     match instance_list (ty_res :: ty_args) with
       t :: tl -> tl, t
@@ -4729,11 +4737,10 @@ and type_construct env loc lid sarg ty_expected_explained attrs =
 (* Typing of statements (expressions whose values are discarded) *)
 
 and type_statement ?explanation env sexp =
-  begin_def();
-  let exp = type_exp env sexp in
-  end_def();
-  let ty = expand_head env exp.exp_type and tv = newvar() in
-  if is_Tvar ty && get_level ty > get_level tv then
+  (* Raise the current level to detect non-returning functions *)
+  let exp = wrap_def (fun () -> type_exp env sexp) in
+  let ty = expand_head env exp.exp_type in
+  if is_Tvar ty && get_level ty > get_current_level () then
     Location.prerr_warning
       (final_subexpression exp).exp_loc
       Warnings.Nonreturning_statement;
@@ -4744,7 +4751,7 @@ and type_statement ?explanation env sexp =
     exp
   else begin
     check_partial_application ~statement:true exp;
-    unify_var env tv ty;
+    enforce_current_level env ty;
     exp
   end
 
