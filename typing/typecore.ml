@@ -3691,18 +3691,16 @@ and type_expect_
         exp_env = env;
       }
   | Pexp_poly(sbody, sty) ->
-      if !Clflags.principal then begin_def ();
       let ty, cty =
-        match sty with None -> protect_expansion env ty_expected, None
-        | Some sty ->
-            let sty = Ast_helper.Typ.force_poly sty in
-            let cty = Typetexp.transl_simple_type env false sty in
-            cty.ctyp_type, Some cty
+        wrap_principal ~post:(fun (ty,_) -> generalize_structure ty)
+          begin fun () ->
+            match sty with None -> protect_expansion env ty_expected, None
+            | Some sty ->
+                let sty = Ast_helper.Typ.force_poly sty in
+                let cty = Typetexp.transl_simple_type env false sty in
+                cty.ctyp_type, Some cty
+          end
       in
-      if !Clflags.principal then begin
-        end_def ();
-        generalize_structure ty
-      end;
       if sty <> None then
         with_explanation (fun () ->
           unify_exp_types loc env (instance ty) (instance ty_expected));
@@ -3713,16 +3711,19 @@ and type_expect_
             { exp with exp_type = instance ty }
         | Tpoly (ty', tl) ->
             (* One more level to generalize locally *)
-            begin_def ();
-            if !Clflags.principal then begin_def ();
-            let vars, ty'' = instance_poly true tl ty' in
-            if !Clflags.principal then begin
-              end_def ();
-              generalize_structure ty''
-            end;
-            let exp = type_expect env sbody (mk_expected ty'') in
-            end_def ();
-            generalize_and_check_univars env "method" exp ty_expected vars;
+            let (exp,_) =
+              wrap_def
+                begin fun () ->
+                  let vars, ty'' =
+                    wrap_principal (fun () -> instance_poly true tl ty')
+                      ~post:(fun (_,ty'') -> generalize_structure ty'')
+                  in
+                  let exp = type_expect env sbody (mk_expected ty'') in
+                  (exp, vars)
+                end
+                ~post:(fun (exp,vars) -> generalize_and_check_univars
+                                           env "method" exp ty_expected vars)
+            in
             { exp with exp_type = instance ty }
         | Tvar _ ->
             let exp = type_exp env sbody in
