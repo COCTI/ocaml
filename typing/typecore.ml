@@ -4769,45 +4769,44 @@ and type_unpacks ?(in_function : (Location.t * type_expr) option)
          *)
         type_expect ?in_function env sbody expected_ty
     | unpack :: rem ->
-        begin_def ();
-        let context = Typetexp.narrow () in
-        let name = unpack.tu_name in
-        let modl, md_shape =
-          !type_module env
-            Ast_helper.(
-              Mod.unpack ~loc:unpack.tu_loc
-                (Exp.ident ~loc:name.loc
-                   (mkloc (Longident.Lident name.txt) name.loc)))
-        in
-        Mtype.lower_nongen (get_level ty) modl.mod_type;
-        let pres =
-          match modl.mod_type with
-          | Mty_alias _ -> Mp_absent
-          | _ -> Mp_present
-        in
-        let scope = create_scope () in
-        let md =
-          { md_type = modl.mod_type; md_attributes = [];
-            md_loc = name.loc;
-            md_uid = unpack.tu_uid; }
-        in
-        let (id, extended_env) =
-          Env.enter_module_declaration ~scope ~shape:md_shape
-            name.txt pres md env
-        in
-        Typetexp.widen context;
-        let body = fold_unpacks extended_env rem in
-        (* go back to parent level *)
-        end_def ();
-        Ctype.unify_var extended_env ty body.exp_type;
-        re {
-        exp_desc = Texp_letmodule(Some id, { name with txt = Some name.txt },
-                                  pres, modl, body);
-        exp_loc;
-        exp_attributes;
-        exp_extra = [];
-        exp_type = ty;
-        exp_env = env }
+        wrap_def begin fun () ->
+          let context = Typetexp.narrow () in
+          let name = unpack.tu_name in
+          let modl, md_shape =
+            !type_module env
+              Ast_helper.(
+                Mod.unpack ~loc:unpack.tu_loc
+                  (Exp.ident ~loc:name.loc
+                     (mkloc (Longident.Lident name.txt) name.loc)))
+          in
+          Mtype.lower_nongen (get_level ty) modl.mod_type;
+          let pres =
+            match modl.mod_type with
+            | Mty_alias _ -> Mp_absent
+            | _ -> Mp_present
+          in
+          let scope = create_scope () in
+          let md =
+            { md_type = modl.mod_type; md_attributes = [];
+              md_loc = name.loc;
+              md_uid = unpack.tu_uid; }
+          in
+          let (id, extended_env) =
+            Env.enter_module_declaration ~scope ~shape:md_shape
+              name.txt pres md env
+          in
+          Typetexp.widen context;
+          let body = fold_unpacks extended_env rem in
+          Ctype.unify_var extended_env ty body.exp_type;
+          re {
+          exp_desc = Texp_letmodule(Some id, { name with txt = Some name.txt },
+                                    pres, modl, body);
+          exp_loc;
+          exp_attributes;
+          exp_extra = [];
+          exp_type = ty;
+          exp_env = env }
+        end
   in
   fold_unpacks env unpacks
 
