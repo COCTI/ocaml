@@ -4839,10 +4839,8 @@ and type_cases
     | _ -> true
   in
   let outer_level = get_current_level () in
-  let lev =
-    if may_contain_gadts then begin_def ();
-    get_current_level ()
-  in
+  wrap_def_process_if may_contain_gadts begin fun () ->
+  let lev = get_current_level () in
   let take_partial_instance =
     if erase_either
     then Some false else None
@@ -5003,12 +5001,10 @@ and type_cases
   else
     (* Check for unused cases, do not delay because of gadts *)
     unused_check false;
-  if may_contain_gadts then begin
-    end_def ();
-    (* Ensure that existential types do not escape *)
-    unify_exp_types loc env ty_res' (newvar ()) ;
-  end;
-  cases, partial
+  ((cases, partial), [ty_res'])
+  end
+  (* Ensure that existential types do not escape *)
+  ~proc:(fun ty_res' -> unify_exp_types loc env ty_res' (newvar ()))
 
 (* Typing of let bindings *)
 
