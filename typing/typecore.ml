@@ -4845,81 +4845,94 @@ and type_cases
     if erase_either
     then Some false else None
   in
-  begin_def (); (* propagation of the argument *)
-  let pattern_force = ref [] in
-(*  Format.printf "@[%i %i@ %a@]@." lev (get_current_level())
-    Printtyp.raw_type_expr ty_arg; *)
-  let half_typed_cases =
-    List.map
-      (fun ({pc_lhs; pc_guard = _; pc_rhs = _} as case) ->
-        if !Clflags.principal then begin_def (); (* propagation of pattern *)
-        begin_def ();
-        let ty_arg = instance ?partial:take_partial_instance ty_arg in
-        end_def ();
-        generalize_structure ty_arg;
-        let (pat, ext_env, force, pvs, unpacks) =
-          type_pattern category ~lev env pc_lhs ty_arg
-        in
-        pattern_force := force @ !pattern_force;
-        let pat =
-          if !Clflags.principal then begin
-            end_def ();
-            iter_pattern_variables_type generalize_structure pvs;
-            { pat with pat_type = instance pat.pat_type }
-          end else pat
-        in
-        (* Ensure that no ambivalent pattern type escapes its branch *)
-        check_scope_escape pat.pat_loc env outer_level ty_arg;
-        { typed_pat = pat;
-          pat_type_for_unif = ty_arg;
-          untyped_case = case;
-          branch_env = ext_env;
-          pat_vars = pvs;
-          unpacks;
-          contains_gadt = contains_gadt (as_comp_pattern category pat); }
+  let half_typed_cases, ty_res, do_copy_types, ty_arg' =
+   (* propagation of the argument *)
+    wrap_def begin fun () ->
+      let pattern_force = ref [] in
+      (*  Format.printf "@[%i %i@ %a@]@." lev (get_current_level())
+          Printtyp.raw_type_expr ty_arg; *)
+      let half_typed_cases =
+        List.map
+        (fun ({pc_lhs; pc_guard = _; pc_rhs = _} as case) ->
+          let htc =
+            wrap_principal begin fun () ->
+              let ty_arg =
+                (* propagation of pattern *)
+                wrap_def ~post:generalize_structure
+                  (fun () -> instance ?partial:take_partial_instance ty_arg)
+              in
+              let (pat, ext_env, force, pvs, unpacks) =
+                type_pattern category ~lev env pc_lhs ty_arg
+              in
+              pattern_force := force @ !pattern_force;
+              { typed_pat = pat;
+                pat_type_for_unif = ty_arg;
+                untyped_case = case;
+                branch_env = ext_env;
+                pat_vars = pvs;
+                unpacks;
+                contains_gadt = contains_gadt (as_comp_pattern category pat); }
+            end
+            ~post: begin fun htc ->
+              iter_pattern_variables_type generalize_structure htc.pat_vars;
+            end
+          in
+          (* Ensure that no ambivalent pattern type escapes its branch *)
+          check_scope_escape htc.typed_pat.pat_loc env outer_level
+            htc.pat_type_for_unif;
+          if !Clflags.principal then
+            let pat = htc.typed_pat in
+            {htc with typed_pat = { pat with pat_type = instance pat.pat_type }}
+          else htc
         )
-      caselist in
-  let patl = List.map (fun { typed_pat; _ } -> typed_pat) half_typed_cases in
-  let does_contain_gadt =
-    List.exists (fun { contains_gadt; _ } -> contains_gadt) half_typed_cases
+        caselist in
+      let patl =
+        List.map (fun { typed_pat; _ } -> typed_pat) half_typed_cases in
+      let does_contain_gadt =
+        List.exists (fun { contains_gadt; _ } -> contains_gadt) half_typed_cases
+      in
+      let ty_res, do_copy_types =
+        if does_contain_gadt && not !Clflags.principal then
+          correct_levels ty_res, Env.make_copy_of_types env
+        else ty_res, (fun env -> env)
+      in
+      (* Unify all cases (delayed to keep it order-free) *)
+      let ty_arg' = newvar () in
+      let unify_pats ty =
+        List.iter (fun { typed_pat = pat; pat_type_for_unif = pat_ty; _ } ->
+          unify_pat_types pat.pat_loc (ref env) pat_ty ty
+        ) half_typed_cases
+      in
+      unify_pats ty_arg';
+      (* Check for polymorphic variants to close *)
+      if List.exists has_variants patl then begin
+        Parmatch.pressure_variants_in_computation_pattern env
+          (List.map (as_comp_pattern category) patl);
+        List.iter finalize_variants patl
+      end;
+      (* `Contaminating' unifications start here *)
+      List.iter (fun f -> f()) !pattern_force;
+      (* Post-processing and generalization *)
+      if take_partial_instance <> None then unify_pats (instance ty_arg);
+      List.iter (fun { pat_vars; _ } ->
+        iter_pattern_variables_type
+          (fun t -> unify_var env (newvar()) t) pat_vars
+      ) half_typed_cases;
+      (half_typed_cases, ty_res, do_copy_types, ty_arg')
+    end
+    ~post: begin fun (half_typed_cases, _, _, ty_arg') ->
+      generalize ty_arg';
+      List.iter (fun { pat_vars; _ } ->
+        iter_pattern_variables_type generalize pat_vars
+      ) half_typed_cases
+    end
   in
-  let ty_res, do_copy_types =
-    if does_contain_gadt && not !Clflags.principal then
-      correct_levels ty_res, Env.make_copy_of_types env
-    else ty_res, (fun env -> env)
-  in
-  (* Unify all cases (delayed to keep it order-free) *)
-  let ty_arg' = newvar () in
-  let unify_pats ty =
-    List.iter (fun { typed_pat = pat; pat_type_for_unif = pat_ty; _ } ->
-      unify_pat_types pat.pat_loc (ref env) pat_ty ty
-    ) half_typed_cases
-  in
-  unify_pats ty_arg';
-  (* Check for polymorphic variants to close *)
-  if List.exists has_variants patl then begin
-      Parmatch.pressure_variants_in_computation_pattern env
-        (List.map (as_comp_pattern category) patl);
-      List.iter finalize_variants patl
-  end;
-  (* `Contaminating' unifications start here *)
-  List.iter (fun f -> f()) !pattern_force;
-  (* Post-processing and generalization *)
-  if take_partial_instance <> None then unify_pats (instance ty_arg);
-  List.iter (fun { pat_vars; _ } ->
-    iter_pattern_variables_type (fun t -> unify_var env (newvar()) t) pat_vars
-  ) half_typed_cases;
-  end_def ();
-  generalize ty_arg';
-  List.iter (fun { pat_vars; _ } ->
-    iter_pattern_variables_type generalize pat_vars
-  ) half_typed_cases;
   (* type bodies *)
   let in_function = if List.length caselist = 1 then in_function else None in
   let ty_res' = instance ty_res in
-  if !Clflags.principal then begin_def ();
   let cases =
-    List.map
+    wrap_principal ~post:ignore begin fun () ->
+      List.map
       (fun { typed_pat = pat; branch_env = ext_env; pat_vars = pvs; unpacks;
              untyped_case = {pc_lhs = _; pc_guard; pc_rhs};
              contains_gadt; _ }  ->
@@ -4964,8 +4977,8 @@ and type_cases
         }
       )
       half_typed_cases
+    end
   in
-  if !Clflags.principal then end_def ();
   let do_init = may_contain_gadts || needs_exhaust_check in
   let ty_arg_check =
     if do_init then
@@ -4989,10 +5002,10 @@ and type_cases
     List.iter (fun { typed_pat; branch_env; _ } ->
       check_absent_variant branch_env (as_comp_pattern category typed_pat)
     ) half_typed_cases;
-    if delayed then (begin_def (); init_def lev);
-    check_unused ~lev env ty_arg_check val_cases ;
-    check_unused ~lev env Predef.type_exn exn_cases ;
-    if delayed then end_def ();
+    wrap_init_def_if delayed ~level:lev begin fun () ->
+      check_unused ~lev env ty_arg_check val_cases ;
+      check_unused ~lev env Predef.type_exn exn_cases ;
+    end;
     Parmatch.check_ambiguous_bindings val_cases ;
     Parmatch.check_ambiguous_bindings exn_cases
   in

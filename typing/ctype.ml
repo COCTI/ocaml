@@ -188,12 +188,6 @@ let wrap_def ?post f =
   end_def ();
   Option.iter (fun g -> g result) post;
   result
-let wrap_init_def ~level f =
-  begin_def ();
-  init_def level;
-  let result = f () in
-  end_def ();
-  result
 let wrap_def_process_if cond f ~proc =
   if cond then begin_def ();
   let result, l = f () in
@@ -214,6 +208,12 @@ let wrap_def_if cond f ~post =
 let wrap_principal f ~post = wrap_def_if !Clflags.principal f ~post
 let wrap_principal_process f ~proc =
   wrap_def_process_if !Clflags.principal f ~proc
+let wrap_init_def_if cond ~level f =
+  if cond then (begin_def (); init_def level);
+  let result = f () in
+  if cond then end_def ();
+  result
+let wrap_init_def ~level f = wrap_init_def_if true ~level f
 
 let reset_global_level () =
   global_level := !current_level + 1

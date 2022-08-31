@@ -45,6 +45,7 @@ val end_def: unit -> unit
         (* Lower the variable level by one at the end of a definition *)
 val wrap_def: ?post:('a -> unit) -> (unit -> 'a) -> 'a
 val wrap_init_def: level: int -> (unit -> 'a) -> 'a
+val wrap_init_def_if: bool -> level: int -> (unit -> 'a) -> 'a
 val wrap_def_process_if:
     bool -> (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
 val wrap_def_process: (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
