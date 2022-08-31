@@ -205,8 +205,8 @@ let wrap_def_if cond f ~post =
     post result;
   end;
   result
-let wrap_principal f ~post = wrap_def_if !Clflags.principal f ~post
-let wrap_principal_process f ~proc =
+let wrap_def_principal f ~post = wrap_def_if !Clflags.principal f ~post
+let wrap_def_process_principal f ~proc =
   wrap_def_process_if !Clflags.principal f ~proc
 let wrap_init_def_if cond ~level f =
   if cond then (begin_def (); init_def level);

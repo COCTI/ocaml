@@ -325,18 +325,19 @@ and transl_type_aux env policy styp =
           end;
           ty
         with Not_found ->
-          let t, ty = wrap_principal
-              (fun () ->
-                let t = newvar () in
-                used_variables :=
-                  TyVarMap.add alias (t, styp.ptyp_loc) !used_variables;
-                let ty = transl_type env policy st in
-                begin try unify_var env t ty.ctyp_type with Unify err ->
-                  let err = Errortrace.swap_unification_error err in
-                  raise(Error(styp.ptyp_loc, env, Alias_type_mismatch err))
-                end;
-                (t, ty))
-              ~post: (fun (t, _) -> generalize_structure t)
+          let t, ty =
+            wrap_def_principal begin fun () ->
+              let t = newvar () in
+              used_variables :=
+                TyVarMap.add alias (t, styp.ptyp_loc) !used_variables;
+              let ty = transl_type env policy st in
+              begin try unify_var env t ty.ctyp_type with Unify err ->
+                let err = Errortrace.swap_unification_error err in
+                raise(Error(styp.ptyp_loc, env, Alias_type_mismatch err))
+              end;
+              (t, ty)
+            end
+            ~post: (fun (t, _) -> generalize_structure t)
           in
           let t = instance t in
           let px = Btype.proxy t in

@@ -3004,7 +3004,7 @@ and type_expect_
         wrap_def_process
           begin fun () ->
             let funct =
-              wrap_principal (fun () -> type_exp env sfunct)
+              wrap_def_principal (fun () -> type_exp env sfunct)
                 ~post:(fun {exp_type=t} -> generalize_structure t)
             in
             let ty = instance funct.exp_type in
@@ -3133,7 +3133,7 @@ and type_expect_
           None -> None
         | Some sexp ->
             let exp =
-              wrap_principal (fun () -> type_exp ~recarg env sexp)
+              wrap_def_principal (fun () -> type_exp ~recarg env sexp)
                 ~post:(fun exp -> generalize_structure exp.exp_type)
             in
             Some exp
@@ -3486,7 +3486,7 @@ and type_expect_
       }
   | Pexp_send (e, {txt=met}) ->
       let (obj,meth,typ) =
-        wrap_principal (fun () -> type_send env loc explanation e met)
+        wrap_def_principal (fun () -> type_send env loc explanation e met)
           ~post:(fun (_,_,typ) -> generalize_structure typ)
       in
       let typ =
@@ -3692,7 +3692,7 @@ and type_expect_
       }
   | Pexp_poly(sbody, sty) ->
       let ty, cty =
-        wrap_principal ~post:(fun (ty,_) -> generalize_structure ty)
+        wrap_def_principal ~post:(fun (ty,_) -> generalize_structure ty)
           begin fun () ->
             match sty with None -> protect_expansion env ty_expected, None
             | Some sty ->
@@ -3715,7 +3715,7 @@ and type_expect_
               wrap_def
                 begin fun () ->
                   let vars, ty'' =
-                    wrap_principal (fun () -> instance_poly true tl ty')
+                    wrap_def_principal (fun () -> instance_poly true tl ty')
                       ~post:(fun (_,ty'') -> generalize_structure ty'')
                   in
                   let exp = type_expect env sbody (mk_expected ty'') in
@@ -3823,7 +3823,7 @@ and type_expect_
       in
       let op_path, op_desc, op_type, spat_params, ty_params,
           ty_func_result, ty_result, ty_andops =
-        wrap_principal_process ~proc:generalize_structure
+        wrap_def_process_principal ~proc:generalize_structure
           begin fun () ->
             let let_loc = slet.pbop_op.loc in
             let op_path, op_desc = type_binding_op_ident env slet.pbop_op in
@@ -4008,7 +4008,7 @@ and type_function ?(in_function : (Location.t * type_expr) option)
 
 
 and type_label_access env srecord usage lid =
-  let record = wrap_principal (fun () -> type_exp ~recarg:Allowed env srecord)
+  let record = wrap_def_principal (fun () -> type_exp ~recarg:Allowed env srecord)
       ~post:(fun record -> generalize_structure record.exp_type)
   in
   let ty_exp = record.exp_type in
@@ -4366,7 +4366,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
     Some (safe_expect, lv) ->
       (* apply optional arguments when expected type is "" *)
       (* we must be very careful about not breaking the semantics *)
-      let texp = wrap_principal (fun () -> type_exp env sarg)
+      let texp = wrap_def_principal (fun () -> type_exp env sarg)
           ~post:(fun texp -> generalize_structure texp.exp_type)
       in
       let rec make_args args ty_fun =
@@ -4855,7 +4855,7 @@ and type_cases
         List.map
         (fun ({pc_lhs; pc_guard = _; pc_rhs = _} as case) ->
           let htc =
-            wrap_principal begin fun () ->
+            wrap_def_principal begin fun () ->
               let ty_arg =
                 (* propagation of pattern *)
                 wrap_def ~post:generalize_structure
@@ -4931,7 +4931,7 @@ and type_cases
   let in_function = if List.length caselist = 1 then in_function else None in
   let ty_res' = instance ty_res in
   let cases =
-    wrap_principal ~post:ignore begin fun () ->
+    wrap_def_principal ~post:ignore begin fun () ->
       List.map
       (fun { typed_pat = pat; branch_env = ext_env; pat_vars = pvs; unpacks;
              untyped_case = {pc_lhs = _; pc_guard; pc_rhs};

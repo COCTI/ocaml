@@ -50,8 +50,8 @@ val wrap_def_process_if:
     bool -> (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
 val wrap_def_process: (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
 val wrap_def_if: bool -> (unit -> 'a) -> post:('a -> unit) -> 'a
-val wrap_principal: (unit -> 'a) -> post:('a -> unit) -> 'a
-val wrap_principal_process: (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
+val wrap_def_principal: (unit -> 'a) -> post:('a -> unit) -> 'a
+val wrap_def_process_principal: (unit -> 'a * 'b list) -> proc:('b -> unit) -> 'a
 val reset_global_level: unit -> unit
         (* Reset the global level before typing an expression *)
 val increase_global_level: unit -> int
