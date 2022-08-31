@@ -4880,7 +4880,7 @@ and type_cases
           (* Ensure that no ambivalent pattern type escapes its branch *)
           check_scope_escape htc.typed_pat.pat_loc env outer_level
             htc.pat_type_for_unif;
-          if !Clflags.principal then
+          if !Clflags.principal then (* XXX find a bettery way? *)
             let pat = htc.typed_pat in
             {htc with typed_pat = { pat with pat_type = instance pat.pat_type }}
           else htc
@@ -4931,8 +4931,7 @@ and type_cases
   let in_function = if List.length caselist = 1 then in_function else None in
   let ty_res' = instance ty_res in
   let cases =
-    wrap_def_principal ~post:ignore begin fun () ->
-      List.map
+    List.map
       (fun { typed_pat = pat; branch_env = ext_env; pat_vars = pvs; unpacks;
              untyped_case = {pc_lhs = _; pc_guard; pc_rhs};
              contains_gadt; _ }  ->
@@ -4955,7 +4954,8 @@ and type_cases
         in
         let ty_expected =
           if contains_gadt && not !Clflags.principal then
-            (* allow propagation from preceding branches *)
+            (* Take a generic copy of [ty_res] again to allow propagation of
+               type information from preceding branches *)
             correct_levels ty_res
           else ty_res in
         let guard =
@@ -4977,7 +4977,6 @@ and type_cases
         }
       )
       half_typed_cases
-    end
   in
   let do_init = may_contain_gadts || needs_exhaust_check in
   let ty_arg_check =
