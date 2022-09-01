@@ -2894,14 +2894,15 @@ let type_package env m p fl =
   (* remember original level *)
   Ctype.begin_def ();
 *)
-  let context = Typetexp.narrow () in
-  (* type the module and create a scope in a raised level *)
-  let modl, scope = Ctype.wrap_def begin fun () ->
-    let modl, _mod_shape = type_module env m in
-    let scope = Ctype.create_scope () in
-    modl, scope
-  end in
-  Typetexp.widen context;
+  let modl, scope = Typetexp.wrap_global_level begin fun () ->
+    (* type the module and create a scope in a raised level *)
+    Ctype.wrap_def begin fun () ->
+      let modl, _mod_shape = type_module env m in
+      let scope = Ctype.create_scope () in
+      modl, scope
+    end
+  end
+  in
   let fl', env =
     match fl with
     | [] -> [], env

@@ -263,7 +263,8 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
   | Some sret_type ->
       (* if it's a generalized constructor we must first narrow and
          then widen so as to not introduce any new constraints *)
-      let z = narrow () in
+      (* narrow and widen are now invoked through wrap_global_level *)
+      wrap_global_level begin fun () ->
       reset_type_variables ();
       let univars, closed =
         match svars with
@@ -304,8 +305,8 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
          Btype.iter_type_expr_cstr_args set_level args;
          set_level ret_type;
       end;
-      widen z;
       targs, Some tret_type, args, Some ret_type
+      end
 
 let transl_declaration env sdecl (id, uid) =
   (* Bind type parameters *)

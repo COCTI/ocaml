@@ -105,6 +105,12 @@ let widen (gl, tv) =
   restore_global_level gl;
   type_variables := tv
 
+let wrap_global_level f =
+  let context = narrow () in
+  let r = f () in
+  widen context;
+  r
+
 let strict_ident c = (c = '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
 
 let validate_name = function
@@ -465,9 +471,7 @@ and transl_type_aux env policy styp =
       ctyp (Ttyp_poly (vars, cty)) ty'
   | Ptyp_package (p, l) ->
       let l, mty = create_package_mty true styp.ptyp_loc env (p, l) in
-      let z = narrow () in
-      let mty = !transl_modtype env mty in
-      widen z;
+      let mty = wrap_global_level (fun () -> !transl_modtype env mty) in
       let ptys = List.map (fun (s, pty) ->
                              s, transl_type env policy pty
                           ) l in
