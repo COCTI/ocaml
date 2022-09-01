@@ -2820,6 +2820,12 @@ let with_explanation explanation f =
 (* Lower the level of a type to the current level *)
 let enforce_current_level env ty = unify_var env (newvar ()) ty
 
+(* Generalize expressions *)
+let generalize_structure_exp exp = generalize_structure exp.exp_type
+let may_lower_contravariant_then_generalize exp =
+  if maybe_expansive exp then lower_contravariant env exp.exp_type;
+  generalize exp.exp_type
+
 let rec type_exp ?recarg env sexp =
   (* We now delegate everything to type_expect *)
   type_expect ?recarg env sexp (mk_expected (newvar ()))
@@ -3040,11 +3046,8 @@ and type_expect_
         exp_env = env }
   | Pexp_match(sarg, caselist) ->
       let arg =
-        wrap_def (fun () -> type_exp env sarg) ~post:
-          begin fun arg ->
-            if maybe_expansive arg then lower_contravariant env arg.exp_type;
-            generalize arg.exp_type
-          end
+        wrap_def (fun () -> type_exp env sarg)
+          ~post: may_lower_contravariant_then_generalize
       in
       let cases, partial =
         type_cases Computation env
@@ -3134,7 +3137,7 @@ and type_expect_
         | Some sexp ->
             let exp =
               wrap_def_principal (fun () -> type_exp ~recarg env sexp)
-                ~post:(fun exp -> generalize_structure exp.exp_type)
+                ~post: generalize_structure_exp
             in
             Some exp
       in
@@ -4006,8 +4009,8 @@ and type_function ?(in_function : (Location.t * type_expr) option)
 
 and type_label_access env srecord usage lid =
   let record =
-    wrap_def_principal (fun () -> type_exp ~recarg:Allowed env srecord)
-      ~post:(fun record -> generalize_structure record.exp_type)
+    wrap_def_principal ~post:generalize_structure_exp
+      (fun () -> type_exp ~recarg:Allowed env srecord)
   in
   let ty_exp = record.exp_type in
   let expected_type =
@@ -4363,8 +4366,9 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
     Some (safe_expect, lv) ->
       (* apply optional arguments when expected type is "" *)
       (* we must be very careful about not breaking the semantics *)
-      let texp = wrap_def_principal (fun () -> type_exp env sarg)
-          ~post:(fun texp -> generalize_structure texp.exp_type)
+      let texp =
+        wrap_def_principal ~post:generalize_structure_exp
+          (fun () -> type_exp env sarg)
       in
       let rec make_args args ty_fun =
         match get_desc (expand_head env ty_fun) with
@@ -5451,10 +5455,8 @@ let type_let existential_ctx env rec_flag spat_sexp_list =
 let type_expression env sexp =
   Typetexp.reset_type_variables();
   let exp =
-    wrap_def (fun () -> type_exp env sexp) ~post: begin fun exp ->
-      if maybe_expansive exp then lower_contravariant env exp.exp_type;
-      generalize exp.exp_type
-    end
+    wrap_def (fun () -> type_exp env sexp)
+      ~post: may_lower_contravariant_then_generalize
   in
   match sexp.pexp_desc with
     Pexp_ident lid ->
