@@ -5038,45 +5038,45 @@ and type_let ?check ?check_strict
               sty
         | _ -> spat)
       spat_sexp_list in
-
-  begin_def();
-  if !Clflags.principal then begin_def ();
-  let nvs = List.map (fun _ -> newvar ()) spatl in
-  let (pat_list, new_env, force, pvs, unpacks) =
-    type_pattern_list Value existential_context env spatl nvs allow in
   let attrs_list = List.map fst spatl in
   let is_recursive = (rec_flag = Recursive) in
-  (* If recursive, first unify with an approximation of the expression *)
-  if is_recursive then
-    List.iter2
-      (fun pat binding ->
-        let pat =
-          match get_desc pat.pat_type with
-          | Tpoly (ty, tl) ->
-              {pat with pat_type =
-               snd (instance_poly ~keep_names:true false tl ty)}
-          | _ -> pat
-        in unify_pat (ref env) pat (type_approx env binding.pvb_expr))
-      pat_list spat_sexp_list;
-  (* Polymorphic variant processing *)
-  List.iter
-    (fun pat ->
-      if has_variants pat then begin
-        Parmatch.pressure_variants env [pat];
-        finalize_variants pat
-      end)
-    pat_list;
-  (* Generalize the structure *)
-  let pat_list =
-    if !Clflags.principal then begin
-      end_def ();
+
+  begin_def();
+  let (pat_list, new_env, force, pvs, unpacks) =
+    wrap_def_principal begin fun () ->
+      let nvs = List.map (fun _ -> newvar ()) spatl in
+      let (pat_list, _new_env, _force, _pvs, _unpacks as res) =
+        type_pattern_list Value existential_context env spatl nvs allow in
+      (* If recursive, first unify with an approximation of the expression *)
+      if is_recursive then
+        List.iter2
+          (fun pat binding ->
+            let pat =
+              match get_desc pat.pat_type with
+              | Tpoly (ty, tl) ->
+                  {pat with pat_type =
+                   snd (instance_poly ~keep_names:true false tl ty)}
+              | _ -> pat
+            in unify_pat (ref env) pat (type_approx env binding.pvb_expr))
+          pat_list spat_sexp_list;
+      (* Polymorphic variant processing *)
+      List.iter
+        (fun pat ->
+          if has_variants pat then begin
+            Parmatch.pressure_variants env [pat];
+            finalize_variants pat
+          end)
+        pat_list;
+      res
+    end
+    ~post: begin fun (pat_list, _, _, pvs, _) ->
+      (* Generalize the structure *)
       iter_pattern_variables_type generalize_structure pvs;
-      List.map (fun pat ->
-        generalize_structure pat.pat_type;
-        {pat with pat_type = instance pat.pat_type}
-      ) pat_list
-    end else
-      pat_list
+      List.iter (fun pat -> generalize_structure pat.pat_type) pat_list
+    end
+  in
+  let pat_list =
+    List.map (fun pat -> {pat with pat_type = instance pat.pat_type}) pat_list
   in
   (* Only bind pattern variables after generalizing *)
   List.iter (fun f -> f()) force;
