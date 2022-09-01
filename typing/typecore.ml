@@ -3458,16 +3458,15 @@ and type_expect_
             (arg, ty', None, cty')
         | Some sty ->
             let cty, ty, force, cty', ty', force' =
-              wrap_def_process ~proc:generalize_structure
-                begin fun () ->
-                  let (cty, ty, force) =
-                    Typetexp.transl_simple_type_delayed env sty
-                  and (cty', ty', force') =
-                    Typetexp.transl_simple_type_delayed env sty'
-                  in
-                  ((cty, ty, force, cty', ty', force'),
-                   [ty; ty'])
-                end
+              wrap_def_process ~proc:generalize_structure begin fun () ->
+                let (cty, ty, force) =
+                  Typetexp.transl_simple_type_delayed env sty
+                and (cty', ty', force') =
+                  Typetexp.transl_simple_type_delayed env sty'
+                in
+                ((cty, ty, force, cty', ty', force'),
+                 [ty; ty'])
+              end
             in
             begin try
               let force'' = subtype env (instance ty) (instance ty') in
