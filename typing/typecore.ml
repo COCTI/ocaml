@@ -5041,115 +5041,123 @@ and type_let ?check ?check_strict
   let attrs_list = List.map fst spatl in
   let is_recursive = (rec_flag = Recursive) in
 
-  begin_def();
-  let (pat_list, new_env, force, pvs, unpacks) =
-    wrap_def_principal begin fun () ->
-      let nvs = List.map (fun _ -> newvar ()) spatl in
-      let (pat_list, _new_env, _force, _pvs, _unpacks as res) =
-        type_pattern_list Value existential_context env spatl nvs allow in
-      (* If recursive, first unify with an approximation of the expression *)
-      if is_recursive then
-        List.iter2
-          (fun pat binding ->
-            let pat =
-              match get_desc pat.pat_type with
-              | Tpoly (ty, tl) ->
-                  {pat with pat_type =
-                   snd (instance_poly ~keep_names:true false tl ty)}
-              | _ -> pat
-            in unify_pat (ref env) pat (type_approx env binding.pvb_expr))
-          pat_list spat_sexp_list;
-      (* Polymorphic variant processing *)
-      List.iter
-        (fun pat ->
-          if has_variants pat then begin
-            Parmatch.pressure_variants env [pat];
-            finalize_variants pat
-          end)
-        pat_list;
-      res
-    end
-    ~post: begin fun (pat_list, _, _, pvs, _) ->
-      (* Generalize the structure *)
-      iter_pattern_variables_type generalize_structure pvs;
-      List.iter (fun pat -> generalize_structure pat.pat_type) pat_list
-    end
-  in
-  let pat_list =
-    List.map (fun pat -> {pat with pat_type = instance pat.pat_type}) pat_list
-  in
-  (* Only bind pattern variables after generalizing *)
-  List.iter (fun f -> f()) force;
+  let (pat_list, exp_list, new_env, unpacks, _pvs) =
+    wrap_def begin fun () ->
+      let (pat_list, new_env, force, pvs, unpacks) =
+        wrap_def_principal begin fun () ->
+          let nvs = List.map (fun _ -> newvar ()) spatl in
+          let (pat_list, _new_env, _force, _pvs, _unpacks as res) =
+            type_pattern_list Value existential_context env spatl nvs allow in
+          (* If recursive, first unify with an approximation of the
+             expression *)
+          if is_recursive then
+            List.iter2
+              (fun pat binding ->
+                let pat =
+                  match get_desc pat.pat_type with
+                  | Tpoly (ty, tl) ->
+                      {pat with pat_type =
+                       snd (instance_poly ~keep_names:true false tl ty)}
+                  | _ -> pat
+                in unify_pat (ref env) pat (type_approx env binding.pvb_expr))
+              pat_list spat_sexp_list;
+          (* Polymorphic variant processing *)
+          List.iter
+            (fun pat ->
+              if has_variants pat then begin
+                Parmatch.pressure_variants env [pat];
+                finalize_variants pat
+              end)
+            pat_list;
+          res
+        end
+        ~post: begin fun (pat_list, _, _, pvs, _) ->
+          (* Generalize the structure *)
+          iter_pattern_variables_type generalize_structure pvs;
+          List.iter (fun pat -> generalize_structure pat.pat_type) pat_list
+        end
+      in
+      let pat_list =
+        List.map
+          (fun pat -> {pat with pat_type = instance pat.pat_type})
+          pat_list
+      in
+      (* Only bind pattern variables after generalizing *)
+      List.iter (fun f -> f()) force;
 
-  let exp_list =
-    let exp_env = if is_recursive then new_env else env in
-    type_let_def_wrap_warnings ?check ?check_strict ~is_recursive
-      ~exp_env ~new_env ~spat_sexp_list ~attrs_list ~pat_list ~pvs
-      (fun exp_env {pvb_expr=sexp; pvb_attributes; _} pat ->
-        match get_desc pat.pat_type with
-        | Tpoly (ty, tl) ->
-            if !Clflags.principal then begin_def ();
-            let vars, ty' = instance_poly ~keep_names:true true tl ty in
-            if !Clflags.principal then begin
-              end_def ();
-              generalize_structure ty'
-            end;
-            let exp =
-              Builtin_attributes.warning_scope pvb_attributes (fun () ->
-                if rec_flag = Recursive then
-                  type_unpacks exp_env unpacks sexp (mk_expected ty')
-                else
-                  type_expect exp_env sexp (mk_expected ty')
-              )
-            in
-            exp, Some vars
-        | _ ->
-            let exp =
-              Builtin_attributes.warning_scope pvb_attributes (fun () ->
-                  if rec_flag = Recursive then
-                    type_unpacks exp_env unpacks sexp (mk_expected pat.pat_type)
-                  else
-                    type_expect exp_env sexp (mk_expected pat.pat_type))
-            in
-            exp, None)
+      let exp_list =
+        let exp_env = if is_recursive then new_env else env in
+        type_let_def_wrap_warnings ?check ?check_strict ~is_recursive
+          ~exp_env ~new_env ~spat_sexp_list ~attrs_list ~pat_list ~pvs
+          (fun exp_env {pvb_expr=sexp; pvb_attributes; _} pat ->
+            match get_desc pat.pat_type with
+            | Tpoly (ty, tl) ->
+                let vars, ty' =
+                  wrap_def_principal
+                    ~post:(fun (_,ty') -> generalize_structure ty')
+                    (fun () -> instance_poly ~keep_names:true true tl ty)
+                in
+                let exp =
+                  Builtin_attributes.warning_scope pvb_attributes (fun () ->
+                    if rec_flag = Recursive then
+                      type_unpacks exp_env unpacks sexp (mk_expected ty')
+                    else
+                      type_expect exp_env sexp (mk_expected ty')
+                  )
+                in
+                exp, Some vars
+            | _ ->
+                let exp =
+                  Builtin_attributes.warning_scope pvb_attributes (fun () ->
+                    if rec_flag = Recursive then
+                      type_unpacks exp_env unpacks sexp
+                        (mk_expected pat.pat_type)
+                    else
+                      type_expect exp_env sexp (mk_expected pat.pat_type))
+                in
+                exp, None)
+      in
+      List.iter2
+        (fun pat (attrs, exp) ->
+          Builtin_attributes.warning_scope ~ppwarning:false attrs
+            (fun () ->
+              ignore(check_partial env pat.pat_type pat.pat_loc
+                       [case pat exp])
+            )
+        )
+        pat_list
+        (List.map2 (fun (attrs, _) (e, _) -> attrs, e) spatl exp_list);
+      (pat_list, exp_list, new_env, unpacks,
+       List.map (fun pv -> { pv with pv_type = instance pv.pv_type}) pvs)
+    end
+    ~post: begin fun (pat_list, exp_list, _, _, pvs) ->
+      List.iter2
+        (fun pat (exp, _) ->
+          if maybe_expansive exp then lower_contravariant env pat.pat_type)
+        pat_list exp_list;
+      iter_pattern_variables_type generalize pvs;
+      List.iter2
+        (fun pat (exp, vars) ->
+          match vars with
+          | None ->
+          (* We generalize expressions even if they are not bound to a variable
+             and do not have an expliclit polymorphic type annotation.  This is
+             not needed in general, however those types may be shown by the
+             interactive toplevel, for example:
+             {[
+               let _ = Array.get;;
+               - : 'a array -> int -> 'a = <fun>
+             ]}
+             so we do it anyway. *)
+              generalize exp.exp_type
+          | Some vars ->
+              if maybe_expansive exp then
+                lower_contravariant env exp.exp_type;
+              generalize_and_check_univars env "definition"
+                exp pat.pat_type vars)
+        pat_list exp_list
+    end
   in
-  List.iter2
-    (fun pat (attrs, exp) ->
-       Builtin_attributes.warning_scope ~ppwarning:false attrs
-         (fun () ->
-            ignore(check_partial env pat.pat_type pat.pat_loc
-                     [case pat exp])
-         )
-    )
-    pat_list
-    (List.map2 (fun (attrs, _) (e, _) -> attrs, e) spatl exp_list);
-  let pvs = List.map (fun pv -> { pv with pv_type = instance pv.pv_type}) pvs in
-  end_def();
-  List.iter2
-    (fun pat (exp, _) ->
-       if maybe_expansive exp then
-         lower_contravariant env pat.pat_type)
-    pat_list exp_list;
-  iter_pattern_variables_type generalize pvs;
-  List.iter2
-    (fun pat (exp, vars) ->
-       match vars with
-       | None ->
-         (* We generalize expressions even if they are not bound to a variable
-            and do not have an expliclit polymorphic type annotation.  This is
-            not needed in general, however those types may be shown by the
-            interactive toplevel, for example:
-            {[
-              let _ = Array.get;;
-              - : 'a array -> int -> 'a = <fun>
-            ]}
-            so we do it anyway. *)
-         generalize exp.exp_type
-       | Some vars ->
-           if maybe_expansive exp then
-             lower_contravariant env exp.exp_type;
-           generalize_and_check_univars env "definition" exp pat.pat_type vars)
-    pat_list exp_list;
   let l = List.combine pat_list exp_list in
   let l =
     List.map2
