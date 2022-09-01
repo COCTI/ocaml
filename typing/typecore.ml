@@ -5310,26 +5310,26 @@ and type_andops env sarg sands expected_ty =
     match rev_sands with
     | [] -> type_expect env let_sarg (mk_expected expected_ty), []
     | { pbop_op = sop; pbop_exp = sexp; pbop_loc = loc; _ } :: rest ->
-        if !Clflags.principal then begin_def ();
-        let op_path, op_desc = type_binding_op_ident env sop in
-        let op_type = instance op_desc.val_type in
-        let ty_arg = newvar () in
-        let ty_rest = newvar () in
-        let ty_result = newvar() in
-        let ty_rest_fun =
-          newty (Tarrow(Nolabel, ty_arg, ty_result, commu_ok)) in
-        let ty_op = newty (Tarrow(Nolabel, ty_rest, ty_rest_fun, commu_ok)) in
-        begin try
-          unify env op_type ty_op
-        with Unify err ->
-          raise(Error(sop.loc, env, Andop_type_clash(sop.txt, err)))
-        end;
-        if !Clflags.principal then begin
-          end_def ();
-          generalize_structure ty_rest;
-          generalize_structure ty_arg;
-          generalize_structure ty_result
-        end;
+        let op_path, op_desc, op_type, ty_arg, ty_rest, ty_result =
+          wrap_def_process_principal ~proc:generalize_structure begin fun () ->
+            let op_path, op_desc = type_binding_op_ident env sop in
+            let op_type = instance op_desc.val_type in
+            let ty_arg = newvar () in
+            let ty_rest = newvar () in
+            let ty_result = newvar() in
+            let ty_rest_fun =
+              newty (Tarrow(Nolabel, ty_arg, ty_result, commu_ok)) in
+            let ty_op =
+              newty (Tarrow(Nolabel, ty_rest, ty_rest_fun, commu_ok)) in
+            begin try
+              unify env op_type ty_op
+            with Unify err ->
+              raise(Error(sop.loc, env, Andop_type_clash(sop.txt, err)))
+            end;
+            ((op_path, op_desc, op_type, ty_arg, ty_rest, ty_result),
+             [ty_rest; ty_arg; ty_result])
+          end
+        in
         let let_arg, rest = loop env let_sarg rest ty_rest in
         let exp = type_expect env sexp (mk_expected ty_arg) in
         begin try
@@ -5455,11 +5455,12 @@ let type_let existential_ctx env rec_flag spat_sexp_list =
 
 let type_expression env sexp =
   Typetexp.reset_type_variables();
-  begin_def();
-  let exp = type_exp env sexp in
-  end_def();
-  if maybe_expansive exp then lower_contravariant env exp.exp_type;
-  generalize exp.exp_type;
+  let exp =
+    wrap_def (fun () -> type_exp env sexp) ~post: begin fun exp ->
+      if maybe_expansive exp then lower_contravariant env exp.exp_type;
+      generalize exp.exp_type
+    end
+  in
   match sexp.pexp_desc with
     Pexp_ident lid ->
       let loc = sexp.pexp_loc in
