@@ -2224,7 +2224,8 @@ and type_module_aux ~alias sttn funct_body anchor env smod =
       },
       final_shape
   | Pmod_unpack sexp ->
-      let exp = Ctype.wrap_def_principal (fun () -> Typecore.type_exp env sexp)
+      let exp =
+        Ctype.wrap_def_principal (fun () -> Typecore.type_exp env sexp)
           ~post:(fun exp -> Ctype.generalize_structure exp.exp_type)
       in
       let mty =
