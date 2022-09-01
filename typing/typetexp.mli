@@ -52,7 +52,7 @@ val transl_type_param:
   Env.t -> Parsetree.core_type -> Typedtree.core_type
 
 type variable_context
-val wrap_global_level: (unit -> 'a) -> 'a
+val wrap_type_variable_scope: (unit -> 'a) -> 'a
 
 exception Already_bound
 

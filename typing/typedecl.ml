@@ -263,8 +263,8 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
   | Some sret_type ->
       (* if it's a generalized constructor we must first narrow and
          then widen so as to not introduce any new constraints *)
-      (* narrow and widen are now invoked through wrap_global_level *)
-      wrap_global_level begin fun () ->
+      (* narrow and widen are now invoked through wrap_type_variable_scope *)
+      wrap_type_variable_scope begin fun () ->
       reset_type_variables ();
       let univars, closed =
         match svars with
