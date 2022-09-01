@@ -2224,12 +2224,9 @@ and type_module_aux ~alias sttn funct_body anchor env smod =
       },
       final_shape
   | Pmod_unpack sexp ->
-      if !Clflags.principal then Ctype.begin_def ();
-      let exp = Typecore.type_exp env sexp in
-      if !Clflags.principal then begin
-        Ctype.end_def ();
-        Ctype.generalize_structure exp.exp_type
-      end;
+      let exp = Ctype.wrap_def_principal (fun () -> Typecore.type_exp env sexp)
+          ~post:(fun exp -> Ctype.generalize_structure exp.exp_type)
+      in
       let mty =
         match get_desc (Ctype.expand_head env exp.exp_type) with
           Tpackage (p, fl) ->
@@ -2893,11 +2890,17 @@ let lookup_type_in_sig sg =
 
 let type_package env m p fl =
   (* Same as Pexp_letmodule *)
+(*
   (* remember original level *)
   Ctype.begin_def ();
+*)
   let context = Typetexp.narrow () in
-  let modl, _mod_shape = type_module env m in
-  let scope = Ctype.create_scope () in
+  (* type the module and create a scope in a raised level *)
+  let modl, scope = Ctype.wrap_def begin fun () ->
+    let modl, _mod_shape = type_module env m in
+    let scope = Ctype.create_scope () in
+    modl, scope
+  end in
   Typetexp.widen context;
   let fl', env =
     match fl with
@@ -2939,8 +2942,10 @@ let type_package env m p fl =
       in
       fl', env
   in
+(*
   (* go back to original level *)
   Ctype.end_def ();
+*)
   let mty =
     if fl = [] then (Mty_ident p)
     else modtype_of_package env modl.mod_loc p fl'
