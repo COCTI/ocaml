@@ -2833,7 +2833,8 @@ let rec type_exp ?recarg env sexp =
 (* Typing of an expression with an expected type.
    This provide better error messages, and allows controlled
    propagation of return type information.
-   In the principal case, [type_expected'] may be at generic_level.
+   In the principal case, structural nodes of [type_expected_explained] may be
+   at [generic_level] (but its variables no higher than [!current_level]).
  *)
 
 and type_expect ?in_function ?recarg env sexp ty_expected_explained =
@@ -3011,7 +3012,7 @@ and type_expect_
           begin fun () ->
             let funct =
               wrap_def_principal (fun () -> type_exp env sfunct)
-                ~post:(fun {exp_type=t} -> generalize_structure t)
+                ~post: generalize_structure_exp
             in
             let ty = instance funct.exp_type in
             (funct, [ty])
@@ -3035,9 +3036,7 @@ and type_expect_
         | _ ->
             funct, sargs
       in
-      let (args, ty_res) =
-        wrap_def (fun () -> type_application env funct sargs)
-      in
+      let (args, ty_res) = type_application env funct sargs in
       rue {
         exp_desc = Texp_apply(funct, args);
         exp_loc = loc; exp_extra = [];
@@ -3170,8 +3169,8 @@ and type_expect_
         | (None | Some (_, _, false)), Some (_, p', _) ->
             let decl = Env.find_type p' env in
             let ty =
-              wrap_def (fun () -> newconstr p' (instance_list decl.type_params))
-                ~post:generalize_structure
+              wrap_def ~post:generalize_structure
+                (fun () -> newconstr p' (instance_list decl.type_params))
             in
             ty, opt_exp_opath
       in
@@ -3413,12 +3412,11 @@ and type_expect_
             in
             let arg, gen =
               let lv = get_current_level () in
-              wrap_def
-                ~post:(fun (arg,_) -> enforce_current_level env arg.exp_type)
-                begin fun () ->
-                  let arg = type_exp env sarg in
-                  (arg, generalizable lv arg.exp_type)
-                end
+              wrap_def begin fun () ->
+                let arg = type_exp env sarg in
+                (arg, generalizable lv arg.exp_type)
+              end
+              ~post:(fun (arg,_) -> enforce_current_level env arg.exp_type)
             in
             begin match arg.exp_desc, !self_coercion, get_desc ty' with
               Texp_ident(_, _, {val_kind=Val_self _}), (path,r) :: _,
@@ -3618,7 +3616,7 @@ and type_expect_
                 Some id, env
           in
           Typetexp.widen context;
-          (* ideally, we should catch Expr_type_clash errors
+          (* Ideally, we should catch Expr_type_clash errors
              in type_expect triggered by escaping identifiers
              from the local module and refine them into
              Scoping_let_module errors
@@ -3627,6 +3625,8 @@ and type_expect_
           (id, name, pres, modl, new_env, body)
         end
         ~post: begin fun (_,_,_,_,new_env,body) ->
+          (* Ensure that local definitions do not leak. *)
+          (* required for implicit unpack *)
           enforce_current_level new_env body.exp_type
         end
       in
@@ -4629,16 +4629,20 @@ and type_application env funct sargs =
     (try ignore (filter_arrow env (instance funct.exp_type) Nolabel); true
      with Filter_arrow_failed _ -> false)
   in
-  match sargs with
-  | (* Special case for ignore: avoid discarding warning *)
-    [Nolabel, sarg] when is_ignore funct ->
-      let ty_arg, ty_res = filter_arrow env (instance funct.exp_type) Nolabel in
-      let exp = type_expect env sarg (mk_expected ty_arg) in
-      check_partial_application ~statement:false exp;
-      ([Nolabel, Some exp], ty_res)
-  | _ ->
-    let ty = funct.exp_type in
-    type_args [] ty (instance ty) sargs
+  (* Extra scope to check for non-returning functions *)
+  wrap_def begin fun () ->
+    match sargs with
+    | (* Special case for ignore: avoid discarding warning *)
+      [Nolabel, sarg] when is_ignore funct ->
+        let ty_arg, ty_res =
+          filter_arrow env (instance funct.exp_type) Nolabel in
+        let exp = type_expect env sarg (mk_expected ty_arg) in
+        check_partial_application ~statement:false exp;
+        ([Nolabel, Some exp], ty_res)
+    | _ ->
+        let ty = funct.exp_type in
+        type_args [] ty (instance ty) sargs
+  end
 
 and type_construct env loc lid sarg ty_expected_explained attrs =
   let { ty = ty_expected; explanation } = ty_expected_explained in
