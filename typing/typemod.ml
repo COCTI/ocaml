@@ -2890,18 +2890,15 @@ let lookup_type_in_sig sg =
 
 let type_package env m p fl =
   (* Same as Pexp_letmodule *)
-(*
-  (* remember original level *)
-  Ctype.begin_def ();
-*)
-  let modl, scope = Typetexp.wrap_type_variable_scope begin fun () ->
-    (* type the module and create a scope in a raised level *)
-    Ctype.wrap_def begin fun () ->
-      let modl, _mod_shape = type_module env m in
-      let scope = Ctype.create_scope () in
-      modl, scope
+  let modl, scope =
+    Typetexp.wrap_type_variable_scope begin fun () ->
+      (* type the module and create a scope in a raised level *)
+      Ctype.wrap_def begin fun () ->
+        let modl, _mod_shape = type_module env m in
+        let scope = Ctype.create_scope () in
+        modl, scope
+      end
     end
-  end
   in
   let fl', env =
     match fl with
@@ -2943,10 +2940,6 @@ let type_package env m p fl =
       in
       fl', env
   in
-(*
-  (* go back to original level *)
-  Ctype.end_def ();
-*)
   let mty =
     if fl = [] then (Mty_ident p)
     else modtype_of_package env modl.mod_loc p fl'
