@@ -3591,43 +3591,42 @@ and type_expect_
   | Pexp_letmodule(name, smodl, sbody) ->
       let lv = get_current_level () in
       let (id, name, pres, modl, _, body) =
-        wrap_def
-          ~post:
-          (fun (_,_,_,_,new_env,body) ->
-            enforce_current_level new_env body.exp_type)
-          begin fun () ->
-            let context = Typetexp.narrow () in
-            let modl, md_shape = !type_module env smodl in
-            Mtype.lower_nongen lv modl.mod_type;
-            let pres =
-              match modl.mod_type with
-              | Mty_alias _ -> Mp_absent
-              | _ -> Mp_present
-            in
-            let scope = create_scope () in
-            let md =
-              { md_type = modl.mod_type; md_attributes = []; md_loc = name.loc;
-                md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()); }
-            in
-            let (id, new_env) =
-              match name.txt with
-              | None -> None, env
-              | Some name ->
-                  let id, env =
-                    Env.enter_module_declaration
-                      ~scope ~shape:md_shape name pres md env
-                  in
-                  Some id, env
-            in
-            Typetexp.widen context;
-            (* ideally, we should catch Expr_type_clash errors
-               in type_expect triggered by escaping identifiers
-               from the local module and refine them into
-               Scoping_let_module errors
-             *)
-            let body = type_expect new_env sbody ty_expected_explained in
-            (id, name, pres, modl, new_env, body)
-          end
+        wrap_def begin fun () ->
+          let context = Typetexp.narrow () in
+          let modl, md_shape = !type_module env smodl in
+          Mtype.lower_nongen lv modl.mod_type;
+          let pres =
+            match modl.mod_type with
+            | Mty_alias _ -> Mp_absent
+            | _ -> Mp_present
+          in
+          let scope = create_scope () in
+          let md =
+            { md_type = modl.mod_type; md_attributes = []; md_loc = name.loc;
+              md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()); }
+          in
+          let (id, new_env) =
+            match name.txt with
+            | None -> None, env
+            | Some name ->
+                let id, env =
+                  Env.enter_module_declaration
+                    ~scope ~shape:md_shape name pres md env
+                in
+                Some id, env
+          in
+          Typetexp.widen context;
+          (* ideally, we should catch Expr_type_clash errors
+             in type_expect triggered by escaping identifiers
+             from the local module and refine them into
+             Scoping_let_module errors
+           *)
+          let body = type_expect new_env sbody ty_expected_explained in
+          (id, name, pres, modl, new_env, body)
+        end
+        ~post: begin fun (_,_,_,_,new_env,body) ->
+          enforce_current_level new_env body.exp_type
+        end
       in
       re {
         exp_desc = Texp_letmodule(id, name, pres, modl, body);
@@ -3712,17 +3711,17 @@ and type_expect_
         | Tpoly (ty', tl) ->
             (* One more level to generalize locally *)
             let (exp,_) =
-              wrap_def
-                begin fun () ->
-                  let vars, ty'' =
-                    wrap_def_principal (fun () -> instance_poly true tl ty')
-                      ~post:(fun (_,ty'') -> generalize_structure ty'')
-                  in
-                  let exp = type_expect env sbody (mk_expected ty'') in
-                  (exp, vars)
-                end
-                ~post:(fun (exp,vars) -> generalize_and_check_univars
-                                           env "method" exp ty_expected vars)
+              wrap_def begin fun () ->
+                let vars, ty'' =
+                  wrap_def_principal (fun () -> instance_poly true tl ty')
+                    ~post:(fun (_,ty'') -> generalize_structure ty'')
+                in
+                let exp = type_expect env sbody (mk_expected ty'') in
+                (exp, vars)
+              end
+              ~post: begin fun (exp,vars) ->
+                generalize_and_check_univars env "method" exp ty_expected vars
+              end
             in
             { exp with exp_type = instance ty }
         | Tvar _ ->
@@ -3823,30 +3822,29 @@ and type_expect_
       in
       let op_path, op_desc, op_type, spat_params, ty_params,
           ty_func_result, ty_result, ty_andops =
-        wrap_def_process_principal ~proc:generalize_structure
-          begin fun () ->
-            let let_loc = slet.pbop_op.loc in
-            let op_path, op_desc = type_binding_op_ident env slet.pbop_op in
-            let op_type = instance op_desc.val_type in
-            let spat_params, ty_params = loop slet.pbop_pat (newvar ()) sands in
-            let ty_func_result = newvar () in
-            let ty_func =
-              newty (Tarrow(Nolabel, ty_params, ty_func_result, commu_ok)) in
-            let ty_result = newvar () in
-            let ty_andops = newvar () in
-            let ty_op =
-              newty (Tarrow(Nolabel, ty_andops,
-                newty (Tarrow(Nolabel, ty_func, ty_result, commu_ok)), commu_ok))
-            in
-            begin try
-              unify env op_type ty_op
-            with Unify err ->
-              raise(Error(let_loc, env, Letop_type_clash(slet.pbop_op.txt, err)))
-            end;
-            ((op_path, op_desc, op_type, spat_params, ty_params,
-              ty_func_result, ty_result, ty_andops),
-             [ty_andops; ty_params; ty_func_result; ty_result])
-          end
+        wrap_def_process_principal ~proc:generalize_structure begin fun () ->
+          let let_loc = slet.pbop_op.loc in
+          let op_path, op_desc = type_binding_op_ident env slet.pbop_op in
+          let op_type = instance op_desc.val_type in
+          let spat_params, ty_params = loop slet.pbop_pat (newvar ()) sands in
+          let ty_func_result = newvar () in
+          let ty_func =
+            newty (Tarrow(Nolabel, ty_params, ty_func_result, commu_ok)) in
+          let ty_result = newvar () in
+          let ty_andops = newvar () in
+          let ty_op =
+            newty (Tarrow(Nolabel, ty_andops,
+              newty (Tarrow(Nolabel, ty_func, ty_result, commu_ok)), commu_ok))
+          in
+          begin try
+            unify env op_type ty_op
+          with Unify err ->
+            raise(Error(let_loc, env, Letop_type_clash(slet.pbop_op.txt, err)))
+          end;
+          ((op_path, op_desc, op_type, spat_params, ty_params,
+            ty_func_result, ty_result, ty_andops),
+           [ty_andops; ty_params; ty_func_result; ty_result])
+        end
       in
       let exp, ands = type_andops env slet.pbop_exp sands ty_andops in
       let scase = Ast_helper.Exp.case spat_params sbody in
@@ -3956,36 +3954,35 @@ and type_function ?(in_function : (Location.t * type_expr) option)
   in
   let separate = !Clflags.principal || Env.has_local_constraints env in
   let ty_arg, ty_res =
-    wrap_def_process_if separate ~proc:generalize_structure
-      begin fun () ->
-        let (ty_arg, ty_res) =
-          try filter_arrow env (instance ty_expected) arg_label
-          with Filter_arrow_failed err ->
-            let err = match err with
-            | Unification_error unif_err ->
-                Expr_type_clash(unif_err, explanation, None)
-            | Label_mismatch { got; expected; expected_type} ->
-                Abstract_wrong_label { got; expected; expected_type; explanation }
-            | Not_a_function -> begin
-                match in_function with
-                | Some _ -> Too_many_arguments(ty_fun, explanation)
-                | None   -> Not_a_function(ty_fun, explanation)
-            end
-            in
-            raise (Error(loc_fun, env, err))
-        in
-        let ty_arg =
-          if is_optional arg_label then
-            let tv = newvar() in
-            begin
-              try unify env ty_arg (type_option tv)
-              with Unify _ -> assert false
-            end;
-            type_option tv
-          else ty_arg
-        in
-        ((ty_arg, ty_res), [ty_arg; ty_res])
-      end
+    wrap_def_process_if separate ~proc:generalize_structure begin fun () ->
+      let (ty_arg, ty_res) =
+        try filter_arrow env (instance ty_expected) arg_label
+        with Filter_arrow_failed err ->
+          let err = match err with
+          | Unification_error unif_err ->
+              Expr_type_clash(unif_err, explanation, None)
+          | Label_mismatch { got; expected; expected_type} ->
+              Abstract_wrong_label { got; expected; expected_type; explanation }
+          | Not_a_function -> begin
+              match in_function with
+              | Some _ -> Too_many_arguments(ty_fun, explanation)
+              | None   -> Not_a_function(ty_fun, explanation)
+          end
+          in
+          raise (Error(loc_fun, env, err))
+      in
+      let ty_arg =
+        if is_optional arg_label then
+          let tv = newvar() in
+          begin
+            try unify env ty_arg (type_option tv)
+            with Unify _ -> assert false
+          end;
+          type_option tv
+        else ty_arg
+      in
+      ((ty_arg, ty_res), [ty_arg; ty_res])
+    end
   in
   let cases, partial =
     type_cases Value ~in_function:(loc_fun,ty_fun) env
@@ -4008,7 +4005,8 @@ and type_function ?(in_function : (Location.t * type_expr) option)
 
 
 and type_label_access env srecord usage lid =
-  let record = wrap_def_principal (fun () -> type_exp ~recarg:Allowed env srecord)
+  let record =
+    wrap_def_principal (fun () -> type_exp ~recarg:Allowed env srecord)
       ~post:(fun record -> generalize_structure record.exp_type)
   in
   let ty_exp = record.exp_type in
@@ -4280,24 +4278,23 @@ and type_label_exp create env loc ty_expected
   let (vars, ty_arg, snap, arg) =
     wrap_def begin fun () ->
       let (vars, ty_arg) =
-        wrap_def_process_if separate ~proc:generalize_structure
-          begin fun () ->
-            let (vars, ty_arg, ty_res) =
-              wrap_def_process_if separate ~proc:generalize_structure
-                begin fun () ->
-                  let ((_, ty_arg, ty_res) as r) = instance_label true label in
-                  (r, [ty_arg; ty_res])
-                end
-            in
-            begin try
-              unify env (instance ty_res) (instance ty_expected)
-            with Unify err ->
-              raise (Error(lid.loc, env, Label_mismatch(lid.txt, err)))
-            end;
-            (* Instantiate so that we can generalize internal nodes *)
-            let ty_arg = instance ty_arg in
-            ((vars, ty_arg), [ty_arg])
-          end
+        wrap_def_process_if separate ~proc:generalize_structure begin fun () ->
+          let (vars, ty_arg, ty_res) =
+            wrap_def_process_if separate ~proc:generalize_structure
+              begin fun () ->
+                let ((_, ty_arg, ty_res) as r) = instance_label true label in
+                (r, [ty_arg; ty_res])
+              end
+          in
+          begin try
+            unify env (instance ty_res) (instance ty_expected)
+          with Unify err ->
+            raise (Error(lid.loc, env, Label_mismatch(lid.txt, err)))
+          end;
+          (* Instantiate so that we can generalize internal nodes *)
+          let ty_arg = instance ty_arg in
+          ((vars, ty_arg), [ty_arg])
+        end
       in
 
       if label.lbl_private = Private then
@@ -4326,15 +4323,15 @@ and type_label_exp create env loc ty_expected
           ~post:(fun arg -> lower_contravariant env arg.exp_type)
       in
       let arg =
-        wrap_def ~post:(fun arg -> generalize_and_check_univars
-                                   env "field value" arg label.lbl_arg vars)
-          begin fun () ->
-            let arg = {arg with exp_type = instance arg.exp_type} in
-            unify_exp env arg (instance ty_arg);
-            arg
-          end
+        wrap_def begin fun () ->
+          let arg = {arg with exp_type = instance arg.exp_type} in
+          unify_exp env arg (instance ty_arg);
+          arg
+        end
+        ~post: begin fun arg ->
+          generalize_and_check_univars env "field value" arg label.lbl_arg vars
+        end
       in
-      generalize_and_check_univars env "field value" arg label.lbl_arg vars;
       {arg with exp_type = instance arg.exp_type}
     with Error (_, _, Less_general _) as e -> raise e
     | _ -> raise exn    (* In case of failure return the first error *)
@@ -4673,32 +4670,30 @@ and type_construct env loc lid sarg ty_expected_explained attrs =
                             (lid.txt, constr.cstr_arity, List.length sargs)));
   let separate = !Clflags.principal || Env.has_local_constraints env in
   let ty_args, ty_res, texp =
-    wrap_def_process_if separate ~proc:generalize_structure
-      begin fun () ->
-        let ty_args, ty_res, texp =
-          wrap_def_if separate
-            begin fun () ->
-              let (ty_args, ty_res, _) =
-                instance_constructor Keep_existentials_flexible constr
-              in
-              let texp =
-                re {
-                exp_desc = Texp_construct(lid, constr, []);
-                exp_loc = loc; exp_extra = [];
-                exp_type = ty_res;
-                exp_attributes = attrs;
-                exp_env = env } in
-              (ty_args, ty_res, texp)
-            end
-            ~post: begin fun (_, ty_res, texp) ->
-              generalize_structure ty_res;
-              with_explanation explanation (fun () ->
-                unify_exp env {texp with exp_type = instance ty_res}
-                  (instance ty_expected));
-            end
-        in
-        ((ty_args, ty_res, texp), ty_res::ty_args)
-      end
+    wrap_def_process_if separate ~proc:generalize_structure begin fun () ->
+      let ty_args, ty_res, texp =
+        wrap_def_if separate begin fun () ->
+          let (ty_args, ty_res, _) =
+            instance_constructor Keep_existentials_flexible constr
+          in
+          let texp =
+            re {
+            exp_desc = Texp_construct(lid, constr, []);
+            exp_loc = loc; exp_extra = [];
+            exp_type = ty_res;
+            exp_attributes = attrs;
+            exp_env = env } in
+          (ty_args, ty_res, texp)
+        end
+        ~post: begin fun (_, ty_res, texp) ->
+          generalize_structure ty_res;
+          with_explanation explanation (fun () ->
+            unify_exp env {texp with exp_type = instance ty_res}
+              (instance ty_expected));
+        end
+      in
+      ((ty_args, ty_res, texp), ty_res::ty_args)
+    end
   in
   let ty_args0, ty_res =
     match instance_list (ty_res :: ty_args) with
