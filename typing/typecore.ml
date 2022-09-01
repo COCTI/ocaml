@@ -2822,7 +2822,7 @@ let enforce_current_level env ty = unify_var env (newvar ()) ty
 
 (* Generalize expressions *)
 let generalize_structure_exp exp = generalize_structure exp.exp_type
-let may_lower_contravariant_then_generalize exp =
+let may_lower_contravariant_then_generalize env exp =
   if maybe_expansive exp then lower_contravariant env exp.exp_type;
   generalize exp.exp_type
 
@@ -3047,7 +3047,7 @@ and type_expect_
   | Pexp_match(sarg, caselist) ->
       let arg =
         wrap_def (fun () -> type_exp env sarg)
-          ~post: may_lower_contravariant_then_generalize
+          ~post:(may_lower_contravariant_then_generalize env)
       in
       let cases, partial =
         type_cases Computation env
@@ -5456,7 +5456,7 @@ let type_expression env sexp =
   Typetexp.reset_type_variables();
   let exp =
     wrap_def (fun () -> type_exp env sexp)
-      ~post: may_lower_contravariant_then_generalize
+      ~post:(may_lower_contravariant_then_generalize env)
   in
   match sexp.pexp_desc with
     Pexp_ident lid ->
