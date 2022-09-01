@@ -1347,22 +1347,26 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
           cl_attributes = scl.pcl_attributes;
          }
   | Pcl_constraint (scl', scty) ->
-      Ctype.begin_class_def ();
-      let cl =
-        Typetexp.wrap_type_variable_scope begin fun () ->
-          let cl = class_expr cl_num val_env met_env virt self_scope scl' in
-          complete_class_type cl.cl_loc val_env virt Class_type cl.cl_type;
-          cl
+      let cl, clty =
+        Ctype.wrap_class_def begin fun () ->
+          let cl =
+            Typetexp.wrap_type_variable_scope begin fun () ->
+              let cl = class_expr cl_num val_env met_env virt self_scope scl' in
+              complete_class_type cl.cl_loc val_env virt Class_type cl.cl_type;
+              cl
+            end
+          in
+          let clty =
+            Typetexp.wrap_type_variable_scope begin fun () ->
+              let clty = class_type val_env virt self_scope scty in
+              complete_class_type
+                clty.cltyp_loc val_env virt Class clty.cltyp_type;
+              clty
+            end
+          in
+          cl, clty
         end
       in
-      let clty =
-        Typetexp.wrap_type_variable_scope begin fun () ->
-          let clty = class_type val_env virt self_scope scty in
-          complete_class_type clty.cltyp_loc val_env virt Class clty.cltyp_type;
-          clty
-        end
-      in
-      Ctype.end_def ();
 
       Ctype.limited_generalize_class_type
         (Btype.self_type_row cl.cl_type) cl.cl_type;
@@ -1520,37 +1524,38 @@ let class_infos define_class kind
     (res, env) =
 
   reset_type_variables ();
-  Ctype.begin_class_def ();
+  let ci_params, params, coercion_locs, expr, typ, sign =
+    Ctype.wrap_class_def begin fun () ->
+      (* Introduce class parameters *)
+      let ci_params =
+        let make_param (sty, v) =
+          try
+            (transl_type_param env sty, v)
+          with Already_bound ->
+            raise(Error(sty.ptyp_loc, env, Repeated_parameter))
+        in
+        List.map make_param cl.pci_params
+      in
+      let params = List.map (fun (cty, _) -> cty.ctyp_type) ci_params in
 
-  (* Introduce class parameters *)
-  let ci_params =
-    let make_param (sty, v) =
-      try
-          (transl_type_param env sty, v)
-      with Already_bound ->
-        raise(Error(sty.ptyp_loc, env, Repeated_parameter))
-    in
-      List.map make_param cl.pci_params
+      (* Allow self coercions (only for class declarations) *)
+      let coercion_locs = ref [] in
+
+      (* Type the class expression *)
+      let (expr, typ) =
+        try
+          Typecore.self_coercion :=
+            (Path.Pident obj_id, coercion_locs) :: !Typecore.self_coercion;
+          let res = kind env cl.pci_virt cl.pci_expr in
+          Typecore.self_coercion := List.tl !Typecore.self_coercion;
+          res
+        with exn ->
+          Typecore.self_coercion := []; raise exn
+      in
+      let sign = Btype.signature_of_class_type typ in
+      ci_params, params, coercion_locs, expr, typ, sign
+    end
   in
-  let params = List.map (fun (cty, _) -> cty.ctyp_type) ci_params in
-
-  (* Allow self coercions (only for class declarations) *)
-  let coercion_locs = ref [] in
-
-  (* Type the class expression *)
-  let (expr, typ) =
-    try
-      Typecore.self_coercion :=
-        (Path.Pident obj_id, coercion_locs) :: !Typecore.self_coercion;
-      let res = kind env cl.pci_virt cl.pci_expr in
-      Typecore.self_coercion := List.tl !Typecore.self_coercion;
-      res
-    with exn ->
-      Typecore.self_coercion := []; raise exn
-  in
-  let sign = Btype.signature_of_class_type typ in
-
-  Ctype.end_def ();
 
   (* Generalize the row variable *)
   List.iter (Ctype.limited_generalize sign.csig_self_row) params;
@@ -1858,14 +1863,17 @@ let type_classes define_class approx kind env cls =
          ))
       cls
   in
-  Ctype.begin_class_def ();
-  let (res, env) =
-    List.fold_left (initial_env define_class approx) ([], env) cls
+  let res, env =
+    Ctype.wrap_class_def begin fun () ->
+      let (res, env) =
+        List.fold_left (initial_env define_class approx) ([], env) cls
+      in
+      let (res, env) =
+        List.fold_right (class_infos define_class kind) res ([], env)
+      in
+      res, env
+    end
   in
-  let (res, env) =
-    List.fold_right (class_infos define_class kind) res ([], env)
-  in
-  Ctype.end_def ();
   let res = List.rev_map (final_decl env define_class) res in
   let decls = List.fold_right extract_type_decls res [] in
   let decls =

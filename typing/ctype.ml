@@ -215,6 +215,13 @@ let wrap_init_def_if cond ~level f =
   result
 let wrap_init_def ~level f = wrap_init_def_if true ~level f
 
+let wrap_class_def f =
+  begin_class_def ();
+  let result = f () in
+  end_def ();
+  result
+
+
 let reset_global_level () =
   global_level := !current_level + 1
 let increase_global_level () =
