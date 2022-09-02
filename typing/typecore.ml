@@ -5132,35 +5132,12 @@ and type_let ?check ?check_strict
   in
   (* Only bind pattern variables after generalizing *)
   List.iter (fun f -> f()) force;
-  let sexp_is_fun { pvb_expr = sexp; _ } =
-    match sexp.pexp_desc with
-    | Pexp_fun _ | Pexp_function _ -> true
-    | _ -> false
-  in
-  let exp_env =
-    if is_recursive then new_env
-    else if List.for_all sexp_is_fun spat_sexp_list
-    then begin
-      (* Add ghost bindings to help detecting missing "rec" keywords.
-
-         We only add those if the body of the definition is obviously a
-         function. The rationale is that, in other cases, the hint is probably
-         wrong (and the user is using "advanced features" anyway (lazy,
-         recursive values...)).
-
-         [pvb_loc] (below) is the location of the first let-binding (in case of
-         a let .. and ..), and is where the missing "rec" hint suggests to add a
-         "rec" keyword. *)
-      match spat_sexp_list with
-      | {pvb_loc; _} :: _ -> maybe_add_pattern_variables_ghost pvb_loc env pvs
-      | _ -> assert false
-    end
-    else env in
 
   let exp_list =
-    type_detect_unused_decls ?check ?check_strict
-      ~is_recursive ~new_env ~spat_sexp_list ~attrs_list ~pat_list
-      (fun {pvb_expr=sexp; pvb_attributes; _} pat ->
+    let exp_env = if is_recursive then new_env else env in
+    type_let_def_wrap_warnings ?check ?check_strict ~is_recursive
+      ~exp_env ~new_env ~spat_sexp_list ~attrs_list ~pat_list ~pvs
+      (fun exp_env {pvb_expr=sexp; pvb_attributes; _} pat ->
         match get_desc pat.pat_type with
         | Tpoly (ty, tl) ->
             if !Clflags.principal then begin_def ();
@@ -5249,10 +5226,11 @@ and type_let ?check ?check_strict
       | _ -> ()) l;
   (l, new_env, unpacks)
 
-and type_detect_unused_decls
+and type_let_def_wrap_warnings
     ?(check = fun s -> Warnings.Unused_var s)
     ?(check_strict = fun s -> Warnings.Unused_var_strict s)
-    ~is_recursive ~new_env ~spat_sexp_list ~attrs_list ~pat_list type_def =
+    ~is_recursive ~exp_env ~new_env ~spat_sexp_list ~attrs_list ~pat_list ~pvs
+    type_def =
   let is_fake_let =
     match spat_sexp_list with
     | [{pvb_expr={pexp_desc=Pexp_match(
@@ -5269,6 +5247,30 @@ and type_detect_unused_decls
            Warnings.is_active (check "") || Warnings.is_active (check_strict "")
            || (is_recursive && (Warnings.is_active Warnings.Unused_rec_flag))))
       attrs_list
+  in
+  let sexp_is_fun { pvb_expr = sexp; _ } =
+    match sexp.pexp_desc with
+    | Pexp_fun _ | Pexp_function _ -> true
+    | _ -> false
+  in
+  let exp_env =
+    if not is_recursive && List.for_all sexp_is_fun spat_sexp_list then begin
+      (* Add ghost bindings to help detecting missing "rec" keywords.
+
+         We only add those if the body of the definition is obviously a
+         function. The rationale is that, in other cases, the hint is probably
+         wrong (and the user is using "advanced features" anyway (lazy,
+         recursive values...)).
+
+         [pvb_loc] (below) is the location of the first let-binding (in case of
+         a let .. and ..), and is where the missing "rec" hint suggests to add a
+         "rec" keyword. *)
+      match spat_sexp_list with
+      | {pvb_loc; _} :: _ ->
+          maybe_add_pattern_variables_ghost pvb_loc exp_env pvs
+      | _ -> assert false
+    end
+    else exp_env
   in
   (* Algorithm to detect unused declarations in recursive bindings:
      - During type checking of the definitions, we capture the 'value_used'
@@ -5333,7 +5335,7 @@ and type_detect_unused_decls
     List.map2
       (fun case (pat, slot) ->
         if is_recursive then current_slot := slot;
-        type_def case pat)
+        type_def exp_env case pat)
       spat_sexp_list pat_slot_list
   in
   current_slot := None;
