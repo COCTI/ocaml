@@ -225,39 +225,42 @@ let printer_type ppf typename =
   printer_type
 
 let match_simple_printer_type desc printer_type =
-  Ctype.begin_def();
-  let ty_arg = Ctype.newvar() in
-  begin try
-    Ctype.unify !toplevel_env
-      (Ctype.newconstr printer_type [ty_arg])
-      (Ctype.instance desc.val_type);
-  with Ctype.Unify _ ->
-    raise Bad_printing_function
-  end;
-  Ctype.end_def();
-  Ctype.generalize ty_arg;
+  let ty_arg =
+    Ctype.wrap_def ~post:Ctype.generalize begin fun () ->
+      let ty_arg = Ctype.newvar() in
+      try
+        Ctype.unify !toplevel_env
+          (Ctype.newconstr printer_type [ty_arg])
+          (Ctype.instance desc.val_type);
+        ty_arg
+      with Ctype.Unify _ ->
+        raise Bad_printing_function
+    end
+  in
   (ty_arg, None)
 
 let match_generic_printer_type desc path args printer_type =
-  Ctype.begin_def();
-  let args = List.map (fun _ -> Ctype.newvar ()) args in
-  let ty_target = Ctype.newty (Tconstr (path, args, ref Mnil)) in
-  let ty_args =
-    List.map (fun ty_var -> Ctype.newconstr printer_type [ty_var]) args in
-  let ty_expected =
-    List.fold_right
-      (fun ty_arg ty -> Ctype.newty (Tarrow (Asttypes.Nolabel, ty_arg, ty,
-                                             commu_var ())))
-      ty_args (Ctype.newconstr printer_type [ty_target]) in
-  begin try
-    Ctype.unify !toplevel_env
-      ty_expected
-      (Ctype.instance desc.val_type);
-  with Ctype.Unify _ ->
-    raise Bad_printing_function
-  end;
-  Ctype.end_def();
-  Ctype.generalize ty_expected;
+  let args, ty_args, ty_expected =
+    Ctype.wrap_def begin fun () ->
+      let args = List.map (fun _ -> Ctype.newvar ()) args in
+      let ty_target = Ctype.newty (Tconstr (path, args, ref Mnil)) in
+      let ty_args =
+        List.map (fun ty_var -> Ctype.newconstr printer_type [ty_var]) args in
+      let ty_expected =
+        List.fold_right
+          (fun ty_arg ty -> Ctype.newty (Tarrow (Asttypes.Nolabel, ty_arg, ty,
+                                                 commu_var ())))
+          ty_args (Ctype.newconstr printer_type [ty_target]) in
+      try
+        Ctype.unify !toplevel_env
+          ty_expected
+          (Ctype.instance desc.val_type);
+        (args, ty_args, ty_expected)
+      with Ctype.Unify _ ->
+        raise Bad_printing_function
+    end
+    ~post: (fun (_, _, ty_expected) -> Ctype.generalize ty_expected)
+  in
   if not (Ctype.all_distinct_vars !toplevel_env args) then
     raise Bad_printing_function;
   (ty_expected, Some (path, ty_args))
