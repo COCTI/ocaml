@@ -1350,8 +1350,7 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
               complete_class_type cl.cl_loc val_env virt Class_type cl.cl_type;
               cl
             end
-          in
-          let clty =
+          and clty =
             Typetexp.wrap_type_variable_scope begin fun () ->
               let clty = class_type val_env virt self_scope scty in
               complete_class_type
@@ -1361,11 +1360,9 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
           in
           cl, clty
         end
-        ~post: begin fun (cl, clty) ->
-          Ctype.limited_generalize_class_type
-            (Btype.self_type_row cl.cl_type) cl.cl_type;
-          Ctype.limited_generalize_class_type
-            (Btype.self_type_row clty.cltyp_type) clty.cltyp_type;
+        ~post: begin fun ({cl_type=cl}, {cltyp_type=clty}) ->
+          Ctype.limited_generalize_class_type (Btype.self_type_row cl) cl;
+          Ctype.limited_generalize_class_type (Btype.self_type_row clty) clty;
         end
       in
       begin match
