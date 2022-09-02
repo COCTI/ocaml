@@ -646,15 +646,13 @@ let rec class_field_first_pass self_loc cl_num sign self_scope acc cf =
   | Pcf_val (label, mut, Cfk_virtual styp) ->
       with_attrs
         (fun () ->
-           if !Clflags.principal then Ctype.begin_def ();
-           let cty = Typetexp.transl_simple_type val_env false styp in
-           let ty = cty.ctyp_type in
-           if !Clflags.principal then begin
-             Ctype.end_def ();
-             Ctype.generalize_structure ty
-           end;
+           let cty =
+             Ctype.wrap_def_principal
+               (fun () -> Typetexp.transl_simple_type val_env false styp)
+               ~post:(fun cty -> Ctype.generalize_structure cty.ctyp_type)
+           in
            add_instance_variable ~strict:true loc val_env
-             label.txt mut Virtual ty sign;
+             label.txt mut Virtual cty.ctyp_type sign;
            let already_declared, val_env, par_env, id, vars =
              match Vars.find label.txt vars with
              | id -> true, val_env, par_env, id, vars
@@ -687,12 +685,10 @@ let rec class_field_first_pass self_loc cl_num sign self_scope acc cf =
                raise(Error(loc, val_env,
                            No_overriding ("instance variable", label.txt)))
            end;
-           if !Clflags.principal then Ctype.begin_def ();
-           let definition = type_exp val_env sdefinition in
-           if !Clflags.principal then begin
-             Ctype.end_def ();
-             Ctype.generalize_structure definition.exp_type
-           end;
+           let definition =
+             Ctype.wrap_def_principal ~post:Typecore.generalize_structure_exp
+               (fun () -> type_exp val_env sdefinition)
+           in
            add_instance_variable ~strict:true loc val_env
              label.txt mut Concrete definition.exp_type sign;
            let already_declared, val_env, par_env, id, vars =
@@ -1145,15 +1141,15 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
       in
       class_expr cl_num val_env met_env virt self_scope sfun
   | Pcl_fun (l, None, spat, scl') ->
-      if !Clflags.principal then Ctype.begin_def ();
       let (pat, pv, val_env', met_env) =
-        Typecore.type_class_arg_pattern cl_num val_env met_env l spat
+        Ctype.wrap_def_principal
+          (fun () ->
+            Typecore.type_class_arg_pattern cl_num val_env met_env l spat)
+          ~post: begin fun (pat, _, _, _) ->
+            let gen {pat_type = ty} = Ctype.generalize_structure ty in
+            iter_pattern gen pat
+          end
       in
-      if !Clflags.principal then begin
-        Ctype.end_def ();
-        let gen {pat_type = ty} = Ctype.generalize_structure ty in
-        iter_pattern gen pat
-      end;
       let pv =
         List.map
           begin fun (id, id', _ty) ->
@@ -1195,12 +1191,11 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
          }
   | Pcl_apply (scl', sargs) ->
       assert (sargs <> []);
-      if !Clflags.principal then Ctype.begin_def ();
-      let cl = class_expr cl_num val_env met_env virt self_scope scl' in
-      if !Clflags.principal then begin
-        Ctype.end_def ();
-        Ctype.generalize_class_type_structure cl.cl_type;
-      end;
+      let cl =
+        Ctype.wrap_def_principal
+          (fun () -> class_expr cl_num val_env met_env virt self_scope scl')
+          ~post:(fun cl -> Ctype.generalize_class_type_structure cl.cl_type)
+      in
       let rec nonopt_labels ls ty_fun =
         match ty_fun with
         | Cty_arrow (l, _, ty_res) ->
@@ -1309,18 +1304,18 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
              let path = Pident id in
              (* do not mark the value as used *)
              let vd = Env.find_value path val_env in
-             Ctype.begin_def ();
              let expr =
-               {exp_desc =
-                Texp_ident(path, mknoloc(Longident.Lident (Ident.name id)),vd);
-                exp_loc = Location.none; exp_extra = [];
-                exp_type = Ctype.instance vd.val_type;
-                exp_attributes = [];
-                exp_env = val_env;
-               }
+               Ctype.wrap_def begin fun () ->
+                 {exp_desc =
+                  Texp_ident(path, mknoloc(Longident.Lident (Ident.name id)),vd);
+                  exp_loc = Location.none; exp_extra = [];
+                  exp_type = Ctype.instance vd.val_type;
+                  exp_attributes = [];
+                  exp_env = val_env;
+                }
+               end
+               ~post:Typecore.generalize_structure_exp
              in
-             Ctype.end_def ();
-             Ctype.generalize expr.exp_type;
              let desc =
                {val_type = expr.exp_type; val_kind = Val_ivar (Immutable,
                                                                cl_num);
@@ -1471,12 +1466,10 @@ let initial_env define_class approx
   let (cl_params, cl_ty, env) = temp_abbrev cl.pci_loc env cl_id arity uid in
 
   (* Temporary type for the class constructor *)
-  if !Clflags.principal then Ctype.begin_def ();
-  let constr_type = approx cl.pci_expr in
-  if !Clflags.principal then begin
-    Ctype.end_def ();
-    Ctype.generalize_structure constr_type;
-  end;
+  let constr_type =
+    Ctype.wrap_def_principal (fun () -> approx cl.pci_expr)
+      ~post:Ctype.generalize_structure
+  in
   let dummy_cty = Cty_signature (Ctype.new_class_signature ()) in
   let dummy_class =
     {Types.cty_params = [];             (* Dummy value *)
