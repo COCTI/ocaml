@@ -3220,6 +3220,8 @@ let unify_pairs env ty1 ty2 pairs =
 let unify env ty1 ty2 =
   unify_pairs (ref env) ty1 ty2 []
 
+(* Lower the level of a type to the current level *)
+let enforce_current_level env ty = unify_var env (newvar ()) ty
 
 
 (**** Special cases of unification ****)

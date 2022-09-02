@@ -2817,9 +2817,6 @@ let with_explanation explanation f =
         let err = Expr_type_clash(err', Some explanation, exp') in
         raise (Error (loc', env', err))
 
-(* Lower the level of a type to the current level *)
-let enforce_current_level env ty = unify_var env (newvar ()) ty
-
 (* Generalize expressions *)
 let generalize_structure_exp exp = generalize_structure exp.exp_type
 let may_lower_contravariant_then_generalize env exp =
