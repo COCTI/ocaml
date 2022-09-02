@@ -111,6 +111,8 @@ let wrap_type_variable_scope f =
   widen context;
   r
 
+let generalize_ctyp typ = generalize typ.ctyp_type
+
 let strict_ident c = (c = '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
 
 let validate_name = function
@@ -461,9 +463,9 @@ and transl_type_aux env policy styp =
           univars := old_univars;
           (new_univars, cty)
         end
+        ~post:(fun (_,cty) -> generalize_ctyp cty)
       in
       let ty = cty.ctyp_type in
-      generalize ty;
       let ty_list = check_poly_univars env styp.ptyp_loc new_univars in
       let ty_list = List.filter (fun v -> deep_occur v ty) ty_list in
       let ty' = Btype.newgenty (Tpoly(ty, ty_list)) in
@@ -618,7 +620,7 @@ let transl_simple_type env ?univars:(uvs=[]) fixed styp =
 let transl_simple_type_univars env styp =
   univars := []; used_variables := TyVarMap.empty; pre_univars := [];
   let typ =
-    wrap_def begin fun () ->
+    wrap_def ~post:generalize_ctyp begin fun () ->
       let typ = transl_type env Univars styp in
       (* Only keep already global variables in used_variables *)
       let new_variables = !used_variables in
@@ -632,7 +634,6 @@ let transl_simple_type_univars env styp =
       typ
     end
   in
-  generalize typ.ctyp_type;
   let univs =
     List.fold_left
       (fun acc v ->
@@ -655,7 +656,7 @@ let transl_simple_type_delayed env styp =
      called. *)
   let force = globalize_used_variables env false in
   (* Generalizes everything except the variables that were just globalized. *)
-  generalize typ.ctyp_type;
+  generalize_ctyp typ; (* XXX: should be post-processed by [wrap_def] *)
   (typ, instance typ.ctyp_type, force)
 
 let transl_type_scheme env styp =
@@ -669,8 +670,8 @@ let transl_type_scheme env styp =
          let typ = transl_simple_type env ~univars true st in
          (univars, typ)
        end
+       ~post:(fun (_,typ) -> generalize_ctyp typ)
      in
-     generalize typ.ctyp_type;
      let _ = instance_poly_univars env styp.ptyp_loc univars in
      { ctyp_desc = Ttyp_poly (vars, typ);
        ctyp_type = typ.ctyp_type;
@@ -678,9 +679,8 @@ let transl_type_scheme env styp =
        ctyp_loc = styp.ptyp_loc;
        ctyp_attributes = styp.ptyp_attributes }
   | _ ->
-     let typ = wrap_def (fun () -> transl_simple_type env false styp) in
-     generalize typ.ctyp_type;
-     typ
+      wrap_def (fun () -> transl_simple_type env false styp)
+        ~post:generalize_ctyp
 
 
 (* Error report *)
