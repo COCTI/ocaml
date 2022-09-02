@@ -33,6 +33,7 @@ exception Matches_failure of Env.t * Errortrace.unification_error
 exception Incompatible
   (* Raised from [mcomp] *)
 
+(* Old API
 val init_def: int -> unit
         (* Set the initial variable level *)
 val begin_def: unit -> unit
@@ -43,6 +44,8 @@ val raise_nongen_level: unit -> unit
         (* Raise the nongen level to the current level *)
 val end_def: unit -> unit
         (* Lower the variable level by one at the end of a definition *)
+*)
+
 val wrap_def: ?post:('a -> unit) -> (unit -> 'a) -> 'a
         (* [wrap_def (fun () -> cmd) ~post] evaluates [cmd] at a raised level.
            If given, [post] is applied to the result, at the original level.
@@ -70,6 +73,8 @@ val wrap_def_process_principal:
 val wrap_class_def: ?post:('a -> unit) -> (unit -> 'a) -> 'a
         (* Variant of [wrap_def], where the current level is raised but
            the nongen level is not touched *)
+val wrap_raise_nongen_level: (unit -> 'a) -> 'a
+        (* Variant of [wrap_def], raises the nongen level to the current level *)
 
 val reset_global_level: unit -> unit
         (* Reset the global level before typing an expression *)

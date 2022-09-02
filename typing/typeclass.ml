@@ -906,9 +906,9 @@ and class_field_second_pass cl_num sign met_env field =
              mk_expected
                (Btype.newgenty (Tarrow(Nolabel, self_type, ty, commu_ok)))
            in
-           Ctype.raise_nongen_level ();
-           let texp = type_expect met_env sdefinition meth_type in
-           Ctype.end_def ();
+           let texp =
+             Ctype.wrap_raise_nongen_level
+               (fun () -> type_expect met_env sdefinition meth_type) in
            let kind = Tcfk_concrete (override, texp) in
            let desc = Tcf_method(label, priv, kind) in
            met_env, mkcf desc loc attributes)
@@ -918,15 +918,15 @@ and class_field_second_pass cl_num sign met_env field =
   | Initializer { sexpr; warning_state; loc; attributes } ->
       Warnings.with_state warning_state
         (fun () ->
-           Ctype.raise_nongen_level ();
            let unit_type = Ctype.instance Predef.type_unit in
            let self_type = sign.Types.csig_self in
            let meth_type =
              mk_expected
                (Ctype.newty (Tarrow (Nolabel, self_type, unit_type, commu_ok)))
            in
-           let texp = type_expect met_env sexpr meth_type in
-           Ctype.end_def ();
+           let texp =
+             Ctype.wrap_raise_nongen_level
+               (fun () -> type_expect met_env sexpr meth_type) in
            let desc = Tcf_initializer texp in
            met_env, mkcf desc loc attributes)
   | Attribute { attribute; loc; attributes; } ->
@@ -1176,9 +1176,9 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
         Typecore.check_partial val_env pat.pat_type pat.pat_loc
           [{c_lhs = pat; c_guard = None; c_rhs = dummy}]
       in
-      Ctype.raise_nongen_level ();
-      let cl = class_expr cl_num val_env' met_env virt self_scope scl' in
-      Ctype.end_def ();
+      let cl =
+        Ctype.wrap_raise_nongen_level
+          (fun () -> class_expr cl_num val_env' met_env virt self_scope scl') in
       if Btype.is_optional l && not_nolabel_function cl.cl_type then
         Location.prerr_warning pat.pat_loc
           Warnings.Unerasable_optional_argument;

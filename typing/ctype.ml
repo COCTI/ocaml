@@ -222,6 +222,12 @@ let wrap_class_def ?post f =
   Option.iter (fun g -> g result) post;
   result
 
+let wrap_raise_nongen_level f =
+  raise_nongen_level ();
+  let result = f () in
+  end_def ();
+  result
+
 
 let reset_global_level () =
   global_level := !current_level + 1
