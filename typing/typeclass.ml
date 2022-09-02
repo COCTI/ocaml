@@ -1366,13 +1366,13 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
           in
           cl, clty
         end
+        ~post: begin fun (cl, clty) ->
+          Ctype.limited_generalize_class_type
+            (Btype.self_type_row cl.cl_type) cl.cl_type;
+          Ctype.limited_generalize_class_type
+            (Btype.self_type_row clty.cltyp_type) clty.cltyp_type;
+        end
       in
-
-      Ctype.limited_generalize_class_type
-        (Btype.self_type_row cl.cl_type) cl.cl_type;
-      Ctype.limited_generalize_class_type
-        (Btype.self_type_row clty.cltyp_type) clty.cltyp_type;
-
       begin match
         Includeclass.class_types val_env cl.cl_type clty.cltyp_type
       with
@@ -1553,14 +1553,14 @@ let class_infos define_class kind
           Typecore.self_coercion := []; raise exn
       in
       let sign = Btype.signature_of_class_type typ in
-      ci_params, params, coercion_locs, expr, typ, sign
+      (ci_params, params, coercion_locs, expr, typ, sign)
+    end
+    ~post: begin fun (_, params, _, _, typ, sign) ->
+      (* Generalize the row variable *)
+      List.iter (Ctype.limited_generalize sign.csig_self_row) params;
+      Ctype.limited_generalize_class_type sign.csig_self_row typ;
     end
   in
-
-  (* Generalize the row variable *)
-  List.iter (Ctype.limited_generalize sign.csig_self_row) params;
-  Ctype.limited_generalize_class_type sign.csig_self_row typ;
-
   (* Check the abbreviation for the object type *)
   let (obj_params', obj_type) = Ctype.instance_class params typ in
   let constr = Ctype.newconstr (Path.Pident obj_id) obj_params in

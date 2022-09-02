@@ -67,7 +67,7 @@ val wrap_def_process_principal:
         (* Applications of [wrap_def_if] and [wrap_def_process_if] to
            [!Clflags.principal] *)
 
-val wrap_class_def: (unit -> 'a) -> 'a
+val wrap_class_def: ?post:('a -> unit) -> (unit -> 'a) -> 'a
         (* Variant of [wrap_def], where the current level is raised but
            the nongen level is not touched *)
 

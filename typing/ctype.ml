@@ -215,10 +215,11 @@ let wrap_init_def_if cond ~level f =
   result
 let wrap_init_def ~level f = wrap_init_def_if true ~level f
 
-let wrap_class_def f =
+let wrap_class_def ?post f =
   begin_class_def ();
   let result = f () in
   end_def ();
+  Option.iter (fun g -> g result) post;
   result
 
 
