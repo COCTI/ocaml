@@ -1116,11 +1116,6 @@ let is_rebind ext =
   | Text_decl _ -> false
 
 let transl_type_extension extend env loc styext =
-  (* Note: it would be incorrect to call [create_scope] *after*
-     [reset_type_variables] or after [begin_def] (see #10010). *)
-  let scope = Ctype.create_scope () in
-  reset_type_variables();
-  Ctype.begin_def();
   let type_path, type_decl =
     let lid = styext.ptyext_path in
     Env.lookup_type ~loc:lid.loc lid.txt env
@@ -1165,24 +1160,34 @@ let transl_type_extension extend env loc styext =
   | None -> ()
   | Some err -> raise (Error(loc, Extension_mismatch (type_path, env, err)))
   end;
-  let ttype_params = make_params env styext.ptyext_params in
-  let type_params = List.map (fun (cty, _) -> cty.ctyp_type) ttype_params in
-  List.iter2 (Ctype.unify_var env)
-    (Ctype.instance_list type_decl.type_params)
-    type_params;
-  let constructors =
-    List.map (transl_extension_constructor ~scope env type_path
-               type_decl.type_params type_params styext.ptyext_private)
-      styext.ptyext_constructors
+  (* Note: it would be incorrect to call [create_scope] *after*
+     [reset_type_variables] or after [wrap_def] (see #10010). *)
+  let scope = Ctype.create_scope () in
+  reset_type_variables();
+  let ttype_params, _type_params, constructors =
+    Ctype.wrap_def begin fun () ->
+      let ttype_params = make_params env styext.ptyext_params in
+      let type_params = List.map (fun (cty, _) -> cty.ctyp_type) ttype_params in
+      List.iter2 (Ctype.unify_var env)
+        (Ctype.instance_list type_decl.type_params)
+        type_params;
+      let constructors =
+        List.map (transl_extension_constructor ~scope env type_path
+                    type_decl.type_params type_params styext.ptyext_private)
+          styext.ptyext_constructors
+      in
+      (ttype_params, type_params, constructors)
+    end
+    ~post: begin fun (_, type_params, constructors) ->
+      (* Generalize types *)
+      List.iter Ctype.generalize type_params;
+      List.iter
+        (fun ext ->
+          Btype.iter_type_expr_cstr_args Ctype.generalize ext.ext_type.ext_args;
+          Option.iter Ctype.generalize ext.ext_type.ext_ret_type)
+        constructors;
+    end
   in
-  Ctype.end_def();
-  (* Generalize types *)
-  List.iter Ctype.generalize type_params;
-  List.iter
-    (fun ext ->
-       Btype.iter_type_expr_cstr_args Ctype.generalize ext.ext_type.ext_args;
-       Option.iter Ctype.generalize ext.ext_type.ext_ret_type)
-    constructors;
   (* Check that all type variables are closed *)
   List.iter
     (fun ext ->
@@ -1445,7 +1450,7 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
     sdecl =
   Env.mark_type_used sig_decl.type_uid;
   reset_type_variables();
-  Ctype.begin_def();
+  Ctype.wrap_def begin fun () ->
   (* In the first part of this function, we typecheck the syntactic
      declaration [sdecl] in the outer environment [outer_env]. *)
   let env = outer_env in
@@ -1565,8 +1570,6 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
       type_immediate = new_type_immediate;
       type_separability = new_type_separability;
     } in
-  Ctype.end_def();
-  generalize_decl new_sig_decl;
   {
     typ_id = id;
     typ_name = sdecl.ptype_name;
@@ -1579,14 +1582,15 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
     typ_private = sdecl.ptype_private;
     typ_attributes = sdecl.ptype_attributes;
   }
+  end
+  ~post:(fun ttyp -> generalize_decl ttyp.typ_type)
 
 (* Approximate a type declaration: just make all types abstract *)
 
 let abstract_type_decl ~injective arity =
   let rec make_params n =
     if n <= 0 then [] else Ctype.newvar() :: make_params (n-1) in
-  Ctype.begin_def();
-  let decl =
+  Ctype.wrap_def ~post:generalize_decl begin fun () ->
     { type_params = make_params arity;
       type_arity = arity;
       type_kind = Type_abstract;
@@ -1601,10 +1605,8 @@ let abstract_type_decl ~injective arity =
       type_immediate = Unknown;
       type_unboxed_default = false;
       type_uid = Uid.internal_not_actually_unique;
-     } in
-  Ctype.end_def();
-  generalize_decl decl;
-  decl
+    }
+  end
 
 let approx_type_decl sdecl_list =
   let scope = Ctype.create_scope () in
