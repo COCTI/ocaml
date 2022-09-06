@@ -1307,14 +1307,15 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
              let expr =
                Ctype.wrap_def begin fun () ->
                  {exp_desc =
-                  Texp_ident(path, mknoloc(Longident.Lident (Ident.name id)),vd);
+                  Texp_ident(path,
+                             mknoloc(Longident.Lident (Ident.name id)),vd);
                   exp_loc = Location.none; exp_extra = [];
                   exp_type = Ctype.instance vd.val_type;
                   exp_attributes = [];
                   exp_env = val_env;
                 }
                end
-               ~post:Typecore.generalize_structure_exp
+               ~post:(fun exp -> Ctype.generalize exp.exp_type)
              in
              let desc =
                {val_type = expr.exp_type; val_kind = Val_ivar (Immutable,
