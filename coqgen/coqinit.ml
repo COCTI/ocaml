@@ -50,7 +50,7 @@ let init_type_map vars =
      ct_compare = Some (CTmatch (CTid"x", None, []))});
    (Predef.path_int, [],
     {ctd with ct_name = "ml_int";
-     ct_type = CTid "Int63.int";
+     ct_type = CTid "PrimInt63.int";
      ct_compare = Some (ctRet (CTapp (CTid"Sint63.compare", xy)))});
    (Predef.path_float, [],
     {ctd with ct_name = "ml_float";
@@ -212,11 +212,11 @@ let init_term_map vars =
        ce_vars = [];
        ce_rec = Nonrecursive;
        ce_purary = 3})
-    [("+", "Int63.add"); ("-", "Int63.sub"); ("*", "Int63.mul");
+    [("+", "PrimInt63.add"); ("-", "PrimInt63.sub"); ("*", "PrimInt63.mul");
      ("/", "divs"); ("mod", "mods")]
   @ [
     (["~-"],
-     {ce_name = "Int63.opp";
+     {ce_name = "PrimInt63.opp";
       ce_type = int_to_int;
       ce_vars = [];
       ce_rec = Nonrecursive;
