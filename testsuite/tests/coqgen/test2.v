@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrnat seq.
-Require Import Sint63 Ascii String Floats cocti_defs.
+Require Import PrimInt63 Ascii String Floats cocti_defs.
 
 (* Generated representation of all ML types *)
 Inductive ml_type :=
