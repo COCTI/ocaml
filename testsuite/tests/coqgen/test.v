@@ -62,7 +62,7 @@ Inductive endo (a : Type) := Endo (_ : a -> M a).
 Inductive option (a : Type) := | Some (_ : a) | None.
 
 Inductive ml_exns :=
-  | Restart_1 (_ : unit -> M Int63.int)
+  | Restart_1 (_ : unit -> M PrimInt63.int)
   | Invalid_argument (_ : string)
   | Failure (_ : string)
   | Not_found.
@@ -75,7 +75,7 @@ Inductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
-  | ml_int => Int63.int
+  | ml_int => PrimInt63.int
   | ml_char => Ascii.ascii
   | ml_float => float
   | ml_bool => bool
@@ -303,9 +303,9 @@ Definition fact (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
     (do _ <-
      (do v_1 <-
       (do v_1 <- getref ml_int i;
-       do v_2 <- getref ml_int v; Ret (Int63.mul v_2 v_1));
+       do v_2 <- getref ml_int v; Ret (PrimInt63.mul v_2 v_1));
       setref ml_int v v_1);
-     do v_1 <- (do v_1 <- getref ml_int i; Ret (Int63.sub v_1 1%int63));
+     do v_1 <- (do v_1 <- getref ml_int i; Ret (PrimInt63.sub v_1 1%int63));
      setref ml_int i v_1);
   getref ml_int v.
 
@@ -318,16 +318,16 @@ Definition foo1 (T : ml_type) (x : coq_type T) : M (coq_type T) :=
 Definition id (T : ml_type) (h_1 : coq_type T) : coq_type T := h_1.
 
 Definition foo2 (x : coq_type ml_int) : coq_type (ml_arrow ml_int ml_int) :=
-  let y := Int63.add x 1%int63 in
+  let y := PrimInt63.add x 1%int63 in
   id (ml_arrow ml_int ml_int)
-    (fun z : coq_type ml_int => Ret (Int63.add y z : coq_type ml_int)).
+    (fun z : coq_type ml_int => Ret (PrimInt63.add y z : coq_type ml_int)).
 
 Definition foo3 (x : coq_type ml_int)
   : M (coq_type (ml_arrow ml_int ml_int)) :=
   id (ml_arrow ml_int (ml_arrow ml_int ml_int)) (fun x_1 => Ret (foo2 x_1)) x.
 
 Definition incr (r : coq_type (ml_ref ml_int)) : M (coq_type ml_unit) :=
-  do x <- getref ml_int r; setref ml_int r (Int63.add x 1%int63).
+  do x <- getref ml_int r; setref ml_int r (PrimInt63.add x 1%int63).
 
 Definition it_1 := Eval compute in
   Restart it (do r <- newref ml_int 1%int63; incr r).
@@ -362,8 +362,8 @@ Fixpoint fib (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
     do v <- ml_le h ml_int n 1%int63;
     if v then Ret 1%int63 else
-      do v <- fib h (Int63.sub n 2%int63);
-      do v_1 <- fib h (Int63.sub n 1%int63); Ret (Int63.add v_1 v)
+      do v <- fib h (PrimInt63.sub n 2%int63);
+      do v_1 <- fib h (PrimInt63.sub n 1%int63); Ret (PrimInt63.add v_1 v)
   else FailGas.
 
 Definition it_4 := Eval compute in Restart nil_1 (fib h 10%int63).
@@ -371,10 +371,11 @@ Print it_4.
 Fixpoint ack (h : nat) (m n : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
     do v <- ml_le h ml_int m 0%int63;
-    if v then Ret (Int63.add n 1%int63) else
+    if v then Ret (PrimInt63.add n 1%int63) else
       do v <- ml_le h ml_int n 0%int63;
-      if v then ack h (Int63.sub m 1%int63) 1%int63 else
-        do v <- ack h m (Int63.sub n 1%int63); ack h (Int63.sub m 1%int63) v
+      if v then ack h (PrimInt63.sub m 1%int63) 1%int63 else
+        do v <- ack h m (PrimInt63.sub n 1%int63);
+        ack h (PrimInt63.sub m 1%int63) v
   else FailGas.
 
 Definition it_5 := Eval compute in Restart it_4 (ack h 3%int63 7%int63).
@@ -409,7 +410,7 @@ Definition it_7 := Eval compute in
   Restart cmp
     (map h ml_int ml_int
        (fun x : coq_type ml_int =>
-          Ret (Int63.add x 1%int63 : coq_type ml_int))
+          Ret (PrimInt63.add x 1%int63 : coq_type ml_int))
        (3%int63 :: 2%int63 :: 1%int63 :: @nil (coq_type ml_int))).
 Print it_7.
 Definition one :=
@@ -423,7 +424,7 @@ Fixpoint map3 (h : nat) (T : ml_type) (f : coq_type (ml_arrow T ml_int))
     | @nil _ => Ret (@nil (coq_type ml_int))
     | a :: l =>
       do v <- map3 h T f l;
-      do v_1 <- (do v <- f a; Ret (Int63.add one v));
+      do v_1 <- (do v <- f a; Ret (PrimInt63.add one v));
       Ret (@cons (coq_type ml_int) v_1 v)
     end
   else FailGas.
@@ -432,7 +433,7 @@ Definition it_8 := Eval compute in
   Restart one
     (map3 h ml_int
        (fun x : coq_type ml_int =>
-          Ret (Int63.add x 1%int63 : coq_type ml_int))
+          Ret (PrimInt63.add x 1%int63 : coq_type ml_int))
        (3%int63 :: 2%int63 :: 1%int63 :: @nil (coq_type ml_int))).
 Print it_8.
 Fixpoint append (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_list T))
@@ -472,7 +473,8 @@ Fixpoint iter_int (h : nat) (T : ml_type) (n : coq_type ml_int)
   (f : coq_type (ml_arrow T T)) (x : coq_type T) : M (coq_type T) :=
   if h is h.+1 then
     do v <- ml_lt h ml_int n 1%int63;
-    if v then Ret x else do v <- f x; iter_int h T (Int63.sub n 1%int63) f v
+    if v then Ret x else
+      do v <- f x; iter_int h T (PrimInt63.sub n 1%int63) f v
   else FailGas.
 
 Definition fib2 (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
@@ -483,7 +485,7 @@ Definition fib2 (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
     (fun _ =>
        do x <- getref ml_int l1;
        do y <- getref ml_int l2;
-       do _ <- setref ml_int l1 y; setref ml_int l2 (Int63.add x y))
+       do _ <- setref ml_int l1 y; setref ml_int l2 (PrimInt63.add x y))
     tt;
   getref ml_int l1.
 
@@ -494,7 +496,7 @@ Fixpoint iota (h : nat) (m n : coq_type ml_int)
   if h is h.+1 then
     do v <- ml_le h ml_int n 0%int63;
     if v then Ret (@nil (coq_type ml_int)) else
-      do v <- iota h (Int63.add m 1%int63) (Int63.sub n 1%int63);
+      do v <- iota h (PrimInt63.add m 1%int63) (PrimInt63.sub n 1%int63);
       Ret (@cons (coq_type ml_int) m v)
   else FailGas.
 
@@ -562,8 +564,8 @@ Print it_16.
 Fixpoint mccarthy_m (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
     do v <- ml_gt h ml_int n 100%int63;
-    if v then Ret (Int63.sub n 10%int63) else
-      do v <- mccarthy_m h (Int63.add n 11%int63); mccarthy_m h v
+    if v then Ret (PrimInt63.sub n 10%int63) else
+      do v <- mccarthy_m h (PrimInt63.add n 11%int63); mccarthy_m h v
   else FailGas.
 
 Definition it_17 := Eval compute in Restart it_16 (mccarthy_m h 10%int63).
@@ -572,9 +574,9 @@ Fixpoint tarai (h : nat) (x y z_1 : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
     do v <- ml_lt h ml_int y x;
     if v then
-      do v <- tarai h (Int63.sub z_1 1%int63) x y;
-      do v_1 <- tarai h (Int63.sub y 1%int63) z_1 x;
-      do v_2 <- tarai h (Int63.sub x 1%int63) y z_1; tarai h v_2 v_1 v
+      do v <- tarai h (PrimInt63.sub z_1 1%int63) x y;
+      do v_1 <- tarai h (PrimInt63.sub y 1%int63) z_1 x;
+      do v_2 <- tarai h (PrimInt63.sub x 1%int63) y z_1; tarai h v_2 v_1 v
     else Ret y
   else FailGas.
 
@@ -630,8 +632,9 @@ Definition fib_1 :=
             (fun n : coq_type ml_int =>
                do v <- ml_le h ml_int n 1%int63;
                if v then Ret 1%int63 else
-                 do v <- fib_1 (Int63.sub n 2%int63);
-                 do v_1 <- fib_1 (Int63.sub n 1%int63); Ret (Int63.add v_1 v)))).
+                 do v <- fib_1 (PrimInt63.sub n 2%int63);
+                 do v_1 <- fib_1 (PrimInt63.sub n 1%int63);
+                 Ret (PrimInt63.add v_1 v)))).
 
 Definition it_23 := Eval compute in
   Restart fib_1 (do fib_1 <- FromW fib_1; fib_1 10%int63).

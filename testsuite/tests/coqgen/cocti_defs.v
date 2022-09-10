@@ -120,7 +120,7 @@ Fixpoint lookup key env :=
   match env with
   | nil => None
   | mkbind k v :: rest =>
-    if Int63.eqb (key_id key) (key_id k) then
+    if PrimInt63.eqb (key_id key) (key_id k) then
       coerce (key_type k) (key_type key) v
     else lookup key rest
   end.
@@ -138,7 +138,7 @@ Fixpoint update b (env : seq binding) :=
   | nil => None
   | mkbind k v :: rest =>
     let: mkbind k' _ := b in
-    if Int63.eqb (key_id k') (key_id k) then
+    if PrimInt63.eqb (key_id k') (key_id k) then
       if ml_type_eq_dec (key_type k') (key_type k)
       then Some (b :: rest)
       else None

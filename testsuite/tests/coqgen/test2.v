@@ -63,7 +63,7 @@ Inductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
-  | ml_int => Int63.int
+  | ml_int => PrimInt63.int
   | ml_char => Ascii.ascii
   | ml_float => float
   | ml_bool => bool
@@ -220,7 +220,7 @@ Fixpoint length_aux (h : nat) (T_1 : ml_type) (len : coq_type ml_int)
   if h is h.+1 then
     match param with
     | @nil _ => Ret len
-    | _ :: l => length_aux h T_1 (Int63.add len 1%int63) l
+    | _ :: l => length_aux h T_1 (PrimInt63.add len 1%int63) l
     end
   else FailGas.
 
