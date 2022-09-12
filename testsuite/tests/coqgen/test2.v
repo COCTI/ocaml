@@ -281,6 +281,3 @@ Definition inl_inv (x : int + Env.Exn) :=
   | inl a => a
   | inr b => min_int
   end.
-Eval compute in (1 - 2)%sint63.
-
-Eval compute in inl_inv(snd(fact_for 5 (-3)%sint63 empty_env)).
