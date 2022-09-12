@@ -24,15 +24,15 @@ let newton's_method e f =
   !r;;
 
 (* for loop *)
-(*let fact n =
+let fact_for n =
   let v = ref 1 in
   for i = 2 to n do
     v := !v * i
   done;
   !v
-*)
+
 (* while loop *)
-let fact n =
+let fact_while n =
   let i = ref n in
   let v = ref 1 in
   while !i > 0 do

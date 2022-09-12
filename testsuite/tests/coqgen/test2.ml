@@ -42,6 +42,15 @@ let rec isort l =
 
 let rec gcd m n =
   if m = 0 then n else gcd (n mod m) m;;
+
+(* fact by forloop *)
+let fact_for n =
+  let v = ref 1 in
+  for i = 2 to n do
+    v := !v * i
+  done;
+  !v;;
+
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.
