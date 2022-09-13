@@ -15,23 +15,17 @@ Definition fact_rec_int n : int :=
   | m.+1 => nat_to_int (m.+1 * fact_rec m)
   end.
 
-(*Definition fact_rec_int' n : := .*)
+Lemma bindconst {A} {B} {m : M A} {env} {env'} {a} {e : M B} :
+  m env = (env', inl a) -> (m >> e) env = e env'.
+Proof. by rewrite /Bind => ->. Qed.
 
-
-Lemma fact_pure h n m env env' : fact_for h n = (Ret m) ->
-  (fact_for h n env).2 = (fact_for h n env').2.
-Proof. by move=> -> /=. Qed.
-
-(*Lemma fact_for_ok' h n m :
-  fact_for h n = Ret m -> fact_for h.+1 n = Ret m.
+Lemma fact_pure h n m env env' env'' : fact_for h n env = (Ret m) env' ->
+  (fact_for h n env).2 = (fact_for h n env'').2.
 Proof.
-
-Qed.*)
-
-(*Lemma int_neg n : int_to_nat n = 0 -> (n ?= 0)%sint63 = Lt.
-Proof.
-
-Qed.*)
+  elim: h env env' => [ |h IH] env env'.
+  -
+  -
+Admitted.
 
 (*Lemma fact_for_neg h n : int_to_nat n = 0 ->
   fact_for h.+1 n = Ret 1%sint63.
@@ -52,4 +46,4 @@ Proof.
     destruct h => /(happly empty_env) //=.
   - move/(happly empty_env).
   -
-Qed.
+Admitted.
