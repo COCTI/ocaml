@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Sint63 BinNums ZArith cocti_defs test2 sortproof.
+Require Import Uint63 BinNums ZArith cocti_defs test2 sortproof.
 
 Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
 
@@ -8,7 +8,6 @@ Proof. by move=> ->. Qed.
 
 Definition nat_to_int := fun n => of_Z (Z.of_nat n).
 Definition int_to_nat := fun n => Z.to_nat (to_Z n).
-Print Z.to_nat.
 
 Definition fact_rec_int n : int :=
   nat_to_int (fact_rec (int_to_nat n)).
@@ -28,7 +27,7 @@ Proof.
 Admitted.
 
 (*Lemma fact_for_neg h n : int_to_nat n = 0 ->
-  fact_for h.+1 n = Ret 1%sint63.
+  fact_for h.+1 n = Ret 1%uint63.
 Proof.
   move=> Hn.
   elim: h => [/(happly empty_env)|h IH] //.
@@ -39,15 +38,21 @@ Qed.*)
 Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
   getref T l env = Ret x env.
 
-Lemma forloop_cat h m n p b : (0 <=? m)%sint63 -> (m <=? n + 1)%sint63 ->
-  (n <=? p)%sint63 -> int_to_nat (p - m) <= h ->
-  forloop h m n b >> forloop h (n + 1)%sint63 p b = forloop h m p b.
+Lemma forloop_cat h m n p b : (0 <=? m)%uint63 -> (m <=? n + 1)%uint63 ->
+  (n <=? p)%uint63 -> int_to_nat (p - m) <= h ->
+  forloop h m n b >> forloop h (n + 1)%uint63 p b = forloop h m p b.
 Proof. Admitted.
 
-Lemma int_to_natK n : (0 <=? n)%sint63 -> nat_to_int (int_to_nat n) = n.
-Proof. Admitted.
+Lemma int_to_natK n : nat_to_int (int_to_nat n) = n.
+Proof.
+  rewrite /nat_to_int /int_to_nat.
+Search Z.of_nat Z.to_nat.
+  rewrite Z2Nat.id.
+  rewrite of_to_Z //.
+  by case : (to_Z_bounded n).
+Qed.
 
-Lemma nat_to_intK n : int_to_nat (nat_to_int n) = n.
+Lemma nat_to_intK n : n < expn 2 63 -> int_to_nat (nat_to_int n) = n.
 Proof.
   rewrite /int_to_nat /nat_to_int.
   Admitted.
@@ -60,23 +65,23 @@ Lemma setgetref {T} x y s env env' :
   setref T x y env = (env', inl s) -> getref T x env' = Ret y env'.
 Proof. Admitted.
 
-Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%sint63 =
+Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
 Proof. Admitted.
 
 Lemma nat_to_int_inj m n : m = n -> nat_to_int m = nat_to_int n.
 Proof. Admitted.
 
-Theorem fact_ok h n m env env' : fact_for h n env = Ret m env' ->
-  m = fact_rec_int n.
+Theorem fact_ok h n m env env' : int_to_nat n < expn 2 61 ->
+  fact_for h n env = Ret m env' -> m = fact_rec_int n.
 Proof.
-  rewrite /fact_for. rewrite {1}/Bind.
+  rewrite /fact_for. rewrite {1}/Bind. rewrite [61]lock.
   case H : (newref _ _ _) => [env'' [s|e]] //.
   rewrite !bindretf.
-  case /boolP : (0 <=? n)%sint63.
+  case /boolP : (lesb 0 n).
   - move => Hn.
-    rewrite -(int_to_natK _ Hn).
-    elim : (int_to_nat n) m env' => [|{n Hn} n IH] m env' /=.
+    rewrite -{-1}(int_to_natK n).
+    elim : (int_to_nat n) m env' => [|{n Hn} n IH] m env' //= => [_ | Hn].
       rewrite /nat_to_int /=.
       destruct h => //=.
       rewrite bindretf.
@@ -96,7 +101,7 @@ Proof.
     case : (forloop h 2 (nat_to_int n.+1) _ _) => [env''' [s'|e]] //.
     move=> H'.
     destruct h => //=.
-    have -> : (nat_to_int n.+1 +1 ?= nat_to_int n.+2)%sint63 = Eq. admit.
+    have -> : (compares (nat_to_int n.+1 +1) (nat_to_int n.+2))%uint63 = Eq. admit.
     rewrite !bindA.
     rewrite {1}/Bind.
     case H'' : (getref _ _ _) => [env4 [s''|e]] //.
@@ -104,18 +109,23 @@ Proof.
     rewrite {1}/Bind.
     case H''' : (setref _ _ _) => [env5 [s'''|e]] //.
     destruct h => //=.
-    have -> : (nat_to_int n.+1 +1 +1 ?= nat_to_int n.+2)%sint63 = Gt. admit.
+    have -> : compares(nat_to_int n.+1 +1 +1)%uint63 (nat_to_int n.+2) = Gt. admit.
     rewrite bindretf.
     move/ setgetref in H'''.
     rewrite H''' => -[] _ <-.
     rewrite H'' in H'.
     rewrite (H' s'' env4) //.
-    have -> : (nat_to_int n.+1 + 1 = nat_to_int n.+2)%sint63. admit.
+    have -> : (nat_to_int n.+1 + 1 = nat_to_int n.+2)%uint63. admit.
     rewrite /fact_rec_int.
     rewrite nat_to_int_mul.
     rewrite !nat_to_intK.
     rewrite /=.
     congr nat_to_int.
     rewrite [RHS]mulnC. done.
-    
+    all:auto.
+    rewrite (leq_trans Hn)//.
+    rewrite -lock leq_exp2l //.
+    rewrite (ltn_trans (ltnSn _))//.
+    rewrite (leq_trans Hn)// -lock leq_exp2l //.
+
 Admitted.
