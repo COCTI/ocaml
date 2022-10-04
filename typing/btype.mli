@@ -120,7 +120,6 @@ val set_static_row_name: type_declaration -> Path.t -> unit
 val iter_type_expr: (type_expr -> unit) -> type_expr -> unit
         (* Iteration on types *)
 val fold_type_expr: ('a -> type_expr -> 'a) -> 'a -> type_expr -> 'a
-val iter_abbrevs: (type_expr -> unit) -> type_expr -> unit
 val iter_row: (type_expr -> unit) -> row_desc -> unit
         (* Iteration on types in a row *)
 val fold_row: ('a -> type_expr -> 'a) -> 'a -> row_desc -> 'a

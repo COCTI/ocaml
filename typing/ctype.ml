@@ -745,12 +745,6 @@ let needs_expand env level path args =
 let rec update_level env level expand ty =
   if get_level ty > level then begin
     if level < get_scope ty then raise_scope_escape_exn ty;
-    (* Should we remove out-of-scope abbreviations ?
-    let abbrevs = get_abbrevs ty in
-    let abbrevs' =
-      List.filter (fun (p,_) -> level >= Path.scope p) abbrevs in
-    if List.length abbrevs <> List.length abbrevs' then
-      Transient_expr.(set_abbrevs (repr ty) abbrevs'); *)
     (* Remove out-of-scope Texpand *)
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
@@ -855,7 +849,6 @@ let rec unexpand_type_expr env visited ty =
             if is_Tconstr tc then begin
               let tt' = Transient_expr.repr tc in
               Transient_expr.set_desc tt tt'.desc;
-              Transient_expr.set_abbrevs tt tt'.abbrevs;
               Transient_expr.set_level tt lv;
               Transient_expr.set_scope tt sc;
             end else
@@ -1201,17 +1194,16 @@ let rec copy ?partial ?keep_names scope ty =
           Tobject (copy ty1, ref None)
       | _ -> copy_type_desc ?keep_names copy desc
     in
-    let t', desc' =
+    let desc' =
       match ty_expand with
         Some (path, args) ->
           let args = List.map copy args in
           let t' = new_scoped_ty ty_scope desc' in
-          (t', Texpand (t', path, args))
+          Texpand (t', path, args)
       | None ->
-          (t, desc')
+          desc'
     in
     Transient_expr.set_stub_desc t desc';
-    inherit_map_abbrevs ~from:ty ~into:t' ~fpath:(fun x -> x) ~farg:copy;
     t
 
 (**** Variants of instantiations ****)
@@ -1450,8 +1442,6 @@ let rec copy_sep ~cleanup_scope ~fixed ~free ~bound ~may_share
       | _ -> copy_type_desc (copy_rec ~may_share:true) desc
     in
     Transient_expr.set_stub_desc t desc';
-    inherit_map_abbrevs
-      ~from:ty ~into:t ~fpath:(fun x -> x) ~farg:(copy_rec ~may_share:true);
     t
   end
 
@@ -2796,7 +2786,9 @@ and unify3 env t1' t2' =
               (fun () -> unify_list env tl1 tl2)
           else if in_current_module p1 (* || in_pervasives p1 *)
                || List.exists (fun (p, _) -> expands_to_datatype !env p)
-                              (get_abbrevs t1' @ get_abbrevs t2')
+                              (Option.to_list (get_expand t1') @
+                               Option.to_list (get_expand t2') @
+                               [p1, []])
           then
             unify_list env tl1 tl2
           else

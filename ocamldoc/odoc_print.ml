@@ -92,7 +92,7 @@ let simpl_class_type t =
       let tself =
         let t = cs.csig_self in
         let desc = Tobject (self_row, ref None) in
-        Types.create_expr desc ~abbrevs:[]
+        Types.create_expr desc
           ~level:(get_level t) ~scope:(get_scope t) ~id:(get_id t)
       in
         Types.Cty_signature { csig_self = tself;

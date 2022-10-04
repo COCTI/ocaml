@@ -21,7 +21,6 @@ open Asttypes
 
 type transient_expr =
   { mutable desc: type_desc;
-    mutable abbrevs: (Path.t * type_expr list) list;
     mutable level: int;
     mutable scope: int;
     id: int }
@@ -456,7 +455,6 @@ let signature_item_id = function
 
 type change =
     Ctype of type_expr * type_desc
-  | Cabbrevs of type_expr * (Path.t * type_expr list) list
   | Ccompress of type_expr * type_desc * type_desc
   | Clevel of type_expr * int
   | Cscope of type_expr * int
@@ -580,7 +578,6 @@ let get_desc t = (repr t).desc
 let get_level t = (repr t).level
 let get_scope t = (repr t).scope
 let get_id t = (repr t).id
-let get_abbrevs t = (repr t).abbrevs
 
 let get_expand t =
   ignore (repr t);
@@ -593,10 +590,9 @@ let iter_expand f t =
 (* transient type_expr *)
 
 module Transient_expr = struct
-  let create desc ~abbrevs ~level ~scope ~id = {desc; abbrevs; level; scope; id}
+  let create desc ~level ~scope ~id = {desc; level; scope; id}
   let set_desc ty d = ty.desc <- d
   let set_stub_desc ty d = assert (ty.desc = Tvar None); ty.desc <- d
-  let set_abbrevs ty a = ty.abbrevs <- a
   let set_level ty lv = ty.level <- lv
   let set_scope ty sc = ty.scope <- sc
   let coerce ty = ty
@@ -741,7 +737,7 @@ let create_expr = Transient_expr.create
 
 let newty3 ~level ~scope desc  =
   incr new_id;
-  create_expr desc ~abbrevs:[] ~level ~scope ~id:!new_id
+  create_expr desc ~level ~scope ~id:!new_id
 
 let newty2 ~level desc =
   newty3 ~level ~scope:Ident.lowest_scope desc
@@ -752,7 +748,6 @@ let newty2 ~level desc =
 
 let undo_change = function
     Ctype  (ty, desc) -> Transient_expr.set_desc ty desc
-  | Cabbrevs (ty, abbrevs) -> Transient_expr.set_abbrevs ty abbrevs
   | Ccompress (ty, desc, _) -> Transient_expr.set_desc ty desc
   | Clevel (ty, level) -> Transient_expr.set_level ty level
   | Cscope (ty, scope) -> Transient_expr.set_scope ty scope
@@ -767,30 +762,6 @@ let last_snapshot = Local_store.s_ref 0
 
 let log_type ty =
   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
-let log_abbrevs ty =
-  if ty.id <= !last_snapshot then log_change (Cabbrevs (ty, ty.abbrevs))
-
-(* Be careful not to forget [log_abbrevs] before using [add_abbrev] *)
-let add_abbrev ty path args =
-  let ty = repr ty in
-  if List.exists (fun (p,_) -> Path.same p path) ty.abbrevs then () else
-  ty.abbrevs <- (path, args) :: ty.abbrevs
-
-let inherit_abbrevs ~from:ty ~into:ty' =
-  let abbrevs = get_abbrevs ty in
-  if abbrevs = [] then () else
-  let () = log_abbrevs ty' in
-  List.iter (fun (path,args) -> add_abbrev ty' path args) abbrevs
-
-let inherit_map_abbrevs ~from:ty ~into:ty' ~fpath ~farg =
-  let abbrevs = get_abbrevs ty in
-  if abbrevs = [] then () else
-  let () = log_abbrevs ty' in
-  List.iter
-    (fun (path, args) -> add_abbrev ty' (fpath path) (List.map farg args))
-    abbrevs
-        
-
 
 let link_expand ty ty' =
   let ty = repr ty in
@@ -798,9 +769,6 @@ let link_expand ty ty' =
   if ty == ty' then () else
   match ty.desc with
     Tconstr (path, args, _memo) ->
-      inherit_abbrevs ~from:ty ~into:ty';
-      log_abbrevs ty';
-      add_abbrev ty' path args;
       log_type ty;
       Transient_expr.set_desc ty (Texpand (ty', path, args))
   | _ -> Misc.fatal_error "Types.link_expand"
@@ -817,7 +785,6 @@ let link_type ty ty' =
   let ty = repr ty in
   let ty'' = repr ty' in
   if ty == ty'' then () else begin
-  inherit_abbrevs ~from:ty ~into:ty'';
   log_type ty;
   let desc = ty.desc in
   begin match ty'.desc with
