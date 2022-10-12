@@ -102,14 +102,29 @@ Proof.
   by rewrite Uint63.eqb_refl coerceE.
 Qed.
 
+Definition mem_env {T} (r : loc T) env :=
+  let: mkEnv c refs := env in
+  let: mkloc k := r in mem_bindings k refs.
+
+Definition envok env :=
+  let: mkEnv c refs := env in uniq_bindings refs.
+
+Lemma updateok k env : mem_bindings (bind_key M k) env -> uniq_bindings env
+  -> update k env <> None.
+Admitted.
+
 Lemma setref_getE {T} x y env :
-  
+  mem_env x env -> envok env ->
   RunM (do _ <- setref T x y; getref T x) env = inl y.
 Proof.
   rewrite /RunM /setref /getref /Bind.
   case: env => i l.
-  case: x y => k y /=.
-Admitted.
+  case: x y => k y /= Hmem Huniq.
+  case H : update => [s'|] => //=.
+  move: (lookup_updateE k y l Hmem Huniq).
+  rewrite H /= => -> //.
+  by move/(updateok (mkbind k y) l Hmem Huniq) in H.
+Qed.
 
 Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
