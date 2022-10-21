@@ -37,6 +37,36 @@ Qed.*)
 Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
   getref T l env = Ret x env.
 
+Lemma lesb_spec m n : lesb m n -> compares m n <> Gt.
+Proof.
+  move/Sint63.lebP.
+  rewrite Sint63.compare_spec.
+  by rewrite Z.compare_le_iff.
+Qed.
+
+Lemma lesb_trans l m n : lesb l m -> lesb m n -> lesb l n.
+Proof.
+  move/Sint63.lebP => lelm.
+  move/Sint63.lebP => lemn.
+  apply/Sint63.lebP.
+Admitted.
+
+Lemma forloop_mono h m n b : lesb m n -> int_to_nat (n - m + 1) <= h ->
+  forloop h m n b = forloop h.+1 m n b.
+Proof.
+  elim: h m => [|h IH] m lemn.
+  - admit.
+  - move=> Hgas.
+    rewrite (lock h.+2) /=.
+    move:(lemn).
+    move/lesb_spec.
+    case H : (compares m n) => // _.
+    + rewrite (IH (m + 1)%uint63).
+      rewrite -lock /=.
+      by rewrite H.
+
+    +
+
 Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
   lesb n (n + 1) -> lesb (n + 1) p ->
   int_to_nat (p - m) <= h ->
@@ -44,7 +74,7 @@ Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
 Proof.
   elim: h m => [|h IH] m //.
   rewrite {3}(lock h.+1).
-  move=> Hm Hmn Hnn' Hnp Hpm /=.
+  move=> Hm Hmn Hnn' Hnp Hpm. /=.
   case H: (compares m n) => //=.
   - rewrite Sint63.compare_spec in H.
     apply Z.compare_eq in H.
@@ -72,7 +102,7 @@ Proof.
           move/ Sint63.to_Z_inj in H'.
           rewrite H'' /= in H'.
           by move/ eqb_complete in H'.
-        +
+        + 
       -
   -
   -
