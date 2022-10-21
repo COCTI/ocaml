@@ -268,7 +268,7 @@ Fixpoint gcd (h : nat) (m n : coq_type ml_int) : M (coq_type ml_int) :=
 Definition fact_for (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
   do v <- newref ml_int 1%int63;
   do _ <-
-  (do u <- Ret 2%int63;
+  (do u <- Ret 1%int63;
    do v_1 <- Ret n;
    forloop h u v_1
      (fun i =>
@@ -276,8 +276,3 @@ Definition fact_for (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
         setref ml_int v v_1));
   getref ml_int v.
 
-Definition inl_inv (x : int + Env.Exn) :=
-  match x with
-  | inl a => a
-  | inr b => min_int
-  end.

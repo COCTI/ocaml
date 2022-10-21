@@ -46,7 +46,7 @@ let rec gcd m n =
 (* fact by forloop *)
 let fact_for n =
   let v = ref 1 in
-  for i = 2 to n do
+  for i = 1 to n do
     v := !v * i
   done;
   !v;;
