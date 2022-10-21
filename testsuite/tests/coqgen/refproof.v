@@ -41,6 +41,7 @@ Lemma forloop_cat h m n p b : (0 <=? m)%uint63 -> (m <=? n + 1)%uint63 ->
   (n <=? p)%uint63 -> int_to_nat (p - m) <= h ->
   forloop h m n b >> forloop h (n + 1)%uint63 p b = forloop h m p b.
 Proof.
+
 Admitted.
 
 Lemma int_to_natK n : nat_to_int (int_to_nat n) = n.
@@ -83,7 +84,13 @@ Proof.
   case H: (key_id k =? key_id k')%uint63 => /=.
   - case: ml_type_eq_dec => a //=.
     + by rewrite Uint63.eqb_refl coerceE.
-    + admit.
+    + rewrite /mem_bindings /uniq_bindings /key_eqb.
+      move => Hmem /(_ (key_id k)).
+      apply eqb_correct in H.
+      rewrite 1!H /= eqb_refl.
+      rewrite has_count in Hmem.
+Search nat bool true.
+Search count. admit.
   - move=> Hmem Huniq.
     have Huniq' : uniq_bindings env.
       move=> x.
@@ -146,7 +153,8 @@ Proof.
       rewrite /nat_to_int /=.
       destruct h => //=.
       rewrite bindretf.
-      move/newgetref_int in H.
+      move:H. 
+      move/newref_getE in H.
       by rewrite H => -[] _ <-.
     destruct n.
       rewrite /nat_to_int /=.
