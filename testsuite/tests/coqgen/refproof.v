@@ -37,10 +37,54 @@ Qed.*)
 Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
   getref T l env = Ret x env.
 
-Lemma forloop_cat h m n p b : (0 <=? m)%uint63 -> (m <=? n + 1)%uint63 ->
-  (n <=? p)%uint63 -> int_to_nat (p - m) <= h ->
+Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
+  lesb n (n + 1) -> lesb (n + 1) p ->
+  int_to_nat (p - m) <= h ->
   forloop h m n b >> forloop h (n + 1)%uint63 p b = forloop h m p b.
 Proof.
+  elim: h m => [|h IH] m //.
+  rewrite {3}(lock h.+1).
+  move=> Hm Hmn Hnn' Hnp Hpm /=.
+  case H: (compares m n) => //=.
+  - rewrite Sint63.compare_spec in H.
+    apply Z.compare_eq in H.
+    apply Sint63.to_Z_inj in H.
+    rewrite H.
+    destruct h => //=.
+    + rewrite bindA !bindfailf.
+      case H' : (compares n p) => //.
+      move: H'.
+      rewrite Sint63.compare_spec.
+      move/ Z.compare_nle_iff.
+      elim.
+      move: (Hnp).
+      move/ Sint63.lebP.
+      apply /Z.le_trans.
+      by apply /Sint63.lebP.
+    + rewrite Sint63.compare_spec.
+      move/ Sint63.lebP in Hnn'.
+      Search (_ <= _)%Z (_ ?= _)%Z.
+      move/ Z.compare_ge_iff in Hnn'.
+      case H' : (Sint63.to_Z (n + 1) ?= Sint63.to_Z n)%Z => //.
+      - apply Z.compare_eq in H'.
+        case H'' : (eqb n max_int).
+        + move/ eqb_correct in H''.
+          move/ Sint63.to_Z_inj in H'.
+          rewrite H'' /= in H'.
+          by move/ eqb_complete in H'.
+        +
+      -
+  -
+  -
+
+
+  - case: (compares (n + 1) p) => //=.
+    + case: (compares m p) => //=.
+      rewrite /Bind.
+    +
+    +
+  -
+  -
 
 Admitted.
 
@@ -51,10 +95,29 @@ Proof.
   by case : (to_Z_bounded n).
 Qed.
 
+Lemma hat_to_expnE n : 2 ^ n = expn 2 n.
+Proof.
+  elim: n => // n.
+  rewrite expnSr Nat.pow_succ_r' => ->.
+  by rewrite mulnC.
+Qed.
+
 Lemma nat_to_intK n : n < expn 2 63 -> int_to_nat (nat_to_int n) = n.
 Proof.
+  move=> Hn.
   rewrite /int_to_nat /nat_to_int.
-Admitted.
+  rewrite of_Z_spec.
+  rewrite (_ : wB = Z.of_nat (expn 2 63)).
+    rewrite -Nat2Z.inj_mod.
+    rewrite Nat.mod_small //.
+      by rewrite Nat2Z.id.
+    apply /ltP => //.
+  rewrite /wB /size.
+  have -> : 2%Z = Z.of_nat 2.
+    done.
+  rewrite -Nat2Z.inj_pow.
+  by rewrite hat_to_expnE.
+Qed.
 
 Definition RunM {A} (x : M A) env := RunW (x env).
 
@@ -153,16 +216,17 @@ Proof.
       rewrite /nat_to_int /=.
       destruct h => //=.
       rewrite bindretf.
-      move:H. 
-      move/newref_getE in H.
-      by rewrite H => -[] _ <-.
+(*       move/newgetref_int in H.
+      by rewrite H => -[] _ <-. *)
+      admit.
     destruct n.
       rewrite /nat_to_int /=.
       destruct h => //=.
-      rewrite bindretf.
-      move/newgetref_int in H.
-      by rewrite H => -[] _ <-.
-    rewrite -(forloop_cat h 2 (nat_to_int n.+1)).
+      rewrite !bindA.
+(*       move/newgetref_int in H.
+      by rewrite H => -[] _ <-. *)
+      admit.
+    rewrite -(forloop_cat h 1 (nat_to_int n.+1)).
     rewrite bindA.
     rewrite {1}/Bind.
     move : IH.
