@@ -51,20 +51,58 @@ Proof.
   apply/Sint63.lebP.
 Admitted.
 
-Lemma forloop_mono h m n b : lesb m n -> int_to_nat (n - m + 1) <= h ->
-  forloop h m n b = forloop h.+1 m n b.
+Lemma compare_succ n : n <> Sint63.max_int -> compares (n + 1) n = Gt.
 Proof.
-  elim: h m => [|h IH] m lemn.
+  move => H.
+  rewrite Sint63.compare_spec Sint63.to_Z_succ //.
+  by rewrite Z.add_1_r Zcompare_succ_Gt.
+Qed.
+
+Lemma compare_Lt_succ_le m n : compares m n = Lt -> lesb (succ m) n.
+Proof.
+  case H : (m == Sint63.max_int).
+  - move:H => /eqP -> H.
+    apply/Sint63.lebP => /=.
+    by apply Sint63.to_Z_bounded.
+  - move:H => /eqP => H.
+    rewrite Sint63.compare_spec Z.compare_lt_iff.
+    rewrite -Z.le_succ_l -Z.add_1_r.
+    rewrite -Sint63.to_Z_succ //.
+  by rewrite -Sint63.leb_spec.
+Qed.
+
+Lemma int_to_natE m n : int_to_nat (m + n) = int_to_nat m + int_to_nat n.
+Proof.
+  rewrite /int_to_nat.
+  Admitted.
+
+Lemma forloop_mono h m n b : n <> Sint63.max_int -> lesb m n ->
+  int_to_nat (n - m + 2) <= h -> forloop h m n b = forloop h.+1 m n b.
+Proof.
+  elim: h m => [|h IH] m Hn lemn.
   - admit.
   - move=> Hgas.
     rewrite (lock h.+2) /=.
     move:(lemn).
     move/lesb_spec.
     case H : (compares m n) => // _.
-    + rewrite (IH (m + 1)%uint63).
-      rewrite -lock /=.
-      by rewrite H.
-
+    + move:H Hgas.
+      rewrite Sint63.compare_spec.
+      move /Z.compare_eq /Sint63.to_Z_inj -> => H.
+      destruct h => //=.
+      - admit.
+      - rewrite compare_succ //.
+        rewrite -lock //=.
+        by rewrite Sint63.compare_spec Z.compare_refl compare_succ.
+    + move/ compare_Lt_succ_le in H.
+      rewrite (IH (m + 1)%uint63) //.
+        rewrite -lock //=.
+        move:lemn => /lesb_spec.
+        by case : (compares m n).
+      rewrite -(leq_add2r 1 _ h) //.
+      rewrite /int_to_nat.
+Search to_Z.
+       Locate Z.to_nat.
     +
 
 Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
