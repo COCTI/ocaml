@@ -66,44 +66,93 @@ Proof.
     by apply Sint63.to_Z_bounded.
   - move:H => /eqP => H.
     rewrite Sint63.compare_spec Z.compare_lt_iff.
-    rewrite -Z.le_succ_l -Z.add_1_r.
-    rewrite -Sint63.to_Z_succ //.
+    rewrite -Z.le_succ_l -Z.add_1_r -Sint63.to_Z_succ //.
   by rewrite -Sint63.leb_spec.
 Qed.
 
-Lemma int_to_natE m n : int_to_nat (m + n) = int_to_nat m + int_to_nat n.
+Lemma Lt_not_loop m n : n <> Sint63.max_int -> compares m n = Lt ->
+  (1 <=? n - m + 1)%uint63.
 Proof.
-  rewrite /int_to_nat.
-  Admitted.
+  move=> H.
+  rewrite Sint63.compare_spec Z.compare_lt_iff => ltmns.
+Search Sint63.to_Z to_Z.
+Admitted.
 
-Lemma forloop_mono h m n b : n <> Sint63.max_int -> lesb m n ->
-  int_to_nat (n - m + 2) <= h -> forloop h m n b = forloop h.+1 m n b.
+Lemma int_to_natE m n : (n <=? m + n)%uint63 ->
+  int_to_nat (m + n) = int_to_nat m + int_to_nat n.
 Proof.
-  elim: h m => [|h IH] m Hn lemn.
-  - admit.
-  - move=> Hgas.
-    rewrite (lock h.+2) /=.
-    move:(lemn).
-    move/lesb_spec.
-    case H : (compares m n) => // _.
-    + move:H Hgas.
+  move => H.
+  rewrite /int_to_nat add_spec.
+  have -> : (Z.to_nat φ (m)%uint63 + Z.to_nat φ (n)%uint63) =
+            (Z.to_nat φ (m)%uint63 + Z.to_nat φ (n)%uint63)%coq_nat => //. 
+  rewrite -Z2Nat.inj_add.
+  congr Z.to_nat.
+  apply Z.mod_small.
+  split; last first.
+    move: add_le_r => /(_ m n).
+    by rewrite H.
+  apply Z.add_nonneg_nonneg.
+  all: apply to_Z_bounded.
+Qed.
+
+Lemma int_to_nat_1 : 1 = int_to_nat 1.
+Proof. by rewrite /int_to_nat to_Z_1. Qed.
+
+Definition le_gas {T} (f g : M T) := forall env,
+  RunW (f env) <> inr GasExhausted -> f env = g env.
+
+Lemma forloop_mono' h h' m n b : h <= h' ->
+  le_gas (forloop h m n b) (forloop h' m n b).
+Proof.
+  elim : h h' m => [|h IH] [|h'] m H env //=.
+  rewrite ltnS in H.
+  case H' : (compares m n) => //.
+  - rewrite /Bind.
+    case : (b m env) => env' -[c|e] //.
+    by apply IH.
+  - rewrite /Bind.
+    case : (b m env) => env' -[c|e] //.
+    by apply IH.
+Qed.
+
+(* Lemma forloop_mono h m n b : n <> Sint63.max_int ->
+  (1 <=? n - m + 2)%uint63 -> int_to_nat (n - m + 2) <= h ->
+  forloop h m n b = forloop h.+1 m n b.
+Proof.
+  move=> Hn.
+  elim: h m => [|h IH] m H.
+  - rewrite /int_to_nat -{1}Z2Nat.inj_0 => /leP.
+    move: to_Z_bounded => /(_ (n - m + 2)%uint63) [H' _].
+    rewrite -Z2Nat.inj_le // => H''.
+    have : (0 <= φ (n - m + 2)%uint63 <= 0)%Z.
+      by split.
+    rewrite -ZMicromega.eq_le_iff.
+    rewrite -to_Z_0 => /to_Z_inj => H'''.
+    move:H.
+    by rewrite -H'''.
+  - move=> Hgas /=.
+    case H' : (compares m n) => //.
+    + move:H' Hgas.
       rewrite Sint63.compare_spec.
-      move /Z.compare_eq /Sint63.to_Z_inj -> => H.
-      destruct h => //=.
-      - admit.
-      - rewrite compare_succ //.
-        rewrite -lock //=.
-        by rewrite Sint63.compare_spec Z.compare_refl compare_succ.
-    + move/ compare_Lt_succ_le in H.
-      rewrite (IH (m + 1)%uint63) //.
-        rewrite -lock //=.
-        move:lemn => /lesb_spec.
-        by case : (compares m n).
+      move /Z.compare_eq /Sint63.to_Z_inj ->.
+      destruct h => [|H'] /=.
+      - rewrite /int_to_nat.
+        by rewrite add_spec sub_spec Z.sub_diag Zmod_0_l.
+      - by rewrite compare_succ //.
+    + rewrite (IH (m + 1)%uint63) //.
+        admit.
       rewrite -(leq_add2r 1 _ h) //.
-      rewrite /int_to_nat.
-Search to_Z.
-       Locate Z.to_nat.
-    +
+      have H'' : ((n - (m + 1) + 2 + 1) = (n - m + 2))%uint63.
+        admit.
+      rewrite {1}int_to_nat_1 -int_to_natE.
+      all: rewrite H'' ?addn1 //.
+Admitted.
+ *)
+Lemma forloop_cat' h m n p b : lesb 0 m -> lesb m n ->
+  lesb n (n + 1) -> lesb (n + 1) p ->
+  le_gas (forloop h m p b) (forloop h m n b >> forloop h (n + 1)%uint63 p b).
+Proof.
+Admitted.
 
 Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
   lesb n (n + 1) -> lesb (n + 1) p ->
@@ -112,14 +161,14 @@ Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
 Proof.
   elim: h m => [|h IH] m //.
   rewrite {3}(lock h.+1).
-  move=> Hm Hmn Hnn' Hnp Hpm. /=.
+  move=> Hm Hmn Hnn' Hnp Hpm.
   case H: (compares m n) => //=.
   - rewrite Sint63.compare_spec in H.
     apply Z.compare_eq in H.
     apply Sint63.to_Z_inj in H.
     rewrite H.
     destruct h => //=.
-    + rewrite bindA !bindfailf.
+    + (* rewrite bindA !bindfailf.
       case H' : (compares n p) => //.
       move: H'.
       rewrite Sint63.compare_spec.
@@ -153,7 +202,7 @@ Proof.
     +
   -
   -
-
+*)
 Admitted.
 
 Lemma int_to_natK n : nat_to_int (int_to_nat n) = n.
@@ -270,6 +319,13 @@ Proof. Admitted.
 
 Lemma nat_to_int_inj m n : m = n -> nat_to_int m = nat_to_int n.
 Proof. Admitted.
+
+Theorem fact_ok' h n : int_to_nat n < expn 2 61 ->
+  le_gas (fact_for h n) (Ret (fact_rec_int n)).
+Proof.
+  
+Qed.
+
 
 Theorem fact_ok h n m env env' : int_to_nat n < expn 2 61 ->
   fact_for h n env = Ret m env' -> m = fact_rec_int n.
