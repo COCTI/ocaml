@@ -44,18 +44,42 @@ Proof.
   by rewrite Z.compare_le_iff.
 Qed.
 
+Lemma lesb_spec' m n : lesb m n -> compares n m <> Lt.
+Proof.
+  move/Sint63.lebP.
+  rewrite Sint63.compare_spec.
+  by rewrite Z.compare_ge_iff.
+Qed.
+
+Lemma lesb_succ n : n <> Sint63.max_int -> lesb n (n + 1).
+Proof.
+  move=> H.
+  apply /Sint63.lebP.
+  rewrite Sint63.to_Z_succ // Z.add_1_r.
+  by apply Z.le_succ_diag_r.
+Qed.
+
 Lemma lesb_trans l m n : lesb l m -> lesb m n -> lesb l n.
 Proof.
   move/Sint63.lebP => lelm.
   move/Sint63.lebP => lemn.
   apply/Sint63.lebP.
-Admitted.
+  by apply (Z.le_trans _ _ _ lelm).
+Qed.
 
 Lemma compare_succ n : n <> Sint63.max_int -> compares (n + 1) n = Gt.
 Proof.
   move => H.
   rewrite Sint63.compare_spec Sint63.to_Z_succ //.
   by rewrite Z.add_1_r Zcompare_succ_Gt.
+Qed.
+
+Lemma compare_succ_notEq n : compares (n + 1) n <> Eq.
+Proof.
+  case H : (n == Sint63.max_int).
+  - by move: H => /eqP ->.
+  - move/eqP in H.
+    by rewrite compare_succ.
 Qed.
 
 Lemma compare_Lt_succ_le m n : compares m n = Lt -> lesb (succ m) n.
@@ -75,7 +99,6 @@ Lemma Lt_not_loop m n : n <> Sint63.max_int -> compares m n = Lt ->
 Proof.
   move=> H.
   rewrite Sint63.compare_spec Z.compare_lt_iff => ltmns.
-Search Sint63.to_Z to_Z.
 Admitted.
 
 Lemma int_to_natE m n : (n <=? m + n)%uint63 ->
@@ -93,6 +116,12 @@ Proof.
     by rewrite H.
   apply Z.add_nonneg_nonneg.
   all: apply to_Z_bounded.
+Qed.
+
+Lemma Eq_to_eq m n : compares m n = Eq -> m = n.
+Proof.
+  rewrite Sint63.compare_spec.
+  by move /Z.compare_eq  /Sint63.to_Z_inj.
 Qed.
 
 Lemma int_to_nat_1 : 1 = int_to_nat 1.
@@ -148,10 +177,211 @@ Proof.
       all: rewrite H'' ?addn1 //.
 Admitted.
  *)
+
+Lemma le_le_eq m n : lesb m n -> lesb n m -> m = n.
+Proof.
+  move=> Hmn Hnm.
+  case H' : (compares m n).
+  - by apply Eq_to_eq.
+  - by move: Hnm => /lesb_spec'.
+  - by move: (lesb_spec _ _ Hmn).
+Qed.
+
+Lemma succ_notmax n : lesb n (n + 1) -> n <> Sint63.max_int.
+Proof.
+  case H : (n == Sint63.max_int).
+  - by move: H => /eqP ->.
+  - by move /eqP in H.
+Qed.
+
+Lemma notmax m n : lesb m n -> lesb n (n + 1) -> m <> Sint63.max_int.
+Proof.
+  case H : (m == Sint63.max_int).
+  - move: H => /eqP -> /Sint63.lebP => H.
+    have -> : n = Sint63.max_int => //=.
+    case H'' : (n == Sint63.max_int).
+    + by move /eqP in H''.
+    + move /eqP in H''.
+      move /Zle_not_lt in H.
+      have H''' : (Sint63.to_Z n < Sint63.to_Z Sint63.max_int)%Z => //.
+      apply Z.le_neq.
+      split => //.
+      - by apply Sint63.to_Z_bounded.
+      - move=> I.
+        by apply /H''/Sint63.to_Z_inj.
+  - by move /eqP in H.
+Qed.
+
+Lemma enough_gas h m n p b env env' (tt' : unit) :
+  compares m n = Lt ->
+  RunW (forloop h (m + 1) p b env) <> inr GasExhausted ->
+  forloop h (m + 1) n b env = (env', inl tt') ->
+  RunW (forloop h (n + 1) p b env') <> inr GasExhausted.
+Proof.
+  elim: h m n env env' => [|h IH] m n env env' Hmn Hf //=.
+  case Hmp : (compares (m + 1) p).
+  - admit. (* compares n p = Gt *)
+  - case Hnp : (compares (n + 1) p) => //.
+    + rewrite /Bind.
+      case : (b n env') => [env'' [tt|e]] //=.
+      - admit.
+      - admit.
+    + admit.
+  - admit. (* compares n p = Gt *)
+Admitted.
+
 Lemma forloop_cat' h m n p b : lesb 0 m -> lesb m n ->
   lesb n (n + 1) -> lesb (n + 1) p ->
   le_gas (forloop h m p b) (forloop h m n b >> forloop h (n + 1)%uint63 p b).
 Proof.
+  elim: h m => [|h IH] m H0m Hmn Hnn' Hnp //.
+  rewrite {3} (lock h.+1) /=.
+  case Hmp' : (compares m p).
+  - case Hmn' : (compares m n).
+    + case Hnp' : (compares (n + 1) p).
+      - move: Hmp' Hmn' Hnp'.
+        move /Eq_to_eq => <-.
+        move /Eq_to_eq => <-.
+        by move /compare_succ_notEq.
+      - move: Hmp' Hmn' Hnp'.
+        move /Eq_to_eq => <-.
+        move /Eq_to_eq => <-.
+        rewrite compare_succ //.
+        by apply (notmax m n).
+      - by move: (lesb_spec _ _ Hnp).
+    + case Hnp' : (compares (n + 1) p).
+      - move: Hmp' Hnp' Hmn'.
+        move /Eq_to_eq => <-.
+        move /Eq_to_eq => <-.
+        rewrite compare_succ //.
+        by apply succ_notmax.
+      - move: Hmn'.
+        move: Hmp' (Hnp) => /Eq_to_eq <- => Hmp'.
+        move: (lesb_trans _ _ _ Hmn Hnn') => Hpm'.
+        move: (le_le_eq _ _ Hmp' Hpm') => <-.
+        by move: (compare_succ _ (succ_notmax _ Hnn')) ->.
+      - by move: (lesb_spec _ _ Hnp).
+    + by move: (lesb_spec _ _ Hmn).
+  - case Hmn' : (compares m n).
+    + case Hnp' : (compares (n + 1) p).
+      - move=> env.
+        move: Hmn' => /Eq_to_eq -> => Hgas.
+        destruct h.
+        + by rewrite !bindA !bindfailf.
+        + rewrite bindA /Bind {1}(lock h.+1).
+          case H : (b n env) => [env' [tt|e]] //=.
+          move: (compare_succ n (succ_notmax _ Hnn')) -> => /=.
+          rewrite -!lock.
+          rewrite (forloop_mono' h.+1 h.+2) //.
+          by rewrite /Bind H in Hgas.
+      - move=> env.
+        move: Hmn' => /Eq_to_eq -> Hgas.
+        destruct h.
+        + by rewrite !bindA !bindfailf.
+        + rewrite bindA /Bind {1}(lock h.+1).
+          case H : (b n env) => [env' [tt|e]] //=.
+          move: (compare_succ n (succ_notmax _ Hnn')) -> => /=.
+          rewrite -!lock.
+          rewrite (forloop_mono' h.+1 h.+2) //.
+          by rewrite /Bind H in Hgas.
+      - by move: (lesb_spec _ _ Hnp).
+    + move: (Hmn') => /compare_Lt_succ_le => Hmn''.
+      case Hnp' : (compares (n + 1) p) => env.
+      - rewrite {1}/Bind.
+        case H : (b m env) => [env' [tt|e]].
+        + rewrite {1}/Bind H bindA {1}/Bind H => Hgas.
+          rewrite (IH (m + 1)%uint63) //=.
+            rewrite -lock /Bind.
+            case H' : (forloop h (m + 1) n b env') => [env'' [tt'|e']] //.
+            rewrite -(forloop_mono' h h.+1) //.
+
+            apply (enough_gas h m _ _ _  env' _ tt') => //.
+          apply (lesb_trans _ _ _ H0m).
+          by apply /lesb_succ /(notmax _ _ Hmn Hnn').
+        + by rewrite bindA /Bind H.
+      - rewrite {1}/Bind.
+        case H : (b m env) => [env' [tt|e]].
+        + rewrite {1}/Bind H bindA {1}/Bind H => Hgas.
+          rewrite (IH (m + 1)%uint63) //=.
+            rewrite -lock /Bind.
+            case H' : (forloop h (m + 1) n b env') => [env'' [tt'|e']] //.
+            rewrite -(forloop_mono' h h.+1) //.
+
+            apply (enough_gas h m _ _ _  env' _ tt') => //.
+          apply (lesb_trans _ _ _ H0m).
+          by apply /lesb_succ /(notmax _ _ Hmn Hnn').
+        + by rewrite bindA /Bind H.
+      - by move: (lesb_spec _ _ Hnp).
+    + by move: (lesb_spec _ _ Hmn).
+  - have Hmp : lesb m p.
+      apply (lesb_trans _ (n + 1)) => //.
+      by apply (lesb_trans _ n).
+    by move: (lesb_spec _ _ Hmp).
+Admitted.
+
+(*         rewrite /le_gas in IH.
+        rewrite {1}/Bind.
+        case H : (b m env) => [env' [tt|e]].
+        + rewrite {1}/Bind H bindA {1}/Bind H => Hgas.
+          rewrite (IH (m + 1)%uint63) //=.
+                rewrite -lock.
+                rewrite /Bind.
+                case H' : (forloop h (m + 1) n b env') => [env'' [tt'|e']] //.
+                rewrite -(forloop_mono' h h.+1) //.
+        + by rewrite bindA /Bind H. *)
+  -
+
+
+
+ //=.
+  case Hmp' : (compares m p).
+  - case Hmn' : (compares m n).
+    + case Hnp' : (compares (n + 1) p).
+      - move: Hmp' Hmn' Hnp'.
+        move /Eq_to_eq => <-.
+        move /Eq_to_eq => <-.
+        by move /compare_succ_notEq.
+      - move: Hmp' Hmn' Hnp'.
+        move /Eq_to_eq => <-.
+        move /Eq_to_eq => <-.
+        rewrite compare_succ //.
+        by apply (notmax m n).
+      - by move: (lesb_spec _ _ Hnp).
+    + case Hnp' : (compares (n + 1) p).
+      - move: Hmp' Hnp' Hmn'.
+        move /Eq_to_eq => <-.
+        move /Eq_to_eq => <-.
+        rewrite compare_succ //.
+        by apply succ_notmax.
+      - move: Hmn'.
+        move: Hmp' (Hnp) => /Eq_to_eq <- => Hmp'.
+        move: (lesb_trans _ _ _ Hmn Hnn') => Hpm'.
+        move: (le_le_eq _ _ Hmp' Hpm') => <-.
+        by move: (compare_succ _ (succ_notmax _ Hnn')) ->.
+      - by move: (lesb_spec _ _ Hnp).
+    + by move: (lesb_spec _ _ Hmn).
+  - case Hmn' : (compares m n).
+    + case Hnp' : (compares (n + 1) p).
+      - destruct h.
+        + by rewrite !bindA !bindfailf.
+        + admit.
+      - destruct h.
+        + by rewrite !bindA !bindfailf.
+        + admit.
+      - by move: (lesb_spec _ _ Hnp).
+    + case Hnp' : (compares (n + 1) p).
+      - destruct h.
+        + by rewrite !bindA !bindfailf.
+        + admit.
+      - destruct h.
+        + by rewrite !bindA !bindfailf.
+        + admit.
+      - by move: (lesb_spec _ _ Hnp).
+    + by move: (lesb_spec _ _ Hmn).
+  - have Hmp : lesb m p.
+      apply (lesb_trans _ (n + 1)) => //.
+      by apply (lesb_trans _ n).
+    by move: (lesb_spec _ _ Hmp).
 Admitted.
 
 Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
