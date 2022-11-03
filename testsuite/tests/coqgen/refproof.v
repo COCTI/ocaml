@@ -148,6 +148,7 @@ Proof.
       all: rewrite H'' ?addn1 //.
 Admitted.
  *)
+
 Lemma forloop_cat' h m n p b : lesb 0 m -> lesb m n ->
   lesb n (n + 1) -> lesb (n + 1) p ->
   le_gas (forloop h m p b) (forloop h m n b >> forloop h (n + 1)%uint63 p b).
@@ -269,8 +270,7 @@ Proof.
       apply eqb_correct in H.
       rewrite 1!H /= eqb_refl.
       rewrite has_count in Hmem.
-Search nat bool true.
-Search count. admit.
+      admit.
   - move=> Hmem Huniq.
     have Huniq' : uniq_bindings env.
       move=> x.
@@ -320,11 +320,18 @@ Proof. Admitted.
 Lemma nat_to_int_inj m n : m = n -> nat_to_int m = nat_to_int n.
 Proof. Admitted.
 
+Definition le_gasW {T} (f g : M T) := forall env,
+  RunW (f env) <> inr GasExhausted -> RunW (f env) = RunW (g env).
+
 Theorem fact_ok' h n : int_to_nat n < expn 2 61 ->
-  le_gas (fact_for h n) (Ret (fact_rec_int n)).
+  le_gasW (fact_for h n) (Ret (fact_rec_int n)).
 Proof.
-  
-Qed.
+  move=> H env.
+  rewrite /fact_for {1}/Bind.
+  case H' : (newref _ _ _) => [env'' [s|e]].
+  - rewrite !bindretf.
+    
+Admitted.
 
 
 Theorem fact_ok h n m env env' : int_to_nat n < expn 2 61 ->
