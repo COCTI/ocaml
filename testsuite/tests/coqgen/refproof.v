@@ -135,13 +135,10 @@ Lemma forloop_mono' h h' m n b : h <= h' ->
 Proof.
   elim : h h' m => [|h IH] [|h'] m H env //=.
   rewrite ltnS in H.
-  case H' : (compares m n) => //.
-  - rewrite /Bind.
-    case : (b m env) => env' -[c|e] //.
-    by apply IH.
-  - rewrite /Bind.
-    case : (b m env) => env' -[c|e] //.
-    by apply IH.
+  case H' : (ltsb n m) => //.
+  rewrite /Bind.
+  case : (b m env) => env' -[c|e] //.
+  by apply IH.
 Qed.
 
 (* Lemma forloop_mono h m n b : n <> Sint63.max_int ->
@@ -213,21 +210,46 @@ Proof.
 Qed.
 
 Lemma enough_gas h m n p b env env' (tt' : unit) :
-  compares m n = Lt ->
-  RunW (forloop h (m + 1) p b env) <> inr GasExhausted ->
-  forloop h (m + 1) n b env = (env', inl tt') ->
-  RunW (forloop h (n + 1) p b env') <> inr GasExhausted.
+  ltsb m n ->
+  forloop h m (n - 1)%uint63 b env = (env', inl tt') ->
+  RunW (forloop h n p b env') = inr GasExhausted ->
+  RunW (forloop h m p b env) = inr GasExhausted.
 Proof.
-  elim: h m n env env' => [|h IH] m n env env' Hmn Hf //=.
-  case Hmp : (compares (m + 1) p).
-  - admit. (* compares n p = Gt *)
-  - case Hnp : (compares (n + 1) p) => //.
+  elim: h m env => [|h IH] m env Hmn Hgas Hf //=.
+  case Hmp : (ltsb p m).
+  - move: Hf.
+    rewrite /=.
+    have -> : ltsb p n => //.
+    admit.
+  - move: Hgas => /=.
+    have -> : (ltsb (n - 1) m) = false. admit.
+    rewrite /Bind.
+    case : (b m env) => env'' [] // _.
+    case Hmn' : ((m + 1) =? n)%uint63.
+    + move: Hmn' => /eqb_correct ->.
+      destruct h => //.
+      rewrite [forloop h.+1 n (n - 1) b env''] /=.
+      have -> : ltsb (n - 1) n. admit.
+      case => -> _.
+      case H : (RunW (forloop h.+1 n p b env')) => [a|e].
+      - rewrite -H -Hf.
+        apply /f_equal /(forloop_mono' h.+1 h.+2) => //.
+        by rewrite H.
+      - destruct e => //;rewrite -H -Hf;
+        apply /f_equal /(forloop_mono' h.+1 h.+2) => //;
+        by rewrite H.
+    + move=> Hfor.
+      apply IH => //.
+        admit.
+      
+
+(*  case Hnp : (compares (n + 1) p) => //.
     + rewrite /Bind.
-      case : (b n env') => [env'' [tt|e]] //=.
+      case H : (b (n + 1)%uint63 env') => [env'' [tt|e]] //=.
       - admit.
       - admit.
-    + admit.
-  - admit. (* compares n p = Gt *)
+    + admit. *)
+  - admit.
 Admitted.
 
 Lemma forloop_cat' h m n p b : lesb 0 m -> lesb m n ->
@@ -236,9 +258,10 @@ Lemma forloop_cat' h m n p b : lesb 0 m -> lesb m n ->
 Proof.
   elim: h m => [|h IH] m H0m Hmn Hnn' Hnp //.
   rewrite {3} (lock h.+1) /=.
-  case Hmp' : (compares m p).
-  - case Hmn' : (compares m n).
-    + case Hnp' : (compares (n + 1) p).
+  case Hmp' : (ltsb p m).
+  - admit. (*contr*)
+  (* - case Hmn' : (ltsb n m).
+    (* + case Hnp' : (ltsb p (n + 1)).
       - move: Hmp' Hmn' Hnp'.
         move /Eq_to_eq => <-.
         move /Eq_to_eq => <-.
@@ -248,7 +271,7 @@ Proof.
         move /Eq_to_eq => <-.
         rewrite compare_succ //.
         by apply (notmax m n).
-      - by move: (lesb_spec _ _ Hnp).
+      - by move: (lesb_spec _ _ Hnp). *)
     + case Hnp' : (compares (n + 1) p).
       - move: Hmp' Hnp' Hmn'.
         move /Eq_to_eq => <-.
@@ -261,9 +284,10 @@ Proof.
         move: (le_le_eq _ _ Hmp' Hpm') => <-.
         by move: (compare_succ _ (succ_notmax _ Hnn')) ->.
       - by move: (lesb_spec _ _ Hnp).
-    + by move: (lesb_spec _ _ Hmn).
-  - case Hmn' : (compares m n).
-    + case Hnp' : (compares (n + 1) p).
+    + by move: (lesb_spec _ _ Hmn). *)
+  - case Hmn' : (ltsb n m).
+    + 
+    (* + case Hnp' : (compares (n + 1) p).
       - move=> env.
         move: Hmn' => /Eq_to_eq -> => Hgas.
         destruct h.
@@ -284,7 +308,7 @@ Proof.
           rewrite -!lock.
           rewrite (forloop_mono' h.+1 h.+2) //.
           by rewrite /Bind H in Hgas.
-      - by move: (lesb_spec _ _ Hnp).
+      - by move: (lesb_spec _ _ Hnp). *)
     + move: (Hmn') => /compare_Lt_succ_le => Hmn''.
       case Hnp' : (compares (n + 1) p) => env.
       - rewrite {1}/Bind.
@@ -294,7 +318,6 @@ Proof.
             rewrite -lock /Bind.
             case H' : (forloop h (m + 1) n b env') => [env'' [tt'|e']] //.
             rewrite -(forloop_mono' h h.+1) //.
-
             apply (enough_gas h m _ _ _  env' _ tt') => //.
           apply (lesb_trans _ _ _ H0m).
           by apply /lesb_succ /(notmax _ _ Hmn Hnn').
@@ -306,7 +329,6 @@ Proof.
             rewrite -lock /Bind.
             case H' : (forloop h (m + 1) n b env') => [env'' [tt'|e']] //.
             rewrite -(forloop_mono' h h.+1) //.
-
             apply (enough_gas h m _ _ _  env' _ tt') => //.
           apply (lesb_trans _ _ _ H0m).
           by apply /lesb_succ /(notmax _ _ Hmn Hnn').
@@ -317,7 +339,7 @@ Proof.
       apply (lesb_trans _ (n + 1)) => //.
       by apply (lesb_trans _ n).
     by move: (lesb_spec _ _ Hmp).
-Admitted.
+Qed.
 
 (*         rewrite /le_gas in IH.
         rewrite {1}/Bind.
