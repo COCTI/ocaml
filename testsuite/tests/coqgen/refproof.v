@@ -23,6 +23,14 @@ Proof.
   by apply (Z.le_trans _ _ _ lelm).
 Qed.
 
+Lemma ltsb_trans l m n : ltsb l m -> ltsb m n -> ltsb l n.
+Proof.
+  move/Sint63.ltbP => ltlm.
+  move/Sint63.ltbP => ltmn.
+  apply/Sint63.ltbP.
+  by apply (Z.lt_trans _ _ _ ltlm).
+Qed.
+
 Definition le_gas {T} (f g : M T) := forall env,
   RunW (f env) <> inr GasExhausted -> f env = g env.
 
@@ -91,17 +99,24 @@ Proof.
   case Hmp : (ltsb p m).
   - move: Hf.
     rewrite /=.
-    have -> : ltsb p n => //.
-    admit.
+    have -> : ltsb p n => // ; exact (ltsb_trans p m n Hmp Hmn).
   - move: Hgas => /=.
-    have -> : (ltsb (n - 1) m) = false. admit.
+    have -> : (ltsb (n - 1) m) = false.
+      apply /Sint63.ltbP /Zle_not_lt.
+      rewrite Sint63.to_Z_pred ?Z.sub_1_r.
+        exact /Z.lt_le_pred /Sint63.ltbP.
+      admit.
     rewrite /Bind.
     case : (b m env) => env'' [] // _.
     case Hmn' : ((m + 1) =? n)%uint63.
     + move: Hmn' => /eqb_correct ->.
       destruct h => //.
       rewrite [forloop h.+1 n (n - 1) b env''] /=.
-      have -> : ltsb (n - 1) n. admit.
+      have -> : ltsb (n - 1) n.
+        apply /Sint63.ltbP.
+        rewrite Sint63.to_Z_pred ?Z.sub_1_r.
+        exact (Z.lt_pred_l (Sint63.to_Z n)).
+        admit.
       case => -> _.
       case H : (RunW (forloop h.+1 n p b env')) => [a|e].
       - rewrite -H -Hf.
