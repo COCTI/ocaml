@@ -60,7 +60,19 @@ Proof.
   - move=> H'.
     apply /Sint63.lebP.
     rewrite Sint63.to_Z_succ // Z.add_1_r.
-    by apply Z.le_succ_diag_r.
+    exact (Z.le_succ_diag_r (Sint63.to_Z n)).
+Qed.
+
+Lemma ltsb_pred_nmin n : ltsb (n - 1) n <-> n <> Sint63.min_int.
+Proof.
+  split.
+  - case H : (n == Sint63.min_int).
+    + by move: H => /eqP ->.
+    + by move /eqP in H.
+  - move=> H'.
+    apply /Sint63.ltbP.
+    rewrite Sint63.to_Z_pred // Z.sub_1_r.
+    exact (Z.lt_pred_l (Sint63.to_Z n)).
 Qed.
 
 Lemma lesb_l_nmax m n : lesb m n -> lesb n (n + 1) -> m <> Sint63.max_int.
