@@ -23,6 +23,14 @@ Proof.
   by apply (Z.le_trans _ _ _ lelm).
 Qed.
 
+Lemma ltsb_trans l m n :  ltsb l m -> ltsb m n -> ltsb l n.
+Proof.
+  move/Sint63.ltbP => ltlm.
+  move/Sint63.ltbP => ltmn.
+  apply/Sint63.ltbP.
+  by apply (Z.lt_trans _ _ _ ltlm).
+Qed.
+
 Definition le_gas {T} (f g : M T) := forall env,
   RunW (f env) <> inr GasExhausted -> f env = g env.
 
@@ -81,6 +89,15 @@ Proof.
   - by move /eqP in H.
 Qed.
 
+Lemma ltsb_nmin m n : ltsb m n -> n <> Sint63.min_int.
+Proof.
+  case H : (n == Sint63.min_int).
+  - move : H => /eqP -> /(Sint63.ltbP m).
+    move : (Sint63.to_Z_bounded m) => [/Zle_not_gt H _].
+    by move/Z.lt_gt.
+  - by move /eqP in H.
+Qed.
+
 Lemma enough_gas h m n p b env env' (tt' : unit) :
   ltsb m n ->
   forloop h m (n - 1)%uint63 b env = (env', inl tt') ->
@@ -94,7 +111,8 @@ Proof.
     have -> : ltsb p n => //.
     admit.
   - move: Hgas => /=.
-    have -> : (ltsb (n - 1) m) = false. admit.
+    have -> : (ltsb (n - 1) m) = false.
+      admit.
     rewrite /Bind.
     case : (b m env) => env'' [] // _.
     case Hmn' : ((m + 1) =? n)%uint63.
