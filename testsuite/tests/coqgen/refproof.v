@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Uint63 BinNums ZArith cocti_defs test2 sortproof Eqdep_dec.
+Require Import Uint63 BinNums ZArith cocti_defs test2 sortproof Eqdep_dec Ring63.
 
 Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
 
@@ -14,6 +14,12 @@ Definition fact_rec_int n : int :=
 
 Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
   getref T l env = Ret x env.
+
+Lemma lesb_not_ltsb m n : lesb m n -> ltsb n m = false.
+Proof.
+  move /Sint63.lebP => lelm.
+  exact /Sint63.ltbP /Zle_not_lt.
+Qed.
 
 Lemma lesb_trans l m n : lesb l m -> lesb m n -> lesb l n.
 Proof.
@@ -63,6 +69,18 @@ Proof.
     exact (Z.le_succ_diag_r (Sint63.to_Z n)).
 Qed.
 
+Lemma ltsb_succ_nmax n : ltsb n (n + 1) <-> n <> Sint63.max_int.
+Proof.
+  split.
+  - case H : (n == Sint63.max_int).
+    + by move: H => /eqP ->.
+    + by move /eqP in H.
+  - move=> H'.
+    apply /Sint63.ltbP.
+    rewrite Sint63.to_Z_succ // Z.add_1_r.
+    exact (Z.lt_succ_diag_r (Sint63.to_Z n)).
+Qed.
+
 Lemma ltsb_pred_nmin n : ltsb (n - 1) n <-> n <> Sint63.min_int.
 Proof.
   split.
@@ -110,6 +128,23 @@ Proof.
   - by move /eqP in H.
 Qed.
 
+Lemma succ_ltsb_compat m n : n <> Sint63.max_int ->
+  ltsb m n -> ltsb (m + 1) (n + 1).
+Proof.
+  move=> Hn ltmn.
+  move: (ltmn) => /Sint63.ltbP => ltmn'.
+  apply /Sint63.ltbP.
+  rewrite !Sint63.to_Z_succ //.
+    rewrite !Z.add_1_r.
+    exact (Zplus_lt_compat_r _ _ 1 ltmn').
+  exact (ltsb_nmax m n ltmn).
+Qed.
+
+(* Lemma _theorem : .
+Proof.
+
+Qed.
+ *)
 Lemma enough_gas h m n p b env env' (tt' : unit) :
   ltsb m n ->
   forloop h m (n - 1)%uint63 b env = (env', inl tt') ->
@@ -158,8 +193,11 @@ Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
 Proof.
   elim: h m => [|h IH] m H0m Hmn Hnn' Hnp //.
   rewrite {3} (lock h.+1) /=.
-  have -> : ltsb p m = false. admit.
-  have -> : ltsb n m = false. admit.
+  have -> : ltsb p m = false.
+   move: (lesb_trans m n p Hmn (lesb_trans n (n + 1)%uint63 p Hnn' Hnp)) => Hmp.
+   exact (lesb_not_ltsb _ _ Hmp).
+  have -> : ltsb n m = false.
+    exact (lesb_not_ltsb _ _ Hmn).
   move=> env.
   rewrite /Bind.
   case Heq : (m == n)%uint63.
@@ -167,7 +205,8 @@ Proof.
     case : (b n env) => env' [a|e] Hgas //.
     destruct h => //.
     rewrite {1}(lock h.+1) /=.
-    have -> : ltsb n (n + 1) = true. admit.
+    have -> : ltsb n (n + 1).
+      exact /ltsb_succ_nmax /lesb_succ_nmax.
     case H : (Ret tt env') => [env'' [s|]] //.
     move : H Hgas => [] -> _ Hgas.
     rewrite -!lock (forloop_mono h.+1 h.+2) //.
@@ -176,25 +215,20 @@ Proof.
     rewrite IH /Bind -?lock //.
         case H : (forloop h (m + 1) n b env') => [env'' [a'|e]] => //.
         rewrite (forloop_mono _ (h.+1)) //.
-        case H' : (forloop h (n + 1) p b env'') => [env''' [|e]] //.
-        move : H'.
-        case : e => H' //.
-        have H'' : ltsb (m + 1) (n + 1). admit.
-        have : RunW (forloop h (m + 1) p b env') = inr GasExhausted.
-          apply (enough_gas _ _ (n + 1) _ _ _ env'' a') => //.
-            have -> : (n + 1 - 1)%uint63 = n%uint63 => //. admit.
-          rewrite H' //.
-        move /Hgas => //.
-      apply (lesb_trans _ m _) => //.
-      rewrite lesb_succ_nmax.
-      exact (lesb_l_nmax m n Hmn Hnn').
+        apply (enough_gas h (m + 1)%uint63 _ _ _ env' env'' a') => //.
+          apply /succ_ltsb_compat => //.
+            by apply lesb_succ_nmax.
+          admit.
+        have -> : (n + 1 - 1)%uint63 = n => //.
+          by ring.
+      move: (lesb_trans 0 m (m + 1)%uint63 H0m) => -> //.
+      apply lesb_succ_nmax.
+      by apply (lesb_l_nmax _ n).
     apply /Sint63.lebP.
-    rewrite Sint63.to_Z_succ.
-    rewrite Z.add_1_r Z.le_succ_l Z.le_neq.
-    split.
-    + by move : Hmn => /Sint63.lebP.
-    + by move /Sint63.to_Z_inj.
-    exact (lesb_l_nmax m n Hmn Hnn').
+    rewrite Sint63.to_Z_succ ?Z.add_1_r.
+    Search (_ < _)%Z "succ".
+    apply Z.lt_le_incl.
+    apply Z.lt_lt_succ_r.
 Admitted.
 
 Lemma int_to_natK n : nat_to_int (int_to_nat n) = n.
