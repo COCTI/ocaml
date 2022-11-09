@@ -124,7 +124,9 @@ Proof.
       exact /Z.lt_le_pred /Sint63.ltbP.
     exact (ltsb_nmin m n Hmn).
   case Hpm : (ltsb p m).
-  - admit.
+  - rewrite -lock /=.
+    have -> : ltsb p n => //.
+      exact (ltsb_trans p m n Hpm Hmn).
   - rewrite /Bind.
     case : (b m env) => [env'' [_|e]] => //.
     case Hmn' : ((m + 1)%uint63 == n).
@@ -132,18 +134,23 @@ Proof.
       destruct h => //.
       rewrite {2}(lock h.+1) /=.
       have -> : (ltsb (n - 1) n).
-        admit.
+        by apply /ltsb_pred_nmin /(ltsb_nmin m).
       move=> [-> _].
       rewrite -!lock => Hgas.
       have <- : forloop h.+1 n p b env' = forloop h.+2 n p b env' => //.
         by apply forloop_mono.
     + have Hmn'' : (ltsb (m + 1)%uint63 n).
-        admit.
+        apply /Sint63.ltbP /Z.le_neq; split.
+        - rewrite Sint63.to_Z_succ ?Z.add_1_r.
+            by move : Hmn => /Sint63.ltbP /Zlt_le_succ.
+          by apply (ltsb_nmax m n).
+        - move/Sint63.to_Z_inj.
+          by move:Hmn' => /eqP.
       rewrite -lock => Hf Hgas.
       move: (IH (m + 1)%uint63 env'' Hmn'' Hf Hgas) => Hgas'.
       have <- : forloop h n p b env' = forloop h.+1 n p b env' => //.
       by apply forloop_mono.
-Admitted.
+Qed.
 
 Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
   lesb n (n + 1) -> lesb (n + 1) p ->
