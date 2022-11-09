@@ -113,56 +113,36 @@ Qed.
 Lemma enough_gas h m n p b env env' (tt' : unit) :
   ltsb m n ->
   forloop h m (n - 1)%uint63 b env = (env', inl tt') ->
-  RunW (forloop h n p b env') = inr GasExhausted ->
-  RunW (forloop h m p b env) = inr GasExhausted.
+  RunW (forloop h m p b env) <> inr GasExhausted ->
+  RunW (forloop h n p b env') <> inr GasExhausted.
 Proof.
-  elim: h m env => [|h IH] m env Hmn Hgas Hf //=.
-  case Hmp : (ltsb p m).
-  - move: Hf.
-    rewrite /=.
-    have -> : ltsb p n => // ; exact (ltsb_trans p m n Hmp Hmn).
-  - move: Hgas => /=.
-    have -> : (ltsb (n - 1) m) = false.
-      apply /Sint63.ltbP /Zle_not_lt.
-      rewrite Sint63.to_Z_pred ?Z.sub_1_r.
-        exact /Z.lt_le_pred /Sint63.ltbP.
-      admit.
-    rewrite /Bind.
-    case : (b m env) => env'' [] // _.
-    case Hmn' : ((m + 1) =? n)%uint63.
-    + move: Hmn' => /eqb_correct ->.
+  elim: h m env => [|h IH] m env Hmn //.
+  rewrite {3}(lock h.+1) /=.
+  have -> : (ltsb (n - 1) m) = false.
+    apply /Sint63.ltbP /Zle_not_lt.
+    rewrite Sint63.to_Z_pred ?Z.sub_1_r.
+      exact /Z.lt_le_pred /Sint63.ltbP.
+    exact (ltsb_nmin m n Hmn).
+  case Hpm : (ltsb p m).
+  - admit.
+  - rewrite /Bind.
+    case : (b m env) => [env'' [_|e]] => //.
+    case Hmn' : ((m + 1)%uint63 == n).
+    + move: Hmn' => /eqP ->.
       destruct h => //.
-      rewrite [forloop h.+1 n (n - 1) b env''] /=.
-      have -> : ltsb (n - 1) n.
-        apply /Sint63.ltbP.
-        rewrite Sint63.to_Z_pred ?Z.sub_1_r.
-        exact (Z.lt_pred_l (Sint63.to_Z n)).
+      rewrite {2}(lock h.+1) /=.
+      have -> : (ltsb (n - 1) n).
         admit.
-      case => -> _.
-      case H : (RunW (forloop h.+1 n p b env')) => [a|e].
-      - rewrite -H -Hf.
-        apply /f_equal /(forloop_mono h.+1 h.+2) => //.
-        by rewrite H.
-      - destruct e => //;rewrite -H -Hf;
-        apply /f_equal /(forloop_mono h.+1 h.+2) => //;
-        by rewrite H.
-    + move=> Hfor.
-      apply IH => //.
-        apply /Sint63.ltbP.
-        rewrite Z.le_neq.
-        split.
-        + rewrite Sint63.to_Z_succ ?Z.add_1_r.
-          by move : Hmn => /Sint63.ltbP /Zlt_le_succ.
-          exact (ltsb_nmax m n Hmn).
-        + move /eqb_false_correct in Hmn'.
-          by move /Sint63.to_Z_inj.
-      case Hf' : (forloop h n p b env') => [env''' [a|e]] => //.
-      - rewrite -Hf' -Hf.
-        apply /f_equal /forloop_mono => //.
-        by rewrite Hf'.
-      - destruct e => //;rewrite -Hf' -Hf;
-        apply /f_equal /forloop_mono => //;
-        by rewrite Hf'.
+      move=> [-> _].
+      rewrite -!lock => Hgas.
+      have <- : forloop h.+1 n p b env' = forloop h.+2 n p b env' => //.
+        by apply forloop_mono.
+    + have Hmn'' : (ltsb (m + 1)%uint63 n).
+        admit.
+      rewrite -lock => Hf Hgas.
+      move: (IH (m + 1)%uint63 env'' Hmn'' Hf Hgas) => Hgas'.
+      have <- : forloop h n p b env' = forloop h.+1 n p b env' => //.
+      by apply forloop_mono.
 Admitted.
 
 Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
