@@ -39,7 +39,7 @@ revert T2; induction T1; destruct T2;
 Defined.
 
 Local Definition ml_type := ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
+Record key := mkkey {key_id : nat; key_type : ml_type}.
 Variant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).
 
 Section with_monad.

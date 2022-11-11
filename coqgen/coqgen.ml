@@ -203,7 +203,7 @@ let transl_implementation _modname st =
 \n    right; injection; intros; contradiction.\
 \nDefined.\n\
 \nLocal Definition ml_type := ml_type.\
-\nRecord key := mkkey {key_id : int; key_type : ml_type}.\
+\nRecord key := mkkey {key_id : nat; key_type : ml_type}.\
 \nVariant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).\
 \n\
 \nSection with_monad.\
@@ -226,7 +226,7 @@ let transl_implementation _modname st =
 \nExport REFmonadML.\
 \n\
 \nDefinition coq_type := @MLtypes.coq_type M.\
-\nDefinition empty_env := mkEnv 0%int63 nil.\
+\nDefinition empty_env := mkEnv nil.\
 \nDefinition it : W unit := (empty_env, inl tt).\
 \n\n(* Generated comparison function *)" ::
   make_compare_rec vars ::

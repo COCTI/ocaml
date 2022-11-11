@@ -264,19 +264,14 @@ Proof.
   by rewrite -(eq_rect_eq_dec ml_type_eq_dec).
 Qed.
 
-Definition key_eqb (k1 k2 : key) :=
-  (key_id k1 =? key_id k2)%uint63 &&
-  (ml_type_eq_dec (key_type k1) (key_type k2)).
-
-Definition mem_bindings k :=
-  has (fun b => key_eqb k (bind_key M b)).
-
-Definition uniq_bindings env :=
- forall c, count (fun b => key_id (bind_key M b) =? c)%uint63 env <= 1.
+Definition mem_bindings k b :=
+  let n := key_id k in
+  let T := key_type k in
+  (n < seq.size b) && ml_type_eq_dec (nth T (map (bind_type M) b) n) T.
 
 Lemma lookup_updateE (k : key) (val : coq_type (key_type k)) env :
-  mem_bindings k env -> uniq_bindings env ->
-  obind (lookup k) (update (mkbind k val) env) = Some val.
+  mem_bindings k env ->
+  obind (lookup k) (update (key_id k) (mkbind (key_type k) val) env) = Some val.
 Proof.
   elim: env => //= -[k' v env IH] /=.
   rewrite /key_eqb.

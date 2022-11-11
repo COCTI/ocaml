@@ -67,7 +67,7 @@ Module Type MLTY.
 Parameter ml_type : Set.
 Parameter ml_type_eq_dec : forall x y : ml_type, {x=y}+{x<>y}.
 Parameter ml_exn : ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
+Record key := mkkey {key_id : nat; key_type : ml_type}.
 Variant loc : ml_type -> Type :=
   mkloc : forall k : key, loc (key_type k).
 Parameter coq_type : forall M : Type -> Type, ml_type -> Type.
@@ -85,11 +85,11 @@ Inductive Exn :=
 *)
 
 Record binding (M : Type -> Type) :=
-  mkbind { bind_key : key; bind_val : coq_type M (key_type bind_key) }.
+  mkbind { bind_type : ml_type; bind_val : coq_type M bind_type }.
 Arguments mkbind {M}.
 
 #[bypass_check(positivity)]
-Inductive Env := mkEnv : int -> seq (binding (M0 Env Exn)) -> Env
+Inductive Env := mkEnv : seq (binding (M0 Env Exn)) -> Env
 with Exn :=
   | GasExhausted
   | RefLookup
@@ -106,9 +106,9 @@ Let binding := binding M.
 
 Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
   fun env =>
-    let: mkEnv c refs := env in
-    let key := mkkey c T in
-    Ret (mkloc key) (mkEnv (c + 1)%sint63 (mkbind key val :: refs)).
+    let: mkEnv refs := env in
+    let key := mkkey (seq.size refs) T in
+    Ret (mkloc key) (mkEnv (rcons refs (mkbind T val))).
 
 Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
@@ -116,46 +116,45 @@ Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   | right _ => None
   end.
 
-Fixpoint lookup key env :=
+Fixpoint lookup_rec n T env :=
   match env with
   | nil => None
-  | mkbind k v :: rest =>
-    if PrimInt63.eqb (key_id key) (key_id k) then
-      coerce (key_type k) (key_type key) v
-    else lookup key rest
+  | mkbind Tv v :: rest =>
+    if n is n.+1 then lookup_rec n T rest else
+      coerce Tv T v
   end.
+
+Definition lookup k env := lookup_rec (key_id k) (key_type k) env.
 
 Definition getref T (l : loc T) : M (coq_type T) := fun env =>
   let: mkloc key := l in
-  let: mkEnv _ refs := env in
+  let: mkEnv refs := env in
   match lookup key refs with
   | None => Fail RefLookup env
   | Some x => Ret x env
   end.
 
-Fixpoint update b (env : seq binding) :=
+Fixpoint update n b (env : seq binding) :=
   match env with
   | nil => None
-  | mkbind k v :: rest =>
-    let: mkbind k' _ := b in
-    if PrimInt63.eqb (key_id k') (key_id k) then
-      if ml_type_eq_dec (key_type k') (key_type k)
+  | mkbind Tv v :: rest =>
+    if n is n.+1 then Option.map (cons (mkbind Tv v)) (update n b rest) else
+      if ml_type_eq_dec Tv (bind_type M b)
       then Some (b :: rest)
       else None
-    else
-      Option.map (cons (mkbind k v)) (update b rest)
   end.
 
 Definition setref T (l : loc T) (val : coq_type T) : M unit := fun env =>
-  let: mkEnv c refs := env in
+  let: mkEnv refs := env in
   let b :=
       match l in loc T return coq_type T -> binding with
-        mkloc key => mkbind key
+        mkloc key => mkbind (key_type key)
       end val
   in
-  match update b refs with
+  let: mkloc {| key_id := n |} := l in
+  match update n b refs with
   | None => Fail RefLookup env
-  | Some refs' => Ret tt (mkEnv c refs')
+  | Some refs' => Ret tt (mkEnv refs')
   end.
 
 Definition FailGas {A} : M A := Fail GasExhausted.

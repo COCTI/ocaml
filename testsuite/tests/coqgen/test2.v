@@ -37,7 +37,7 @@ revert T2; induction T1; destruct T2;
 Defined.
 
 Local Definition ml_type := ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
+Record key := mkkey {key_id : nat; key_type : ml_type}.
 Variant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).
 
 Section with_monad.
@@ -93,7 +93,7 @@ Module REFmonadML := REFmonad (MLtypes).
 Export REFmonadML.
 
 Definition coq_type := @MLtypes.coq_type M.
-Definition empty_env := mkEnv 0%int63 nil.
+Definition empty_env := mkEnv nil.
 Definition it : W unit := (empty_env, inl tt).
 
 (* Generated comparison function *)
