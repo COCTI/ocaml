@@ -18,8 +18,8 @@ Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
 
 Lemma lesb_not_ltsb m n : lesb m n -> ltsb n m = false.
 Proof.
-  move /Sint63.lebP => lelm.
-  exact /Sint63.ltbP /Zle_not_lt.
+  move=>lelm.
+  by apply/Sint63.ltbP/Z.nlt_ge/Sint63.lebP.
 Qed.
 
 Lemma lesb_to_ltsb m n : lesb m n -> m <> n -> ltsb m n.
@@ -185,6 +185,42 @@ Lemma forloop_cat h m n p b : lesb 0 m -> lesb m n ->
   lesb n (n + 1) -> lesb (n + 1) p ->
   le_gas (forloop h m p b) (forloop h m n b >> forloop h (n + 1)%uint63 p b).
 Proof.
+  elim: h m => [|h IH] m H0m Hmn Hnn' Hnp //.
+  rewrite {3} (lock h.+1) /=.
+  have -> : ltsb p m = false.
+   move: (lesb_trans m n p Hmn (lesb_trans n (n + 1)%uint63 p Hnn' Hnp)) => Hmp.
+   exact (lesb_not_ltsb _ _ Hmp).
+  have -> : ltsb n m = false by apply lesb_not_ltsb.
+  move=> env; rewrite bindA {1 2 3}/Bind.
+  case H : (b m env) => [env' [?|e]] NE //.
+  case Hmn' : (m =? n)%uint63.
+  + move/eqb_correct in Hmn'. subst n.
+    destruct h => //.
+    rewrite [forloop h.+1 (m + 1) m b]/=.
+    have -> : ltsb m (m+1) by apply/ltsb_succ_nmax/lesb_succ_nmax.
+    apply forloop_mono => //.
+    by rewrite -lock.
+  + move/eqb_false_correct in Hmn'.
+    transitivity ((forloop h (m + 1) n b >> forloop h (n + 1) p b) env').
+    - apply IH => //.
+      + apply (lesb_trans _ m) => //.
+        by apply/lesb_succ_nmax/(lesb_l_nmax m n).
+      + apply/Sint63.lebP.
+        rewrite Sint63.to_Z_succ ?Z.add_1_r ?Z.le_succ_l.
+          by apply/Sint63.ltbP/lesb_to_ltsb.
+        by apply (lesb_l_nmax m n).
+    - rewrite /Bind.
+      case Hfor : (forloop h (m + 1) n b env') => [env'' []] //.
+      apply forloop_mono => //.
+        by rewrite -lock.
+      eapply (enough_gas _ (m+1)).
+        apply/succ_ltsb_compat => //.
+          by apply (lesb_succ_nmax).
+        by apply lesb_to_ltsb.
+        have -> : (n + 1 - 1 = n)%uint63 by ring.
+        by apply/Hfor.
+      done.
+Restart.
   elim: h m => [|h IH] m H0m Hmn Hnn' Hnp //.
   rewrite {3} (lock h.+1) /=.
   have -> : ltsb p m = false.

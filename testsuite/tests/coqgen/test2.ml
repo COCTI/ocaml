@@ -51,6 +51,12 @@ let fact_for n =
   done;
   !v;;
 
+let max_test =
+  let v = ref 1 in
+  for i = (max_int - 1) to max_int do
+    v := !v * i
+  done;
+  !v;;
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.
