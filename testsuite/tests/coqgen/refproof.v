@@ -324,7 +324,14 @@ Proof.
       apply eqb_correct in H.
       rewrite 1!H /= eqb_refl.
       rewrite has_count in Hmem.
-      admit.
+      rewrite ltnS => Hcount.
+      move: (leq_ltn_trans Hcount Hmem).
+      rewrite ltnNge.
+      move/negP.
+      elim.
+      apply sub_count => b /andP [].
+      move/eqbP /esym /eqbP.
+      by rewrite H.
   - move=> Hmem Huniq.
     have Huniq' : uniq_bindings env.
       move=> x.
@@ -333,7 +340,7 @@ Proof.
     move: {IH} (IH Hmem Huniq').
     case: update => //= env'.
     by rewrite H.
-Admitted.
+Qed.
 
 Lemma newref_getE {T} x env :
   RunM (do s <- newref T x; getref T s) env = inl x.
