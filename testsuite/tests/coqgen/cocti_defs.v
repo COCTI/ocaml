@@ -67,7 +67,7 @@ Module Type MLTY.
 Parameter ml_type : Set.
 Parameter ml_type_eq_dec : forall x y : ml_type, {x=y}+{x<>y}.
 Parameter ml_exn : ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
+Record key := mkkey {key_id : nat; key_type : ml_type}.
 Variant loc : ml_type -> Type :=
   mkloc : forall k : key, loc (key_type k).
 Parameter coq_type : forall M : Type -> Type, ml_type -> Type.
@@ -89,7 +89,7 @@ Record binding (M : Type -> Type) :=
 Arguments mkbind {M}.
 
 #[bypass_check(positivity)]
-Inductive Env := mkEnv : int -> seq (binding (M0 Env Exn)) -> Env
+Inductive Env := mkEnv : nat -> seq (binding (M0 Env Exn)) -> Env
 with Exn :=
   | GasExhausted
   | RefLookup
@@ -108,7 +108,7 @@ Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
   fun env =>
     let: mkEnv c refs := env in
     let key := mkkey c T in
-    Ret (mkloc key) (mkEnv (c + 1)%sint63 (mkbind key val :: refs)).
+    Ret (mkloc key) (mkEnv (c + 1) (mkbind key val :: refs)).
 
 Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
@@ -120,7 +120,7 @@ Fixpoint lookup key env :=
   match env with
   | nil => None
   | mkbind k v :: rest =>
-    if PrimInt63.eqb (key_id key) (key_id k) then
+    if Nat.eqb (key_id key) (key_id k) then
       coerce (key_type k) (key_type key) v
     else lookup key rest
   end.
@@ -138,7 +138,7 @@ Fixpoint update b (env : seq binding) :=
   | nil => None
   | mkbind k v :: rest =>
     let: mkbind k' _ := b in
-    if PrimInt63.eqb (key_id k') (key_id k) then
+    if Nat.eqb (key_id k') (key_id k) then
       if ml_type_eq_dec (key_type k') (key_type k)
       then Some (b :: rest)
       else None
