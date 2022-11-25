@@ -476,6 +476,10 @@ Proof.
     by apply (@ltn_trans n).
 Qed.
 
+Lemma newref_memok {T} x t env env' : 
+  newref T x env = (env', inl t) -> envok env -> mem_env t env'.
+Proof. Admitted.
+
 Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
 Proof. Admitted.
@@ -483,89 +487,74 @@ Proof. Admitted.
 Lemma nat_to_int_inj m n : m = n -> nat_to_int m = nat_to_int n.
 Proof. Admitted.
 
+Definition gasok {T} (f : T + Exn) :=
+  match f with
+  | inr GasExhausted => false
+  | _ => true
+  end.
+
 Definition le_gasW {T} (f g : M T) := forall env, envok env ->
-  RunW (f env) <> inr GasExhausted -> RunW (f env) = RunW (g env).
+  gasok (RunW (f env)) -> RunW (f env) = RunW (g env).
 
 Theorem fact_ok' h n : int_to_nat n < expn 2 61 ->
   le_gasW (fact_for h n) (Ret (fact_rec_int n)).
 Proof.
   move=> H env.
-  rewrite /fact_for {1 7}/Bind.
-  case H' : (newref _ _ _) => [env' [s|e]] Henv.
+  rewrite /fact_for /gasok {1 7}/Bind.
+  case H' : newref => [env' [s|e]] Henv.
   - rewrite !bindretf.
     rewrite -(int_to_natK n).
-    have Henv' : envok env'. (* lemma *)
-      move:H' Henv.
-      case env => c refs.
-      case env' => c' refs'.
-      rewrite /envok /newref.
-      move => [] Hc' Hrefs Hs.
-      rewrite -Hrefs.
-      admit.
-    have Hmem : mem_env s env'. (* lemma *)
-      admit.
-    set u := 1%uint63.
-    have Hu : ltsb 0 u. done.
-    have Hs : RunW (getref ml_int s env') = inl (fact_rec_int (u - 1)).
-      move : (@newref_getE ml_int 1%uint63 env).
-      by rewrite /RunM {1}/Bind H'.
-    have Hn : lesb (u - 1) (nat_to_int (int_to_nat n)).
-      admit.
-    elim : (int_to_nat n) env' {H'} Henv' Hmem u Hu Hs Hn =>
-           [|n' IH] env' Henv' Hmem u Hu Hs Hn.
+    have Henv' : envok env' by apply (@newref_envok ml_int 1%uint63 s env).
+    have Hmem : mem_env s env' by apply (@newref_memok ml_int 1%uint63 s env).
+    elim : (int_to_nat n) env' H' Henv' Hmem => [|n' IH] env' H' Henv' Hmem.
     + rewrite /nat_to_int /=.
       destruct h => //= _.
-      rewrite {1}/Bind Hu /=.
-      rewrite Hs.
-      admit.
-    + 
-
-
-(* destruct n'.
-      - rewrite /nat_to_int /=.
-        destruct h => //=.
-        rewrite !bindA.
-        move : (@newref_getE ml_int 1%uint63 env).
-        rewrite /RunM {1}/Bind H' => Hget.
-        destruct h => [|_] //=.
-        + rewrite bindfailf.
-          rewrite {1}/Bind.
-          case Hget' : (getref ml_int s env'') => [env''' [a|]] //.
-          - rewrite bindretf.
-            move : (getset_skip s) =>/(happly env'').
-            rewrite {1 2}/Bind Hget'.
-            have -> : (a * 1)%uint63 = a. by ring.
-            by move => -> /=.
-          - by rewrite Hget' in Hget.
-        + rewrite {1}/Bind H' !bindretf /= !bindA.
-          rewrite {1}/Bind.
-          case Hget' : (getref ml_int s env'') => [env''' [a|]] //.
-          - rewrite !bindretf [LHS](setref_getE s (a * 1)%uint63 env''').
-                move : Hget.
-                rewrite Hget' /=.
-                have -> : (a * 1)%uint63 = a. by ring.
-                by move => ->.
-              admit.
+      move: (@newref_getE ml_int 1%uint63 env).
+      by rewrite /RunM {1}/Bind H'.
+    + rewrite {1 4}/Bind.
+      move => Hgasok.
+      move:(Hgasok).
+      rewrite (forloop_cat h 1 (nat_to_int n') (nat_to_int n'.+1) _) //.
+      - move:(IH env' H' Henv' Hmem).
+        rewrite {1 4 7 12}/Bind.
+        case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
+        + destruct h => //=.
+          have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1) = false.
             admit.
-          - by rewrite Hget' in Hget. *)
-      - rewrite {1 4}/Bind.
-        rewrite (forloop_cat h u (nat_to_int n') (nat_to_int n'.+1) _) //.
-        + rewrite {1}/Bind.
-          move:(IH env'' H').
-          rewrite {1}/Bind.
-          case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] //.
-          - destruct h => //=.
-            have -> : (nat_to_int n'.+1 + 1)%uint63 = nat_to_int n'.+2.
-              rewrite /nat_to_int.
+          rewrite !bindA {1 6}/Bind.
+          case Hget : getref => [env0' [a'|e]].
+          - rewrite !bindretf {1 4}/Bind.
+            case Hset : setref => [env0'' [t|e]].
+            + destruct h => //=.
+              have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1 + 1) = true.
+                admit.
+              move=> /= _.
+              have Hmem' : mem_env s env0'. admit.
+              have Henv'' : envok env0'. admit.
+              move : (@setref_getE ml_int s 
+                      (a' * (nat_to_int n' + 1))%uint63 env0' Hmem' Henv'').
+              rewrite /RunM /Bind Hset => ->.
+              f_equal.
+              move : IH'.
+              rewrite Hget /=.
+              move/(_ isT) => [] ->.
+              rewrite /fact_rec_int !nat_to_intK /=.
+                rewrite mulnC -nat_to_int_mul. admit.
               admit.
-            have -> : ltsb (nat_to_int n'.+2) (nat_to_int n'.+2) = false.
               admit.
-            rewrite !bindA {1}/Bind.
-          -
-        +
-        +
-        +
-  -
+            + admit.
+          - admit.
+        + move:IH'. Check gasok.
+          rewrite -/(gasok (@inr unit _ e)).
+          by case gasok => // /(_ isT).
+      - admit.
+      - admit.
+      - admit.
+      - move:Hgasok.
+        case : forloop => env'' [a|e] //.
+        move=> Hgasok [] H''.
+        by rewrite H'' in Hgasok.
+  - admit.
 Admitted.
 
 
