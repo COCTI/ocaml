@@ -352,7 +352,19 @@ Lemma update_lookupE (k : key) (val : coq_type (key_type k)) env :
   update (mkbind k val) env = Some env.
 Proof.
   elim : env => [|b refs IH] //=.
-  
+  move/orP => [].
+  - rewrite /key_eqb => /andP [] Hid.
+    case ml_type_eq_dec => //= Htype _ _.
+    case : b Hid Htype => k' v /= Hid Htype.
+    rewrite Hid /coerce.
+    case ml_type_eq_dec => Htype' //.
+    move /Some_inj => H.
+    case ml_type_eq_dec => //= _.
+    f_equal => //=.
+Search ((_ = _) -> ((eq_rect _ _ _ _ _) = _)).
+About eq_rect_eq_dec.
+    rewrite -(eq_rect_eq_dec ml_type_eq_dec).
+  - 
   Admitted.
 
 Definition mem_env {T} (r : loc T) env :=
@@ -401,9 +413,40 @@ Proof.
       by move/leqW.
 Qed.
 
-Lemma updateok k env : mem_bindings (bind_key M k) env -> uniq_bindings env
-  -> update k env <> None.
-Admitted.
+Lemma updateok b env : mem_bindings (bind_key M b) env -> uniq_bindings env
+  -> update b env <> None.
+Proof.
+  elim env => [|b' refs IH] //=.
+  move /orP => [].
+  - rewrite /key_eqb => /andP [] Hid Htype.
+    move=> Huniq.
+    case : b IH Hid Htype  => k v /= IH Hid Htype.
+    case : b' Hid Htype Huniq => k' v' /= Hid Htype Huniq.
+    by rewrite Hid Htype.
+  - move=> Hmem Huniq.
+    case : b IH Hmem => k v /= IH Hmem.
+    case : b' Huniq => k' v' /= Huniq.
+    case:ifP => Hid.
+    + move:Huniq Hmem.
+      rewrite /uniq_bindings => /(_ (key_id k)) /=.
+      rewrite Nat.eqb_sym Hid ltnS => Hcount.
+      rewrite /mem_bindings has_count => Hcount'.
+      move:(leq_ltn_trans Hcount Hcount').
+      rewrite ltnNge.
+      move/negP.
+      elim.
+      apply sub_count => b /andP [].
+      by rewrite Nat.eqb_sym.
+    + rewrite /omap /obind /oapp.
+      have Huniq' : uniq_bindings refs.
+        rewrite /uniq_bindings => c.
+        move: Huniq => /(_ c) /=.
+        case : (key_id k' =? c) => //=.
+        rewrite ltnS => Hcount.
+        by eapply leq_trans.
+      move/(_ Hmem Huniq') in IH.
+      by case H:update.
+Qed.
 
 Lemma newref_getE {T} x env :
   RunM (do s <- newref T x; getref T s) env = inl x.
@@ -557,62 +600,3 @@ Proof.
   - admit.
 Admitted.
 
-
-Theorem fact_ok h n m env env' : int_to_nat n < expn 2 61 ->
-  fact_for h n env = Ret m env' -> m = fact_rec_int n.
-Proof.
-  rewrite /fact_for. rewrite {1}/Bind. rewrite [61]lock.
-  case H : (newref _ _ _) => [env'' [s|e]] //.
-  rewrite !bindretf.
-  case /boolP : (lesb 0 n).
-  - move => Hn.
-    rewrite -{-1}(int_to_natK n).
-    elim : (int_to_nat n) m env' => [|{n Hn} n IH] m env' //= => [_ | Hn].
-      rewrite /nat_to_int /=.
-      destruct h => //=.
-      rewrite bindretf.
-(*       move/newgetref_int in H.
-      by rewrite H => -[] _ <-. *)
-      admit.
-    destruct n.
-      rewrite /nat_to_int /=.
-      destruct h => //=.
-      rewrite !bindA.
-(*       move/newgetref_int in H.
-      by rewrite H => -[] _ <-. *)
-      admit.
-    rewrite {1}/Bind.
-    rewrite (forloop_cat h 1 (nat_to_int n.+1)).
-    rewrite {1}/Bind.
-    move : IH.
-    rewrite {1}/Bind.
-    case : (forloop h 1 (nat_to_int n.+1) _ _) => [env''' [s'|e]] //.
-    move=> H'.
-    destruct h => //=.
-    have -> : (ltsb (nat_to_int n.+2) (nat_to_int n.+1 +1))%uint63 = false. admit.
-    rewrite !bindA.
-    rewrite {1}/Bind.
-    case H'' : (getref _ _ _) => [env4 [s''|e]] //.
-    rewrite bindretf.
-    rewrite {1}/Bind.
-    case H''' : (setref _ _ _) => [env5 [s'''|e]] //.
-    destruct h => //=.
-    have -> : compares(nat_to_int n.+1 +1 +1)%uint63 (nat_to_int n.+2) = Gt. admit.
-    rewrite bindretf.
-    move/ setgetref in H'''.
-    rewrite H''' => -[] _ <-.
-    rewrite H'' in H'.
-    rewrite (H' s'' env4) //.
-    have -> : (nat_to_int n.+1 + 1 = nat_to_int n.+2)%uint63. admit.
-    rewrite /fact_rec_int.
-    rewrite nat_to_int_mul.
-    rewrite !nat_to_intK.
-    rewrite /=.
-    congr nat_to_int.
-    rewrite [RHS]mulnC. done.
-    all:auto.
-    rewrite (leq_trans Hn)//.
-    rewrite -lock leq_exp2l //.
-    rewrite (ltn_trans (ltnSn _))//.
-    rewrite (leq_trans Hn)// -lock leq_exp2l //.
-Admitted.
