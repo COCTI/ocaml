@@ -353,18 +353,16 @@ Lemma update_lookupE (k : key) (val : coq_type (key_type k)) env :
 Proof.
   elim : env => [|b refs IH] //=.
   move/orP => [].
-  - rewrite /key_eqb => /andP [] Hid.
-    case ml_type_eq_dec => //= Htype _ _.
-    case : b Hid Htype => k' v /= Hid Htype.
+  - rewrite /key_eqb => /andP [].
+    case ml_type_eq_dec => //=.
+    case H : b => [k' val'] //= Htype Hid _ _.
     rewrite Hid /coerce.
     case ml_type_eq_dec => Htype' //.
-    move /Some_inj => H.
+    move /Some_inj => H'.
     case ml_type_eq_dec => //= _.
-    f_equal => //=.
-Search ((_ = _) -> ((eq_rect _ _ _ _ _) = _)).
-About eq_rect_eq_dec.
-    rewrite -(eq_rect_eq_dec ml_type_eq_dec).
-  - 
+    f_equal.
+    admit.
+  - move=> Hmem Huniq.
   Admitted.
 
 Definition mem_env {T} (r : loc T) env :=
@@ -413,8 +411,8 @@ Proof.
       by move/leqW.
 Qed.
 
-Lemma updateok b env : mem_bindings (bind_key M b) env -> uniq_bindings env
-  -> update b env <> None.
+Lemma updateok b env : mem_bindings (bind_key M b) env -> uniq_bindings env ->
+  update b env <> None.
 Proof.
   elim env => [|b' refs IH] //=.
   move /orP => [].
@@ -520,8 +518,19 @@ Proof.
 Qed.
 
 Lemma newref_memok {T} x t env env' : 
-  newref T x env = (env', inl t) -> envok env -> mem_env t env'.
-Proof. Admitted.
+  newref T x env = (env', inl t) -> mem_env t env'.
+Proof.
+  case env => n refs.
+  case env' => n' refs'.
+  rewrite /newref.
+  move => [] Hn <- Ht.
+  rewrite -Ht /mem_env /=.
+  apply/orP;left.
+  rewrite /key_eqb /=.
+  apply/andP;split.
+  - apply Nat.eqb_refl.
+  - by case ml_type_eq_dec.
+Qed.
 
 Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
@@ -563,7 +572,7 @@ Proof.
         case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
         + destruct h => //=.
           have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1) = false.
-            admit.
+            
           rewrite !bindA {1 6}/Bind.
           case Hget : getref => [env0' [a'|e]].
           - rewrite !bindretf {1 4}/Bind.
