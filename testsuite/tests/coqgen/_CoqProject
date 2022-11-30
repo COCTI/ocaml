@@ -1,0 +1,12 @@
+cocti_defs.v
+#cocti_examples.v
+#example.v
+gcdproof.v
+#lazyproof.v
+not_used_tool.v
+refproof.v
+sortproof.v
+test2.v
+#test.v
+
+-R . coqgen
