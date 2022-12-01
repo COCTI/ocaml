@@ -532,6 +532,29 @@ Proof.
   - by case ml_type_eq_dec.
 Qed.
 
+Lemma getref_memok {T} x t env env' : 
+  getref T x env = (env', inl t) -> mem_env x env'.
+Proof.
+  case env => n refs.
+  case env' => n' refs'.
+  case: x t => k val.
+  rewrite /getref.
+  case Hlook : (lookup k refs) => //= [val'] [] _ <- Ht.
+  rewrite /mem_bindings.
+  elim: refs Hlook => [|b refs IH] //=.
+  case: b => k'' val''.
+  case Hid : (key_id k =? key_id k'') => //=.
+  - rewrite /coerce.
+    case ml_type_eq_dec => //= Htype _.
+    apply /orP; left.
+    rewrite /key_eqb Hid //=.
+    case ml_type_eq_dec => //=.
+    by apply esym in Htype.
+  - move=> H.
+    apply /orP; right.
+    by apply IH.
+Qed.
+
 Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
 Proof. Admitted.
@@ -572,7 +595,7 @@ Proof.
         case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
         + destruct h => //=.
           have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1) = false.
-            
+            admit.
           rewrite !bindA {1 6}/Bind.
           case Hget : getref => [env0' [a'|e]].
           - rewrite !bindretf {1 4}/Bind.
@@ -581,7 +604,8 @@ Proof.
               have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1 + 1) = true.
                 admit.
               move=> /= _.
-              have Hmem' : mem_env s env0'. admit.
+              have Hmem' : mem_env s env0'.
+                by apply (getref_memok s a' env0).
               have Henv'' : envok env0'. admit.
               move : (@setref_getE ml_int s 
                       (a' * (nat_to_int n' + 1))%uint63 env0' Hmem' Henv'').
