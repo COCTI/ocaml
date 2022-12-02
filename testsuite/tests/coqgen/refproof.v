@@ -532,6 +532,15 @@ Proof.
   - by case ml_type_eq_dec.
 Qed.
 
+Lemma nat_to_int_succ n : (nat_to_int n.+1 = nat_to_int n + 1)%uint63.
+Proof.
+  rewrite /nat_to_int.
+  have -> : (1 = of_Z 1)%uint63 by done.
+  have -> : (of_Z (Z.of_nat n) + of_Z 1 = of_Z (Z.of_nat n + 1))%uint63.
+    elim : n => // n IH.
+Admitted.
+
+
 Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
 Proof. Admitted.
@@ -558,7 +567,7 @@ Proof.
     rewrite -(int_to_natK n).
     have Henv' : envok env' by apply (@newref_envok ml_int 1%uint63 s env).
     have Hmem : mem_env s env' by apply (@newref_memok ml_int 1%uint63 s env).
-    elim : (int_to_nat n) env' H' Henv' Hmem => [|n' IH] env' H' Henv' Hmem.
+    elim : (int_to_nat n) H env' H' Henv' Hmem => [|n' IH] H env' H' Henv' Hmem.
     + rewrite /nat_to_int /=.
       destruct h => //= _.
       move: (@newref_getE ml_int 1%uint63 env).
@@ -567,18 +576,25 @@ Proof.
       move => Hgasok.
       move:(Hgasok).
       rewrite (forloop_cat h 1 (nat_to_int n') (nat_to_int n'.+1) _) //.
-      - move:(IH env' H' Henv' Hmem).
+      - move/ltnW in H.
+        move:(IH H env' H' Henv' Hmem).
         rewrite {1 4 7 12}/Bind.
         case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
         + destruct h => //=.
           have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1) = false.
-            
+            rewrite -nat_to_int_succ.
+            apply/Sint63.ltbP => //.
+            by move/Z.lt_neq.
           rewrite !bindA {1 6}/Bind.
           case Hget : getref => [env0' [a'|e]].
           - rewrite !bindretf {1 4}/Bind.
             case Hset : setref => [env0'' [t|e]].
             + destruct h => //=.
               have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1 + 1) = true.
+                rewrite -!nat_to_int_succ Sint63.ltb_spec /nat_to_int.
+                rewrite !Sint63.of_Z_spec !Sint63.cmod_small.
+                    by apply /Pos2Z.pos_lt_pos /Pos.lt_succ_diag_r.
+                  admit.
                 admit.
               move=> /= _.
               have Hmem' : mem_env s env0'. admit.
@@ -591,9 +607,15 @@ Proof.
               rewrite Hget /=.
               move/(_ isT) => [] ->.
               rewrite /fact_rec_int !nat_to_intK /=.
-                rewrite mulnC -nat_to_int_mul. admit.
-              admit.
-              admit.
+                  by rewrite mulnC -nat_to_int_mul nat_to_int_succ.
+                rewrite ltn_neqAle.
+                apply/andP;split.
+                - apply/negbT/eqP => Hn.
+                  admit.
+                - apply (ltn_trans H).
+                  by rewrite ltn_exp2l.
+              apply (ltn_trans H).
+              by rewrite ltn_exp2l.
             + admit.
           - admit.
         + move:IH'. Check gasok.
