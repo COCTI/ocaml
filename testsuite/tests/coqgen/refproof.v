@@ -565,21 +565,65 @@ Proof.
     by apply IH.
 Qed.
 
-Lemma nat_to_int_succ n : (nat_to_int n.+1 = nat_to_int n + 1)%uint63.
+Lemma setrefok {T} x s env : mem_env x env -> envok env ->
+  RunW (setref T x s env) = inl tt.
 Proof.
-  rewrite /nat_to_int.
-  have -> : (1 = of_Z 1)%uint63 by done.
-  have -> : (of_Z (Z.of_nat n) + of_Z 1 = of_Z (Z.of_nat n + 1))%uint63.
-    elim : n => // n IH.
+  case env => n refs.
+  case : x s => k val.
+  elim : refs => [|b refs IH] //=.
+  move/orP => [].
+  - rewrite /key_eqb => /andP [] Hid.
+    case ml_type_eq_dec => //= Htype _ _.
+    case : b Hid Htype => /= k' val' Hid Htype.
+    rewrite Hid.
+    by case ml_type_eq_dec.
+  - move=> Hmem [] Huniq /andP [] _ _.
+    case : b Huniq => /= k' val' Huniq.
+    have -> : (key_id k =? key_id k') = false.
 Admitted.
 
+Lemma nat_to_int_1E : (nat_to_int 1 = 1)%uint63.
+Proof. by rewrite /nat_to_int. Qed.
+
+Lemma nat_to_int_add n m :
+  nat_to_int (n + m) = (nat_to_int n + nat_to_int m)%uint63.
+Proof.
+  rewrite /nat_to_int.
+  rewrite Nat2Z.inj_add.
+  rewrite Sint63.add_of_Z.
+  apply Sint63.to_Z_inj.
+  rewrite !Sint63.of_Z_spec.
+  rewrite -Sint63.cmod_mod -[RHS]Sint63.cmod_mod.
+  f_equal.
+  rewrite /Sint63.cmod.
+  have -> : (((Z.of_nat n + wB / 2) mod wB - wB / 2 +
+            ((Z.of_nat m + wB / 2) mod wB - wB / 2)) =
+            (Z.of_nat n + wB / 2) mod wB + (Z.of_nat m + wB / 2) mod wB -
+            (wB / 2 + wB / 2))%Z by ring.
+  rewrite [RHS]Z.add_mod //.
+  have -> : (wB / 2 + wB / 2 = wB)%Z by [].
+  have -> : (- wB = 0 - wB)%Z by [].
+  rewrite [((0 - wB) mod wB)%Z]Z.add_mod //.
+  rewrite Zmod_0_l -(Zmod_0_l wB).
+  rewrite -[RHS]Z.add_mod // Z.add_0_r.
+  rewrite -[RHS]Z.add_mod //.
+  have -> : (Z.of_nat n + wB / 2 + (Z.of_nat m + wB / 2) =
+            (Z.of_nat n + Z.of_nat m + (wB / 2 + wB / 2)))%Z by ring.
+  have -> : ((wB / 2 + wB / 2) = wB)%Z by [].
+  rewrite [RHS]Z.add_mod //.
+  rewrite Z_mod_same_full -(Zmod_0_l wB).
+  by rewrite -[RHS]Z.add_mod // Z.add_0_r.
+Qed.
 
 Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
   nat_to_int (m * n).
-Proof. Admitted.
-
-Lemma nat_to_int_inj m n : m = n -> nat_to_int m = nat_to_int n.
-Proof. Admitted.
+Proof.
+  elim : n => [|n IH] //=.
+  - by rewrite muln0 {2 3}/nat_to_int /=; ring.
+  - rewrite mulnS nat_to_int_add -IH.
+    rewrite -addn1 nat_to_int_add nat_to_int_1E.
+    by ring.
+Qed.
 
 Definition gasok {T} (f : T + Exn) :=
   match f with
@@ -615,7 +659,7 @@ Proof.
         case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
         + destruct h => //=.
           have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1) = false.
-            rewrite -nat_to_int_succ.
+            rewrite -addn1 nat_to_int_add nat_to_int_1E.
             apply/Sint63.ltbP => //.
             by move/Z.lt_neq.
           rewrite !bindA {1 6}/Bind.
@@ -624,11 +668,17 @@ Proof.
             case Hset : setref => [env0'' [t|e]].
             + destruct h => //=.
               have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1 + 1) = true.
-                rewrite -!nat_to_int_succ Sint63.ltb_spec /nat_to_int.
+                rewrite -{1}nat_to_int_1E -nat_to_int_add addn1.
+                apply ltsb_succ_nmax => Hlt.
+                
                 rewrite !Sint63.of_Z_spec !Sint63.cmod_small.
                     by apply /Pos2Z.pos_lt_pos /Pos.lt_succ_diag_r.
-                  admit.
-                admit.
+                  split.
+                  - admit.
+                  - admit.
+                split.
+                - admit.
+                - admit.
               move=> /= _.
               have Hmem' : mem_env s env0'.
                 by apply (getref_memok s a' env0).
@@ -647,7 +697,7 @@ Proof.
                 rewrite ltn_neqAle.
                 apply/andP;split.
                 - apply/negbT/eqP => Hn.
-                  admit.
+                  move:Hn H. admit.
                 - apply (ltn_trans H).
                   by rewrite ltn_exp2l.
               apply (ltn_trans H).
