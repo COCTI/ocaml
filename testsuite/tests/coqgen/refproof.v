@@ -7,11 +7,11 @@ Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
 Lemma happly [A B] [f g : A -> B] x : f = g -> f x = g x.
 Proof. by move=> ->. Qed.
 
-Definition nat_to_int := fun n => of_Z (Z.of_nat n).
-Definition int_to_nat := fun n => Z.to_nat (to_Z n).
+Definition N2int := fun n => of_Z (Z.of_nat n).
+Definition int2N := fun n => Z.to_nat (to_Z n).
 
 Definition fact_rec_int n : int :=
-  nat_to_int (fact_rec (int_to_nat n)).
+  N2int (fact_rec (int2N n)).
 
 Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
   getref T l env = Ret x env.
@@ -266,9 +266,9 @@ Proof.
       done.
 Qed.
 
-Lemma int_to_natK n : nat_to_int (int_to_nat n) = n.
+Lemma int2NK n : N2int (int2N n) = n.
 Proof.
-  rewrite /nat_to_int /int_to_nat.
+  rewrite /N2int /int2N.
   rewrite Z2Nat.id ?of_to_Z //.
   by case : (to_Z_bounded n).
 Qed.
@@ -280,10 +280,10 @@ Proof.
   by rewrite mulnC.
 Qed.
 
-Lemma nat_to_intK n : n < expn 2 63 -> int_to_nat (nat_to_int n) = n.
+Lemma N2intK n : n < expn 2 63 -> int2N (N2int n) = n.
 Proof.
   move=> Hn.
-  rewrite /int_to_nat /nat_to_int.
+  rewrite /int2N /N2int.
   rewrite of_Z_spec.
   rewrite (_ : wB = Z.of_nat (expn 2 63)).
     rewrite -Nat2Z.inj_mod.
@@ -570,25 +570,18 @@ Lemma setrefok {T} x s env : mem_env x env -> envok env ->
 Proof.
   case env => n refs.
   case : x s => k val.
-  elim : refs => [|b refs IH] //=.
-  move/orP => [].
-  - rewrite /key_eqb => /andP [] Hid.
-    case ml_type_eq_dec => //= Htype _ _.
-    case : b Hid Htype => /= k' val' Hid Htype.
-    rewrite Hid.
-    by case ml_type_eq_dec.
-  - move=> Hmem [] Huniq /andP [] _ _.
-    case : b Huniq => /= k' val' Huniq.
-    have -> : (key_id k =? key_id k') = false.
-Admitted.
+  rewrite /mem_env /envok /= => Hmem [] Huniq _.
+  case Hup : update => //.
+  by move: (updateok {| bind_key := k; bind_val := val |} refs Hmem Huniq).
+Qed.
 
-Lemma nat_to_int_1E : (nat_to_int 1 = 1)%uint63.
-Proof. by rewrite /nat_to_int. Qed.
+Lemma N2int_1E : (N2int 1 = 1)%uint63.
+Proof. by rewrite /N2int. Qed.
 
-Lemma nat_to_int_add n m :
-  nat_to_int (n + m) = (nat_to_int n + nat_to_int m)%uint63.
+Lemma N2int_add n m :
+  N2int (n + m) = (N2int n + N2int m)%uint63.
 Proof.
-  rewrite /nat_to_int.
+  rewrite /N2int.
   rewrite Nat2Z.inj_add.
   rewrite Sint63.add_of_Z.
   apply Sint63.to_Z_inj.
@@ -615,13 +608,13 @@ Proof.
   by rewrite -[RHS]Z.add_mod // Z.add_0_r.
 Qed.
 
-Lemma nat_to_int_mul m n : (nat_to_int m * nat_to_int n)%uint63 =
-  nat_to_int (m * n).
+Lemma N2int_mul m n : (N2int m * N2int n)%uint63 =
+  N2int (m * n).
 Proof.
   elim : n => [|n IH] //=.
-  - by rewrite muln0 {2 3}/nat_to_int /=; ring.
-  - rewrite mulnS nat_to_int_add -IH.
-    rewrite -addn1 nat_to_int_add nat_to_int_1E.
+  - by rewrite muln0 {2 3}/N2int /=; ring.
+  - rewrite mulnS N2int_add -IH.
+    rewrite -addn1 N2int_add N2int_1E.
     by ring.
 Qed.
 
@@ -634,32 +627,32 @@ Definition gasok {T} (f : T + Exn) :=
 Definition le_gasW {T} (f g : M T) := forall env, envok env ->
   gasok (RunW (f env)) -> RunW (f env) = RunW (g env).
 
-Theorem fact_ok' h n : int_to_nat n < expn 2 61 ->
+Theorem fact_ok' h n : int2N n < expn 2 61 ->
   le_gasW (fact_for h n) (Ret (fact_rec_int n)).
 Proof.
   move=> H env.
   rewrite /fact_for /gasok {1 7}/Bind.
   case H' : newref => [env' [s|e]] Henv.
   - rewrite !bindretf.
-    rewrite -(int_to_natK n).
+    rewrite -(int2NK n).
     have Henv' : envok env' by apply (@newref_envok ml_int 1%uint63 s env).
     have Hmem : mem_env s env' by apply (@newref_memok ml_int 1%uint63 s env).
-    elim : (int_to_nat n) H env' H' Henv' Hmem => [|n' IH] H env' H' Henv' Hmem.
-    + rewrite /nat_to_int /=.
+    elim : (int2N n) H env' H' Henv' Hmem => [|n' IH] H env' H' Henv' Hmem.
+    + rewrite /N2int /=.
       destruct h => //= _.
       move: (@newref_getE ml_int 1%uint63 env).
       by rewrite /RunM {1}/Bind H'.
     + rewrite {1 4}/Bind.
       move => Hgasok.
       move:(Hgasok).
-      rewrite (forloop_cat h 1 (nat_to_int n') (nat_to_int n'.+1) _) //.
+      rewrite (forloop_cat h 1 (N2int n') (N2int n'.+1) _) //.
       - move/ltnW in H.
         move:(IH H env' H' Henv' Hmem).
         rewrite {1 4 7 12}/Bind.
         case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
         + destruct h => //=.
-          have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1) = false.
-            rewrite -addn1 nat_to_int_add nat_to_int_1E.
+          have -> : ltsb (N2int n'.+1) (N2int n' + 1) = false.
+            rewrite -addn1 N2int_add N2int_1E.
             apply/Sint63.ltbP => //.
             by move/Z.lt_neq.
           rewrite !bindA {1 6}/Bind.
@@ -667,18 +660,10 @@ Proof.
           - rewrite !bindretf {1 4}/Bind.
             case Hset : setref => [env0'' [t|e]].
             + destruct h => //=.
-              have -> : ltsb (nat_to_int n'.+1) (nat_to_int n' + 1 + 1) = true.
-                rewrite -{1}nat_to_int_1E -nat_to_int_add addn1.
+              have -> : ltsb (N2int n'.+1) (N2int n' + 1 + 1) = true.
+                rewrite -{1}N2int_1E -N2int_add addn1.
                 apply ltsb_succ_nmax => Hlt.
-                
-                rewrite !Sint63.of_Z_spec !Sint63.cmod_small.
-                    by apply /Pos2Z.pos_lt_pos /Pos.lt_succ_diag_r.
-                  split.
-                  - admit.
-                  - admit.
-                split.
-                - admit.
-                - admit.
+                admit.
               move=> /= _.
               have Hmem' : mem_env s env0'.
                 by apply (getref_memok s a' env0).
@@ -686,14 +671,14 @@ Proof.
                 apply (getref_envok s a' env0) => //.
                 admit.
               move : (@setref_getE ml_int s 
-                      (a' * (nat_to_int n' + 1))%uint63 env0' Hmem' Henv'').
+                      (a' * (N2int n' + 1))%uint63 env0' Hmem' Henv'').
               rewrite /RunM /Bind Hset => ->.
               f_equal.
               move : IH'.
               rewrite Hget /=.
               move/(_ isT) => [] ->.
-              rewrite /fact_rec_int !nat_to_intK /=.
-                  by rewrite mulnC -nat_to_int_mul nat_to_int_succ.
+              rewrite /fact_rec_int !N2intK /=.
+                  by rewrite mulnC -N2int_mul -N2int_1E -N2int_add addn1.
                 rewrite ltn_neqAle.
                 apply/andP;split.
                 - apply/negbT/eqP => Hn.
