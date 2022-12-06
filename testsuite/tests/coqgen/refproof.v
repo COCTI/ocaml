@@ -527,6 +527,17 @@ Proof.
   by case Hlook : lookup => //= [val'] [] <- <-.
 Qed.
 
+Lemma setref_envok {T} x s env env' :
+  setref T x s env = (env', inl tt) -> envok env -> envok env'.
+Proof.
+  case: env => n refs.
+  case: env' => n' refs'.
+  case: x s => k val.
+  rewrite /setref.
+  case Hup: update => //= [refs''] [] <- <-.
+  elim: refs Hup => //= b refs IH Hup.
+Admitted.
+
 Lemma newref_memok {T} x t env env' : 
   newref T x env = (env', inl t) -> mem_env t env'.
 Proof.
@@ -563,6 +574,16 @@ Proof.
   - move=> H.
     apply /orP; right.
     by apply IH.
+Qed.
+
+Lemma getrefok {T} x  env e : mem_env x env -> envok env ->
+  RunW (getref T x env) <> inr e.
+Proof.
+  case: env => n refs.
+  case : x => k.
+  rewrite /mem_env /envok /= => Hmem [] Huniq Hrefs.
+  case Hlook : lookup => //=.
+  by move: (lookupok k refs Hmem Huniq).
 Qed.
 
 Lemma setrefok {T} x s env : mem_env x env -> envok env ->
@@ -687,9 +708,10 @@ Proof.
                   by rewrite ltn_exp2l.
               apply (ltn_trans H).
               by rewrite ltn_exp2l.
-            + admit.
+            + move: Hset.
+              admit.
           - admit.
-        + move:IH'. Check gasok.
+        + move:IH'.
           rewrite -/(gasok (@inr unit _ e)).
           by case gasok => // /(_ isT).
       - admit.
@@ -699,5 +721,5 @@ Proof.
         case : forloop => env'' [a|e] //.
         move=> Hgasok [] H''.
         by rewrite H'' in Hgasok.
-  - admit.
+  - case: env H' Henv => n' refs Henv //.
 Admitted.
