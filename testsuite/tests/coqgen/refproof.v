@@ -720,7 +720,29 @@ Proof.
         + move:IH'.
           rewrite -/(gasok (@inr unit _ e)).
           by case gasok => // /(_ isT).
-      - clear IH Hgasok;simpl. admit.
+      - move:H; clear; simpl => H.
+        apply /Sint63.lebP.
+        rewrite /N2int Sint63.of_Z_spec.
+        rewrite Sint63.cmod_small.
+          by apply Zle_0_nat.
+        split.
+        + apply (Z.le_trans _ 0%Z _) => //.
+          by apply Zle_0_nat.
+        + have -> : (wB / 2 = Z.of_nat (2 ^ 62))%Z.
+            rewrite /wB /size.
+            rewrite -{2}(Z.pow_1_r 2%Z).
+            rewrite -Z.pow_sub_r.
+            have -> : (Z.of_nat 63 - 1 = 62)%Z by [].
+            have H' : (0 <= (2 ^ 62))%Z.
+              admit.
+            move:(Z_of_nat_complete (2 ^ 62)%Z H').
+
+            Search (_ ^ _)%Z. Search (_%Z = Z.of_nat _).
+            have -> : (63 - 1 = 62)%Z by [].
+            have H' : forall m n,
+                      m = Z.of_nat n -> (2 ^ m)%Z = Z.of_nat (2 ^ n).
+             Print wB.
+         admit.
       - admit.
       - admit.
       - move:Hgasok.
