@@ -535,7 +535,46 @@ Proof.
   case: x s => k val.
   rewrite /setref.
   case Hup: update => //= [refs''] [] <- <-.
-  elim: refs Hup => //= b refs IH Hup.
+  elim: refs refs'' Hup => //= b refs IH refs''.
+  case: b => k' val'.
+  case Hid: (key_id k =? key_id k') => //=.
+  - case ml_type_eq_dec => //= [Htype].
+    move/Some_inj => Hrefs.
+    rewrite -Hrefs /uniq_bindings /=.
+    by move/eqP : Hid => ->.
+  - rewrite /omap /obind /oapp.
+    case Hup: update => //= [refs0].
+    move/Some_inj => <- [] Huniq /andP [] Hidlt Hall /=.
+    rewrite Hidlt /=.
+    have H : uniq_bindings refs0 ->
+      uniq_bindings ({| bind_key := k'; bind_val := val' |} :: refs0).
+      move=> Huniq' c /=.
+      move/(_ c) in Huniq'.
+      case Hc : (key_id k' =? c) => //.
+      move: (Huniq c) => /=.
+      rewrite Hc /= !ltnS leqn0 => /eqP.
+      admit.
+    split.
+    - apply H.
+      apply IH => //.
+      split => //.
+      rewrite /uniq_bindings => c.
+      move: (Huniq c) => /=.
+      case: (key_id k' =? c) => //=.
+      rewrite ltnS => Hcount.
+      by eapply leq_trans.
+    - apply IH => //.
+      split => //.
+      rewrite /uniq_bindings => c.
+      move: (Huniq c) => /=.
+      case: (key_id k' =? c) => //=.
+      rewrite ltnS => Hcount.
+      by eapply leq_trans.
+Admitted.
+
+Lemma fact_envok h n t env env':
+  fact_for h n env = (env', inl t) -> envok env -> envok env'.
+Proof.
 Admitted.
 
 Lemma newref_memok {T} x t env env' : 
