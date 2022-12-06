@@ -552,8 +552,22 @@ Proof.
       move/(_ c) in Huniq'.
       case Hc : (key_id k' =? c) => //.
       move: (Huniq c) => /=.
-      rewrite Hc /= !ltnS leqn0 => /eqP.
-      admit.
+      rewrite Hc /= !ltnS !leqn0 => /eqP Hcount.
+      apply /eqP.
+      move: Hup Hcount;clear.
+      elim: refs refs0 => //= b refs IH refs'.
+      case: b => k'' val''.
+      case Hid: (key_id k =? key_id k'').
+      + case ml_type_eq_dec => //= Htype.
+        move/Some_inj => <- /=.
+        move/eqP in Hid.
+        by rewrite Hid.
+      + rewrite /omap/obind/oapp.
+        case Hup: update => [refs0|] //.
+        move/Some_inj => <- /=.
+        case: (key_id k'' =? c) => //=.
+        rewrite !add0n.
+        by apply IH.
     split.
     - apply H.
       apply IH => //.
