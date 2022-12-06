@@ -682,17 +682,24 @@ Proof.
                 rewrite ltn_neqAle.
                 apply/andP;split.
                 - apply/negbT/eqP => Hn.
-                  move:Hn H. admit.
+                  move:Hn H => ->.
+                  by move:(@leq_exp2l 2 63 61 isT) => ->.
                 - apply (ltn_trans H).
                   by rewrite ltn_exp2l.
               apply (ltn_trans H).
               by rewrite ltn_exp2l.
-            + admit.
+            + have Hmem' : mem_env s env0'.
+                by apply (getref_memok s a' env0).
+              have Henv'' : envok env0'.
+                apply (getref_envok s a' env0) => //.
+                admit.
+              move:(setrefok s (a' * (N2int n' + 1))%uint63 env0' Hmem' Henv'').
+              by rewrite Hset.
           - admit.
-        + move:IH'. Check gasok.
+        + move:IH'.
           rewrite -/(gasok (@inr unit _ e)).
           by case gasok => // /(_ isT).
-      - admit.
+      - clear IH Hgasok;simpl. admit.
       - admit.
       - admit.
       - move:Hgasok.
