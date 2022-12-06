@@ -770,20 +770,29 @@ Proof.
         + have -> : (wB / 2 = Z.of_nat (2 ^ 62))%Z.
             rewrite /wB /size.
             rewrite -{2}(Z.pow_1_r 2%Z).
-            rewrite -Z.pow_sub_r.
-            have -> : (Z.of_nat 63 - 1 = 62)%Z by [].
-            have H' : (0 <= (2 ^ 62))%Z.
-              admit.
-            move:(Z_of_nat_complete (2 ^ 62)%Z H').
-
-            Search (_ ^ _)%Z. Search (_%Z = Z.of_nat _).
-            have -> : (63 - 1 = 62)%Z by [].
-            have H' : forall m n,
-                      m = Z.of_nat n -> (2 ^ m)%Z = Z.of_nat (2 ^ n).
-             Print wB.
-         admit.
-      - admit.
-      - admit.
+            rewrite -Z.pow_sub_r; last first.
+                done.
+              done.
+            have -> : (Z.of_nat 63 - 1 = Z.of_nat 62)%Z by [].
+            have -> : forall n,
+                      (2 ^ Z.of_nat n)%Z = Z.of_nat (2 ^ n) => //.
+            elim => // n IH.
+            rewrite Nat2Z.inj_succ.
+            rewrite Z.pow_succ_r //.
+              by rewrite IH Nat.pow_succ_r' Nat2Z.inj_mul.
+            by apply Zle_0_nat.
+          apply /inj_lt /ltP.
+          rewrite hat_to_expnE -(ltn_add2r 1) addn1.
+          apply (@ltn_trans (expn 2 62) n'.+1 (expn 2 62 + 1)).
+            apply (@ltn_trans (expn 2 61) n'.+1 (expn 2 62)).
+              done.
+            by rewrite ltn_exp2l.
+          by rewrite -{1}(addn0 (expn 2 62)) ltn_add2l.
+      - apply lesb_succ_nmax.
+        admit.
+      - rewrite -addn1 N2int_add.
+        apply lesb_succ_nmax.
+        admit.
       - move:Hgasok.
         case : forloop => env'' [a|e] //.
         move=> Hgasok [] H''.
