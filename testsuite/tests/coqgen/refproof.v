@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Uint63 BinNums ZArith Eqdep_dec Ring63.
+Require Import Uint63 BinNums ZArith Eqdep_dec Ring63 Lia.
 Require Import cocti_defs test2 sortproof.
 
 Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
@@ -363,7 +363,7 @@ Proof.
     f_equal.
     admit.
   - move=> Hmem Huniq.
-  Admitted.
+  Abort.
 
 Definition mem_env {T} (r : loc T) env :=
   let: mkEnv c refs := env in
@@ -467,7 +467,7 @@ Proof.
   by move/(updateok (mkbind k y) l Hmem (proj1 Huniq)) in H.
 Qed.
 
-Lemma getset_skip {T} x env : mem_env x env -> envok env ->
+(* Lemma getset_skip {T} x env : mem_env x env -> envok env ->
   (do s <- getref T x; setref T x s) env = Ret tt env.
 Proof.
   case env => c refs.
@@ -482,7 +482,7 @@ Proof.
       by move/Some_inj.
     + by move : (updateok (mkbind k val) refs Hmem Huniq).
   - by move : (lookupok k refs Hmem Huniq).
-Qed.
+Qed. *)
 
 Lemma newref_envok {T} x t env env' :
   newref T x env = (env', inl t) -> envok env -> envok env'.
@@ -584,12 +584,22 @@ Proof.
       case: (key_id k' =? c) => //=.
       rewrite ltnS => Hcount.
       by eapply leq_trans.
-Admitted.
+Qed.
 
-Lemma fact_envok h n t env env':
-  fact_for h n env = (env', inl t) -> envok env -> envok env'.
+Lemma forloop_envok h m n b env env':
+  (forall m env env', b m env = (env', inl tt) -> envok env -> envok env') ->
+  forloop h m n b env = (env', inl tt) -> envok env -> envok env'.
 Proof.
-Admitted.
+  move=> Hb.
+  elim: h m env env' => [|h IH] m env env' //=.
+  case:ifP => _.
+  - by move=> [] ->.
+  - rewrite /Bind.
+    case H: b => [env0 [t|e]] Hfor Henv => //.
+    apply (IH (m + 1)%uint63 env0) => //.
+    apply (Hb m env) => //.
+    by elim: t H.
+Qed.
 
 Lemma newref_memok {T} x t env env' : 
   newref T x env = (env', inl t) -> mem_env t env'.
@@ -627,6 +637,48 @@ Proof.
   - move=> H.
     apply /orP; right.
     by apply IH.
+Qed.
+
+Lemma setref_memok {T} x t env env' : 
+  setref T x t env = (env', inl tt) -> mem_env x env'.
+Proof.
+  case env => n refs.
+  case env' => n' refs'.
+  case: x t => k val.
+  rewrite /setref.
+  case Hup: update => [refs0|] //=.
+  move=> [] _ <-.
+  rewrite /mem_bindings.
+  elim: refs refs0 Hup => [|b refs IH refs0] //=.
+  case: b => k' val' /=.
+  case Hid: (key_id k =? key_id k') => //=.
+  - case ml_type_eq_dec => //= Htype.
+    move /Some_inj => <- //=.
+    apply /orP; left.
+    rewrite /key_eqb.
+    apply /andP; split.
+      by rewrite Nat.eqb_refl.
+    by case ml_type_eq_dec.
+  - rewrite /omap/obind /oapp.
+    case Hup: update => [refs0'|] //.
+    move /Some_inj => <- /=.
+    apply /orP; right.
+    by apply IH.
+Qed.
+
+Lemma forloop_memok {T} h m n b env env' (s : loc T) : (forall n env env',
+  b n env = (env', inl tt) -> mem_env s env -> mem_env s env') ->
+  forloop h m n b env = (env', inl tt) -> mem_env s env -> mem_env s env'.
+Proof.
+  move=> H.
+  elim: h m env => [|h IH] m env //=.
+  case: ifP => _.
+  - by move=> [] ->.
+  - rewrite {1}/Bind.
+    case H': b => [env0 [t|_]] Hfor Henv//.
+    apply (IH (m + 1)%uint63 env0) => //.
+    apply (H m env env0) => //.
+    by elim: t H'.
 Qed.
 
 Lemma getrefok {T} x  env e : mem_env x env -> envok env ->
@@ -701,6 +753,28 @@ Definition gasok {T} (f : T + Exn) :=
 Definition le_gasW {T} (f g : M T) := forall env, envok env ->
   gasok (RunW (f env)) -> RunW (f env) = RunW (g env).
 
+Lemma ltmax_int_neq n : n <= expn 2 61 -> N2int n <> Sint63.max_int.
+Proof.
+  move=> H.
+  have Hn' : ((Z.of_nat n) < wB / 2 - 1)%Z.
+    apply (Z.le_lt_trans _ (2 ^ 61)%Z).
+    move /leP /inj_le in H.
+    have -> : (2 = Z.of_nat 2)%Z by [].
+    have -> : (61 = Z.of_nat 61)%Z by [].
+    rewrite -Nat2Z.inj_pow.
+    by rewrite hat_to_expnE.
+    by compute.
+  move /(f_equal Sint63.to_Z).
+  rewrite /N2int.
+  rewrite -Sint63.is_int Sint63.to_Z_max.
+    by apply Z.lt_neq.
+  split.
+  - apply (Z.le_trans _ (Z.of_nat 0)).
+    + by compute.
+    + by apply /inj_le /leP.
+  - by apply Z.lt_le_incl.
+Qed.
+
 Theorem fact_ok' h n : int2N n < expn 2 61 ->
   le_gasW (fact_for h n) (Ret (fact_rec_int n)).
 Proof.
@@ -730,22 +804,38 @@ Proof.
             apply/Sint63.ltbP => //.
             by move/Z.lt_neq.
           rewrite !bindA {1 6}/Bind.
+          have Hmem': mem_env s env0.
+            elim: a Hfor Hmem.
+            apply forloop_memok; clear => n env env'.
+            rewrite !bindA {1}/Bind.
+            case Hget: getref => [env0 [t|_]] //.
+            rewrite bindretf => Hset Henv.
+            apply (setref_memok s (t * n)%uint63 env0) => //.
+          have Henv'': envok env0.
+            elim: a Hfor Henv'.
+            apply forloop_envok; clear => n env env'.
+            rewrite !bindA {1}/Bind.
+            case Hget: getref => [env0 [t|_]] //.
+            rewrite bindretf => Hset Henv.
+            apply (setref_envok s (t * n)%uint63 env0) => //.
+            move: Hget Henv.
+            by apply getref_envok.
           case Hget : getref => [env0' [a'|e]].
           - rewrite !bindretf {1 4}/Bind.
+            have Hmem'' : mem_env s env0'.
+              by apply (getref_memok s a' env0).
+            have Henv''' : envok env0'.
+              apply (getref_envok s a' env0) => //.
             case Hset : setref => [env0'' [t|e]].
             + destruct h => //=.
               have -> : ltsb (N2int n'.+1) (N2int n' + 1 + 1) = true.
                 rewrite -{1}N2int_1E -N2int_add addn1.
-                apply ltsb_succ_nmax => Hlt.
-                admit.
+                apply ltsb_succ_nmax.
+                clear -H.
+                by apply ltmax_int_neq.
               move=> /= _.
-              have Hmem' : mem_env s env0'.
-                by apply (getref_memok s a' env0).
-              have Henv'' : envok env0'.
-                apply (getref_envok s a' env0) => //.
-                admit.
               move : (@setref_getE ml_int s 
-                      (a' * (N2int n' + 1))%uint63 env0' Hmem' Henv'').
+                      (a' * (N2int n' + 1))%uint63 env0' Hmem'' Henv''').
               rewrite /RunM /Bind Hset => ->.
               f_equal.
               move : IH'.
@@ -762,14 +852,10 @@ Proof.
                   by rewrite ltn_exp2l.
               apply (ltn_trans H).
               by rewrite ltn_exp2l.
-            + have Hmem' : mem_env s env0'.
-                by apply (getref_memok s a' env0).
-              have Henv'' : envok env0'.
-                apply (getref_envok s a' env0) => //.
-                admit.
-              move:(setrefok s (a' * (N2int n' + 1))%uint63 env0' Hmem' Henv'').
+            + move:(setrefok s (a' * (N2int n' + 1))%uint63 env0' Hmem'' Henv''').
               by rewrite Hset.
-          - admit.
+          - move:(getrefok s env0 e Hmem' Henv'').
+            by rewrite Hget.
         + move:IH'.
           rewrite -/(gasok (@inr unit _ e)).
           by case gasok => // /(_ isT).
@@ -803,13 +889,21 @@ Proof.
             by rewrite ltn_exp2l.
           by rewrite -{1}(addn0 (expn 2 62)) ltn_add2l.
       - apply lesb_succ_nmax.
-        admit.
+        clear -H.
+        apply ltmax_int_neq.
+        apply /leq_trans /H.
+        rewrite -addn2.
+        exact /leq_addr.
       - rewrite -addn1 N2int_add.
         apply lesb_succ_nmax.
-        admit.
+        clear -H.
+        apply ltmax_int_neq.
+        apply /leq_trans /H.
+        rewrite -addn2.
+        exact /leq_addr.
       - move:Hgasok.
         case : forloop => env'' [a|e] //.
         move=> Hgasok [] H''.
         by rewrite H'' in Hgasok.
   - case: env H' Henv => n' refs Henv //.
-Admitted.
+Qed.
