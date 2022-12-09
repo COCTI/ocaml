@@ -753,17 +753,21 @@ Definition gasok {T} (f : T + Exn) :=
 Definition le_gasW {T} (f g : M T) := forall env, envok env ->
   gasok (RunW (f env)) -> RunW (f env) = RunW (g env).
 
+Lemma ltmax_of_nat n : n <= expn 2 61 -> ((Z.of_nat n) < wB / 2 - 1)%Z.
+Proof.
+  move=> H.
+  apply (Z.le_lt_trans _ (2 ^ 61)%Z) => //.
+  move /leP /inj_le in H.
+  have -> : (2 = Z.of_nat 2)%Z by [].
+  have -> : (61 = Z.of_nat 61)%Z by [].
+  rewrite -Nat2Z.inj_pow.
+  by rewrite hat_to_expnE.
+Qed.
+
 Lemma ltmax_int_neq n : n <= expn 2 61 -> N2int n <> Sint63.max_int.
 Proof.
   move=> H.
-  have Hn' : ((Z.of_nat n) < wB / 2 - 1)%Z.
-    apply (Z.le_lt_trans _ (2 ^ 61)%Z).
-    move /leP /inj_le in H.
-    have -> : (2 = Z.of_nat 2)%Z by [].
-    have -> : (61 = Z.of_nat 61)%Z by [].
-    rewrite -Nat2Z.inj_pow.
-    by rewrite hat_to_expnE.
-    by compute.
+  have Hn:= ltmax_of_nat n H.
   move /(f_equal Sint63.to_Z).
   rewrite /N2int.
   rewrite -Sint63.is_int Sint63.to_Z_max.
@@ -775,135 +779,110 @@ Proof.
   - by apply Z.lt_le_incl.
 Qed.
 
-Theorem fact_ok' h n : int2N n < expn 2 61 ->
+Theorem fact_ok h n : int2N n < expn 2 61 ->
   le_gasW (fact_for h n) (Ret (fact_rec_int n)).
 Proof.
   move=> H env.
   rewrite /fact_for /gasok {1 7}/Bind.
-  case H' : newref => [env' [s|e]] Henv.
-  - rewrite !bindretf.
-    rewrite -(int2NK n).
-    have Henv' : envok env' by apply (@newref_envok ml_int 1%uint63 s env).
-    have Hmem : mem_env s env' by apply (@newref_memok ml_int 1%uint63 s env).
-    elim : (int2N n) H env' H' Henv' Hmem => [|n' IH] H env' H' Henv' Hmem.
-    + rewrite /N2int /=.
-      destruct h => //= _.
-      move: (@newref_getE ml_int 1%uint63 env).
-      by rewrite /RunM {1}/Bind H'.
-    + rewrite {1 4}/Bind.
-      move => Hgasok.
-      move:(Hgasok).
-      rewrite (forloop_cat h 1 (N2int n') (N2int n'.+1) _) //.
-      - move/ltnW in H.
-        move:(IH H env' H' Henv' Hmem).
-        rewrite {1 4 7 12}/Bind.
-        case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'.
-        + destruct h => //=.
-          have -> : ltsb (N2int n'.+1) (N2int n' + 1) = false.
-            rewrite -addn1 N2int_add N2int_1E.
-            apply/Sint63.ltbP => //.
-            by move/Z.lt_neq.
-          rewrite !bindA {1 6}/Bind.
-          have Hmem': mem_env s env0.
-            elim: a Hfor Hmem.
-            apply forloop_memok; clear => n env env'.
-            rewrite !bindA {1}/Bind.
-            case Hget: getref => [env0 [t|_]] //.
-            rewrite bindretf => Hset Henv.
-            apply (setref_memok s (t * n)%uint63 env0) => //.
-          have Henv'': envok env0.
-            elim: a Hfor Henv'.
-            apply forloop_envok; clear => n env env'.
-            rewrite !bindA {1}/Bind.
-            case Hget: getref => [env0 [t|_]] //.
-            rewrite bindretf => Hset Henv.
-            apply (setref_envok s (t * n)%uint63 env0) => //.
-            move: Hget Henv.
-            by apply getref_envok.
-          case Hget : getref => [env0' [a'|e]].
-          - rewrite !bindretf {1 4}/Bind.
-            have Hmem'' : mem_env s env0'.
-              by apply (getref_memok s a' env0).
-            have Henv''' : envok env0'.
-              apply (getref_envok s a' env0) => //.
-            case Hset : setref => [env0'' [t|e]].
-            + destruct h => //=.
-              have -> : ltsb (N2int n'.+1) (N2int n' + 1 + 1) = true.
-                rewrite -{1}N2int_1E -N2int_add addn1.
-                apply ltsb_succ_nmax.
-                clear -H.
-                by apply ltmax_int_neq.
-              move=> /= _.
-              move : (@setref_getE ml_int s 
+  case H' : newref => [env' [s|e]] Henv; last first.
+    by case: env H' Henv.
+  rewrite !bindretf -(int2NK n).
+  have Henv' : envok env' by apply (@newref_envok ml_int 1%uint63 s env).
+  have Hmem : mem_env s env' by apply (@newref_memok ml_int 1%uint63 s env).
+  elim : (int2N n) H env' H' Henv' Hmem => [|n' IH] H env' H' Henv' Hmem.
+    rewrite /N2int /=.
+    destruct h => //= _.
+    move: (@newref_getE ml_int 1%uint63 env).
+    by rewrite /RunM {1}/Bind H'.
+  rewrite {1 4}/Bind.
+  move => Hgasok.
+  move:(Hgasok).
+  rewrite (forloop_cat h 1 (N2int n') (N2int n'.+1) _) //; first last.
+  - move:Hgasok.
+    case : forloop => env'' [a|e] //.
+    move=> Hgasok [] H''.
+    by rewrite H'' in Hgasok.
+  - clear -H.
+    rewrite -addn1 N2int_add.
+    apply /lesb_succ_nmax /ltmax_int_neq /leq_trans /H.
+    by rewrite -addn2 leq_addr.
+  - clear -H.
+    apply /lesb_succ_nmax /ltmax_int_neq /leq_trans /H.
+    by rewrite -addn2 leq_addr.
+  - clear -H => /=.
+    apply /Sint63.lebP.
+    rewrite /N2int -Sint63.is_int; last first.
+      rewrite Sint63.to_Z_max Sint63.to_Z_min.
+      split.
+      - apply (Z.le_trans _ (Z.of_nat 0)) => //.
+        by apply /inj_le /leP.
+      - apply /Z.lt_le_incl /ltmax_of_nat.
+        apply /leq_trans /H.
+        by rewrite -addn2 leq_addr.
+    rewrite Sint63.to_Z_0.
+    exact /Zle_0_nat.
+  - move/ltnW in H.
+    move:(IH H env' H' Henv' Hmem).
+    rewrite {1 4 7 12}/Bind.
+    case Hfor : (forloop h 1 _ _ _) => [env0 [a|e]] IH'; last first.
+      move:IH'.
+      rewrite -/(gasok (@inr unit _ e)).
+      by case gasok => // /(_ isT).
+    destruct h => //=.
+    have -> : ltsb (N2int n'.+1) (N2int n' + 1) = false.
+      rewrite -addn1 N2int_add N2int_1E.
+      apply/Sint63.ltbP => //.
+      by move/Z.lt_neq.
+    rewrite !bindA {1 6}/Bind.
+    have Hmem': mem_env s env0.
+      case: a Hfor Hmem.
+      apply forloop_memok; clear => n env env'.
+      rewrite !bindA {1}/Bind.
+      case Hget: getref => [env0 [t|_]] //.
+      rewrite bindretf => Hset Henv.
+      exact /(setref_memok s (t * n)%uint63 env0).
+    have Henv'': envok env0.
+      case: a Hfor Henv'.
+      apply forloop_envok; clear => n env env'.
+      rewrite !bindA {1}/Bind.
+      case Hget: getref => [env0 [t|_]] //.
+      rewrite bindretf => Hset Henv.
+      apply (setref_envok s (t * n)%uint63 env0) => //.
+      move: Hget Henv.
+      by apply getref_envok.
+    case Hget : getref => [env0' [a'|e]]; last first.
+      move:(getrefok s env0 e Hmem' Henv'').
+      by rewrite Hget.
+    rewrite !bindretf {1 4}/Bind.
+    have Hmem'' : mem_env s env0'.
+      by apply (getref_memok s a' env0).
+    have Henv''' : envok env0'.
+      by apply (getref_envok s a' env0).
+    case Hset : setref => [env0'' [t|e]]; last first.
+      move:(setrefok s (a' * (N2int n' + 1))%uint63 env0' Hmem'' Henv''').
+      by rewrite Hset.
+    destruct h => //=.
+    have -> : ltsb (N2int n'.+1) (N2int n' + 1 + 1) = true.
+      clear -H.
+      rewrite -{1}N2int_1E -N2int_add addn1.
+      by apply /ltsb_succ_nmax /ltmax_int_neq.
+    move=> /= _.
+    move : (@setref_getE ml_int s 
                       (a' * (N2int n' + 1))%uint63 env0' Hmem'' Henv''').
-              rewrite /RunM /Bind Hset => ->.
-              f_equal.
-              move : IH'.
-              rewrite Hget /=.
-              move/(_ isT) => [] ->.
-              rewrite /fact_rec_int !N2intK /=.
-                  by rewrite mulnC -N2int_mul -N2int_1E -N2int_add addn1.
-                rewrite ltn_neqAle.
-                apply/andP;split.
-                - apply/negbT/eqP => Hn.
-                  move:Hn H => ->.
-                  by move:(@leq_exp2l 2 63 61 isT) => ->.
-                - apply (ltn_trans H).
-                  by rewrite ltn_exp2l.
-              apply (ltn_trans H).
-              by rewrite ltn_exp2l.
-            + move:(setrefok s (a' * (N2int n' + 1))%uint63 env0' Hmem'' Henv''').
-              by rewrite Hset.
-          - move:(getrefok s env0 e Hmem' Henv'').
-            by rewrite Hget.
-        + move:IH'.
-          rewrite -/(gasok (@inr unit _ e)).
-          by case gasok => // /(_ isT).
-      - move:H; clear; simpl => H.
-        apply /Sint63.lebP.
-        rewrite /N2int Sint63.of_Z_spec.
-        rewrite Sint63.cmod_small.
-          by apply Zle_0_nat.
-        split.
-        + apply (Z.le_trans _ 0%Z _) => //.
-          by apply Zle_0_nat.
-        + have -> : (wB / 2 = Z.of_nat (2 ^ 62))%Z.
-            rewrite /wB /size.
-            rewrite -{2}(Z.pow_1_r 2%Z).
-            rewrite -Z.pow_sub_r; last first.
-                done.
-              done.
-            have -> : (Z.of_nat 63 - 1 = Z.of_nat 62)%Z by [].
-            have -> : forall n,
-                      (2 ^ Z.of_nat n)%Z = Z.of_nat (2 ^ n) => //.
-            elim => // n IH.
-            rewrite Nat2Z.inj_succ.
-            rewrite Z.pow_succ_r //.
-              by rewrite IH Nat.pow_succ_r' Nat2Z.inj_mul.
-            by apply Zle_0_nat.
-          apply /inj_lt /ltP.
-          rewrite hat_to_expnE -(ltn_add2r 1) addn1.
-          apply (@ltn_trans (expn 2 62) n'.+1 (expn 2 62 + 1)).
-            apply (@ltn_trans (expn 2 61) n'.+1 (expn 2 62)).
-              done.
-            by rewrite ltn_exp2l.
-          by rewrite -{1}(addn0 (expn 2 62)) ltn_add2l.
-      - apply lesb_succ_nmax.
-        clear -H.
-        apply ltmax_int_neq.
-        apply /leq_trans /H.
-        rewrite -addn2.
-        exact /leq_addr.
-      - rewrite -addn1 N2int_add.
-        apply lesb_succ_nmax.
-        clear -H.
-        apply ltmax_int_neq.
-        apply /leq_trans /H.
-        rewrite -addn2.
-        exact /leq_addr.
-      - move:Hgasok.
-        case : forloop => env'' [a|e] //.
-        move=> Hgasok [] H''.
-        by rewrite H'' in Hgasok.
-  - case: env H' Henv => n' refs Henv //.
+    rewrite /RunM /Bind Hset => ->.
+    f_equal.
+    move : IH'.
+    rewrite Hget /=.
+    move/(_ isT) => [] ->.
+    rewrite /fact_rec_int !N2intK /=.
+    - by rewrite mulnC -N2int_mul -N2int_1E -N2int_add addn1.
+    - rewrite ltn_neqAle.
+      apply/andP;split.
+      + apply/negbT/eqP => Hn.
+        move:Hn H => ->.
+        by move:(@leq_exp2l 2 63 61 isT) => ->.
+      + apply (ltn_trans H).
+        by rewrite ltn_exp2l.
+    - apply (ltn_trans H).
+      by rewrite ltn_exp2l.
 Qed.
