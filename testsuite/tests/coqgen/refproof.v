@@ -7,15 +7,47 @@ Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
 Lemma happly [A B] [f g : A -> B] x : f = g -> f x = g x.
 Proof. by move=> ->. Qed.
 
-Definition N2int := fun n => of_Z (Z.of_nat n).
+Locate "\o".
+
 Definition int2N := fun n => Z.to_nat (to_Z n).
+Definition N2int := fun n => of_Z (Z.of_nat n).
+Definition fact_rec_int n : int := N2int (fact_rec (int2N n)).
 
-Definition fact_rec_int n : int :=
-  N2int (fact_rec (int2N n)).
+Lemma hat_to_expnE n : 2 ^ n = expn 2 n.
+Proof.
+  elim: n => // n.
+  rewrite expnSr Nat.pow_succ_r' => ->.
+  by rewrite mulnC.
+Qed.
 
-Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
-  getref T l env = Ret x env.
+Lemma int2NK n : N2int (int2N n) = n.
+Proof.
+  rewrite /N2int /int2N.
+  rewrite Z2Nat.id ?of_to_Z //.
+  by case : (to_Z_bounded n).
+Qed.
 
+Lemma N2intK n : n < expn 2 63 -> int2N (N2int n) = n.
+Proof.
+  move=> Hn.
+  rewrite /int2N /N2int.
+  rewrite of_Z_spec.
+  rewrite (_ : wB = Z.of_nat (expn 2 63)).
+    rewrite -Nat2Z.inj_mod.
+    rewrite Nat.mod_small //.
+      by rewrite Nat2Z.id.
+    apply /ltP => //.
+  rewrite /wB /size.
+  have -> : 2%Z = Z.of_nat 2.
+    done.
+  rewrite -Nat2Z.inj_pow.
+  by rewrite hat_to_expnE.
+Qed.
+
+(* Definition at_loc {T} (l : loc T) (x : coq_type T) env :=
+  getref T l env = Ret x env. *)
+
+(* int lemmas *)
 Lemma lesb_not_ltsb m n : lesb m n <-> ltsb n m = false.
 Proof.
   split.
@@ -160,9 +192,35 @@ Proof.
   exact (ltsb_nmax m n ltmn).
 Qed.
 
-Definition le_gas {T} (f g : M T) := forall env,
-  RunW (f env) <> inr GasExhausted -> f env = g env.
+(* Definitions of env *)
+Definition key_eqb (k1 k2 : key) :=
+  (key_id k1 =? key_id k2) &&
+  (ml_type_eq_dec (key_type k1) (key_type k2)).
 
+Definition mem_bindings k :=
+  has (fun b => key_eqb k (bind_key M b)).
+
+Definition uniq_bindings env :=
+ forall c, count (fun b => key_id (bind_key M b) =? c) env <= 1.
+
+Definition mem_env {T} (r : loc T) env :=
+  let: mkEnv c refs := env in
+  let: mkloc k := r in mem_bindings k refs.
+
+Definition envok env :=
+  let: mkEnv c refs := env in uniq_bindings refs /\
+  all(fun b => key_id (bind_key M b) < c) refs.
+
+Definition gasok {T} (f : T + Exn) :=
+  match f with
+  | inr GasExhausted => false
+  | _ => true
+  end.
+
+Definition le_gas {T} (f g : M T) := forall env,
+  gasok (RunW (f env)) -> f env = g env.
+
+(* forloop lemmas *)
 Lemma forloop_mono h h' m n b : h <= h' ->
   le_gas (forloop h m n b) (forloop h' m n b).
 Proof.
@@ -177,8 +235,8 @@ Qed.
 Lemma enough_gas h m n p b env env' (tt' : unit) :
   ltsb m n ->
   forloop h m (n - 1)%uint63 b env = (env', inl tt') ->
-  RunW (forloop h m p b env) <> inr GasExhausted ->
-  RunW (forloop h n p b env') <> inr GasExhausted.
+  gasok (RunW (forloop h m p b env)) ->
+  gasok (RunW (forloop h n p b env')).
 Proof.
   elim: h m env => [|h IH] m env Hmn //.
   rewrite {3}(lock h.+1) /=.
@@ -266,37 +324,6 @@ Proof.
       done.
 Qed.
 
-Lemma int2NK n : N2int (int2N n) = n.
-Proof.
-  rewrite /N2int /int2N.
-  rewrite Z2Nat.id ?of_to_Z //.
-  by case : (to_Z_bounded n).
-Qed.
-
-Lemma hat_to_expnE n : 2 ^ n = expn 2 n.
-Proof.
-  elim: n => // n.
-  rewrite expnSr Nat.pow_succ_r' => ->.
-  by rewrite mulnC.
-Qed.
-
-Lemma N2intK n : n < expn 2 63 -> int2N (N2int n) = n.
-Proof.
-  move=> Hn.
-  rewrite /int2N /N2int.
-  rewrite of_Z_spec.
-  rewrite (_ : wB = Z.of_nat (expn 2 63)).
-    rewrite -Nat2Z.inj_mod.
-    rewrite Nat.mod_small //.
-      by rewrite Nat2Z.id.
-    apply /ltP => //.
-  rewrite /wB /size.
-  have -> : 2%Z = Z.of_nat 2.
-    done.
-  rewrite -Nat2Z.inj_pow.
-  by rewrite hat_to_expnE.
-Qed.
-
 Definition RunM {A} (x : M A) env := RunW (x env).
 
 Lemma coerceE T x : coerce T T x = Some x.
@@ -306,16 +333,7 @@ Proof.
   by rewrite -(eq_rect_eq_dec ml_type_eq_dec).
 Qed.
 
-Definition key_eqb (k1 k2 : key) :=
-  (key_id k1 =? key_id k2) &&
-  (ml_type_eq_dec (key_type k1) (key_type k2)).
-
-Definition mem_bindings k :=
-  has (fun b => key_eqb k (bind_key M b)).
-
-Definition uniq_bindings env :=
- forall c, count (fun b => key_id (bind_key M b) =? c) env <= 1.
-
+(* reference lemmas *)
 Lemma lookup_updateE (k : key) (val : coq_type (key_type k)) env :
   mem_bindings k env -> uniq_bindings env ->
   obind (lookup k) (update (mkbind k val) env) = Some val.
@@ -364,14 +382,6 @@ Proof.
     admit.
   - move=> Hmem Huniq.
   Abort.
-
-Definition mem_env {T} (r : loc T) env :=
-  let: mkEnv c refs := env in
-  let: mkloc k := r in mem_bindings k refs.
-
-Definition envok env :=
-  let: mkEnv c refs := env in uniq_bindings refs /\
-  all(fun b => key_id (bind_key M b) < c) refs.
 
 Lemma lookupok k env : mem_bindings k env -> uniq_bindings env ->
   lookup k env <> None.
@@ -744,15 +754,6 @@ Proof.
     by ring.
 Qed.
 
-Definition gasok {T} (f : T + Exn) :=
-  match f with
-  | inr GasExhausted => false
-  | _ => true
-  end.
-
-Definition le_gasW {T} (f g : M T) := forall env, envok env ->
-  gasok (RunW (f env)) -> RunW (f env) = RunW (g env).
-
 Lemma ltmax_of_nat n : n <= expn 2 61 -> ((Z.of_nat n) < wB / 2 - 1)%Z.
 Proof.
   move=> H.
@@ -779,6 +780,17 @@ Proof.
   - by apply Z.lt_le_incl.
 Qed.
 
+Definition le_gasW {T} (f g : M T) := forall env, envok env ->
+  gasok (RunW (f env)) -> RunW (f env) = RunW (g env).
+
+Lemma le_gasW_weak {T} (f g : M T) : le_gas f g -> le_gasW f g.
+Proof.
+  rewrite /le_gas /le_gasW.
+  move=> /[swap] env /(_ env) H _ Hgas.
+  f_equal.
+  exact /H /Hgas.
+Qed.
+
 Theorem fact_ok h n : int2N n < expn 2 61 ->
   le_gasW (fact_for h n) (Ret (fact_rec_int n)).
 Proof.
@@ -799,9 +811,7 @@ Proof.
   move:(Hgasok).
   rewrite (forloop_cat h 1 (N2int n') (N2int n'.+1) _) //; first last.
   - move:Hgasok.
-    case : forloop => env'' [a|e] //.
-    move=> Hgasok [] H''.
-    by rewrite H'' in Hgasok.
+    by case : forloop => env'' [a|e] //.
   - clear -H.
     rewrite -addn1 N2int_add.
     apply /lesb_succ_nmax /ltmax_int_neq /leq_trans /H.
@@ -867,7 +877,7 @@ Proof.
       rewrite -{1}N2int_1E -N2int_add addn1.
       by apply /ltsb_succ_nmax /ltmax_int_neq.
     move=> /= _.
-    move : (@setref_getE ml_int s 
+    move : (@setref_getE ml_int s
                       (a' * (N2int n' + 1))%uint63 env0' Hmem'' Henv''').
     rewrite /RunM /Bind Hset => ->.
     f_equal.
