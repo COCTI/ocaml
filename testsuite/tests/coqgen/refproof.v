@@ -7,8 +7,6 @@ Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
 Lemma happly [A B] [f g : A -> B] x : f = g -> f x = g x.
 Proof. by move=> ->. Qed.
 
-Locate "\o".
-
 Definition int2N := fun n => Z.to_nat (to_Z n).
 Definition N2int := fun n => of_Z (Z.of_nat n).
 Definition fact_rec_int n : int := N2int (fact_rec (int2N n)).
@@ -475,6 +473,101 @@ Proof.
   move: (lookup_updateE k y l Hmem (proj1 Huniq)).
   rewrite H /= => -> //.
   by move/(updateok (mkbind k y) l Hmem (proj1 Huniq)) in H.
+Qed.
+
+Lemma getget {T A} x (f : coq_type T -> coq_type T -> M A) :
+  do s <- getref T x; do s' <- getref T x; f s s' = do s <- getref T x; f s s.
+Proof.
+  apply funext => env.
+  rewrite /Bind.
+  case H : getref => [env' [a|]] //.
+  move : H.
+  rewrite /getref.
+  case : x a f => k a f.
+  case H : env => [n refs].
+  case H' : lookup => // [a'] [] <- <-.
+  by rewrite H'.
+Qed.
+
+Lemma updateretE b b' refs refs' :
+  key_eqb (bind_key M b) (bind_key M b') ->
+  update b refs = Some refs' -> update b' refs = update b' refs'.
+Proof.
+  move=> H.
+  elim: refs refs' b b' H => [|a refs IH refs' b b' H] //=.
+  case a => k val.
+  move: H.
+  case: b => k' val'.
+  case: b' => k'' val'' /=.
+  rewrite /key_eqb => /andP [] /eqP Hid.
+  case ml_type_eq_dec => //= Htype _.
+  case: ifPn => /eqP Hid'.
+  - case ml_type_eq_dec => //= Htype' /Some_inj <- /=.
+    rewrite -Hid Hid'.
+    case:ifPn => /eqP _ //.
+    case ml_type_eq_dec => /=; rewrite -Htype Htype' => _ //.
+    by case ml_type_eq_dec.
+  - rewrite /omap/obind/oapp.
+    case Hup : update => [l|] // /Some_inj <- /=.
+    rewrite -Hid.
+    case: ifPn => /eqP // _.
+    rewrite (IH l {| bind_key := k'; bind_val := val' |}) //=.
+    rewrite /key_eqb Hid Htype; apply /andP; split.
+      by apply /eqP.
+    by case ml_type_eq_dec.
+Qed.
+
+Lemma updateNoneE b b' refs :
+  key_eqb (bind_key M b) (bind_key M b') ->
+  update b refs = None -> update b' refs = None.
+Proof.
+  elim: refs b b' => [|a refs IH b b'] //.
+  case: b => k val.
+  case: b' => k' val' /=.
+  rewrite /key_eqb => /andP [] /eqP Hid.
+  case ml_type_eq_dec => //= Htype _.
+  case: a => k'' val''.
+  case: ifPn => /eqP //= Hid'.
+  - case ml_type_eq_dec => //= Htype' _.
+    rewrite -Hid Hid'.
+    case: ifPn => /eqP // _.
+    case ml_type_eq_dec => //=.
+    by rewrite -Htype.
+  - rewrite /omap/obind/oapp.
+    case Hup : update => // _.
+    rewrite -Hid.
+    case: ifPn => /eqP // _.
+    rewrite (IH {| bind_key := k; bind_val := val |}) //=.
+    rewrite /key_eqb Hid Htype; apply /andP; split.
+      by apply /eqP.
+    by case ml_type_eq_dec.
+Qed.
+
+Lemma setset {T} x y y' :
+  do _ <- setref T x y; setref T x y' = setref T x y'.
+Proof.
+  apply funext => env.
+  rewrite /Bind.
+  case H : setref => [env' [a|e]]; last first.
+  all:move : H.
+  all:rewrite /setref.
+  all:case H : env => [n refs].
+  all:case : x y y' => k y y'.
+  - case H' : update => //.
+    move => [] <- <-.
+    rewrite (updateNoneE {| bind_key := k; bind_val := y |}) //=.
+    rewrite /key_eqb; apply /andP; split.
+      by apply /eqP.
+    by case ml_type_eq_dec.
+  - case Hup : update => [refs'|] //.
+    move=> [] <- _.
+    rewrite -(updateretE {| bind_key := k; bind_val := y |} _ refs refs') //.
+      case Hup' : update => //.
+      move : Hup.
+      rewrite (updateNoneE {| bind_key := k; bind_val := y' |}) ?Hup //.
+      all:rewrite/key_eqb; apply /andP; split.
+      all:apply /eqP => //.
+      all:by case ml_type_eq_dec.
 Qed.
 
 (* Lemma getset_skip {T} x env : mem_env x env -> envok env ->
