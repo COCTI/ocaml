@@ -369,14 +369,14 @@ Lemma update_lookupE (k : key) (val : coq_type (key_type k)) env :
 Proof.
   elim : env => [|b refs IH] //=.
   move/orP => [].
-  - rewrite /key_eqb => /andP [].
-    case ml_type_eq_dec => //=.
-    case H : b => [k' val'] //= Htype Hid _ _.
-    rewrite Hid /coerce.
+  - case H : b => [k' val'] //=.
+    rewrite /key_eqb => /andP [] /eqP Hid.
+    case ml_type_eq_dec => //= Htype _ _.
+    case: ifPn => /eqP // _.
+    rewrite /coerce.
     case ml_type_eq_dec => Htype' //.
     move /Some_inj => H'.
-    case ml_type_eq_dec => //= _.
-    f_equal.
+    f_equal; f_equal.
     admit.
   - move=> Hmem Huniq.
   Abort.
@@ -837,12 +837,11 @@ Proof.
   by rewrite -[RHS]Z.add_mod // Z.add_0_r.
 Qed.
 
-Lemma N2int_mul m n : (N2int m * N2int n)%uint63 =
-  N2int (m * n).
+Lemma N2int_mul m n : N2int (m * n) = (N2int m * N2int n)%uint63.
 Proof.
   elim : n => [|n IH] //=.
-  - by rewrite muln0 {2 3}/N2int /=; ring.
-  - rewrite mulnS N2int_add -IH.
+  - rewrite muln0 {1 3}/N2int /=; ring.
+  - rewrite mulnS N2int_add IH.
     rewrite -addn1 N2int_add N2int_1E.
     by ring.
 Qed.
