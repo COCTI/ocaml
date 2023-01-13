@@ -88,8 +88,15 @@ Record binding (M : Type -> Type) :=
   mkbind { bind_key : key; bind_val : coq_type M (key_type bind_key) }.
 Arguments mkbind {M}.
 
+Definition uniq_bindings M env :=
+ forall c, count (fun b => key_id (bind_key M b) =? c) env <= 1.
+
+Definition envok M c refs :=
+  uniq_bindings M refs /\ all (fun b => key_id (bind_key M b) < c) refs.
+
 #[bypass_check(positivity)]
-Inductive Env := mkEnv : nat -> seq (binding (M0 Env Exn)) -> Env
+Inductive Env :=
+  mkEnv (c : nat) (refs : seq (binding (M0 Env Exn))) : envok _ c refs -> Env
 with Exn :=
   | GasExhausted
   | RefLookup
@@ -104,11 +111,64 @@ Section monadic_operations.
 Let coq_type := coq_type M.
 Let binding := binding M.
 
+Lemma newref_envok {T} (val : coq_type T) n refs :
+  envok M n refs -> envok M (n + 1) (mkbind (mkkey n T) val :: refs).
+Proof.
+  rewrite /envok.
+  move => [] Huniq Hltn.
+  split => //=.
+  - rewrite /uniq_bindings /= => c.
+    case Hnc : (n =? c) => //=.
+    + move/eqP : Hnc => <-.
+      rewrite ltnS.
+      move:Hltn.
+      rewrite all_count; move/eqP.
+      rewrite -(count_predC (fun b : binding => key_id (bind_key M b) < n)).
+      rewrite -[LHS]addn0; move/eqP; rewrite eqn_add2l; move/eqP.
+      under eq_count => b /=.
+        rewrite -leqNgt.
+      over.
+      move=> ->.
+      apply sub_count.
+      rewrite /subpred => b.
+      move/eqP /esym.
+      by apply eq_leq.
+    + by apply Huniq.
+  - rewrite addn1.
+    apply/andP; split => //.
+    move:Hltn.
+    apply sub_all.
+    rewrite /subpred => b H.
+    by apply (@ltn_trans n).
+Qed.
+
 Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
   fun env =>
-    let: mkEnv c refs := env in
+    let: mkEnv c refs prf := env in
     let key := mkkey c T in
-    Ret (mkloc key) (mkEnv (c + 1) (mkbind key val :: refs)).
+    Ret (mkloc key) (mkEnv _ _ (newref_envok val c refs prf)).
+
+Definition key_eqb (k1 k2 : key) :=
+  (key_id k1 =? key_id k2) &&
+  (ml_type_eq_dec (key_type k1) (key_type k2)).
+
+Definition mem_bindings k :=
+  has (fun b => key_eqb k (bind_key M b)).
+
+Definition env_bindings env :=
+  let: mkEnv _ refs _ := env in refs.
+
+Definition mem_env k env := mem_bindings k (env_bindings env).
+
+Definition env_incl (env env' : Env) :=
+  forall k, mem_env k env -> mem_env k env'.
+
+Lemma newref_incl T val env : env_incl env (newref T val env).1.
+Proof.
+case: env => c refs prf k.
+rewrite /env_incl /mem_env /= => ->.
+by rewrite orbT.
+Qed.
 
 Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
