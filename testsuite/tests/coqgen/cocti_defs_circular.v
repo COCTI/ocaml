@@ -131,18 +131,18 @@ Definition mem_bindings M k :=
 Definition incl_bindings (k1 k2 : seq key) : bool :=
   all (fun k => k \in k2) k1.
 
+Definition incl_env {Env : seq key -> Type} (env1 env2 : sigT Env) :=
+  incl_bindings (projT1 env1) (projT1 env2).
+
 #[bypass_check(positivity)]
 Inductive Env : seq key -> Type :=
-  mkEnv keys (c : nat) (refs : seq (binding (M0 (sigT Env) Exn
-   (fun e1 e2 : sigT Env => incl_bindings (projT1 e1) (projT1 e2))))) :
-    envok _ keys c refs -> Env keys
+  mkEnv keys (c : nat) (refs : seq (binding (M0 (sigT Env) Exn incl_env)))
+    : envok _ keys c refs -> Env keys
 with Exn :=
   | GasExhausted
   | RefLookup
   | BoundedNat
-  | Catchable of coq_type (M0 (sigT Env) Exn
-      (fun e1 e2 : sigT Env => incl_bindings (projT1 e1) (projT1 e2)))
-      ml_exn.
+  | Catchable of coq_type (M0 (sigT Env) Exn incl_env) ml_exn.
 
 Definition env_bindings (env : sigT Env) :=
   let: mkEnv _ _ refs _ := projT2 env in refs.
