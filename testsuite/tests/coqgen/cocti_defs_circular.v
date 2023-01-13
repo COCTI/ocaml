@@ -88,14 +88,6 @@ End MLTY.
 Module REFmonad(MLtypes : MLTY).
 Import MLtypes.
 
-(*
-Inductive Exn :=
-  | GasExhausted
-  | RefLookup
-  | BoundedNat
-  | Catchable of ml_exns.
-*)
-
 Record binding (M : Type -> Type) :=
   mkbind { bind_key : key; bind_val : coq_type M (key_type bind_key) }.
 Arguments mkbind {M}.
@@ -117,9 +109,8 @@ rewrite /key_eqb => -[] n1 T1 [] n2 T2 /=.
 apply: (iffP idP) => /=.
 - case/andP => /Nat.eqb_spec <-.
   by case: ml_type_eq_dec => // H _; rewrite H.
-- move=> [] <- <-.
-  apply/andP. apply conj. by apply/Nat.eqb_spec.
-  by case: ml_type_eq_dec.
+- case=> <- <-.
+  apply/andP; split; by [apply/Nat.eqb_spec | case: ml_type_eq_dec].
 Qed.
 
 Definition eq_key_mixin := EqMixin eq_keyP.
@@ -131,27 +122,27 @@ Definition mem_bindings M k :=
 Definition incl_bindings (k1 k2 : seq key) : bool :=
   all (fun k => k \in k2) k1.
 
-Definition incl_env {Env : seq key -> Type} (env1 env2 : sigT Env) :=
+Definition env_incl0 {Env : seq key -> Type} (env1 env2 : sigT Env) :=
   incl_bindings (projT1 env1) (projT1 env2).
 
 #[bypass_check(positivity)]
 Inductive Env : seq key -> Type :=
-  mkEnv keys (c : nat) (refs : seq (binding (M0 (sigT Env) Exn incl_env)))
+  mkEnv keys (c : nat) (refs : seq (binding (M0 (sigT Env) Exn env_incl0)))
     : envok _ keys c refs -> Env keys
 with Exn :=
   | GasExhausted
   | RefLookup
   | BoundedNat
-  | Catchable of coq_type (M0 (sigT Env) Exn incl_env) ml_exn.
+  | Catchable of coq_type (M0 (sigT Env) Exn env_incl0) ml_exn.
 
 Definition env_bindings (env : sigT Env) :=
   let: mkEnv _ _ refs _ := projT2 env in refs.
 
 Definition env_incl (e1 e2 : sigT Env) := incl_bindings (projT1 e1) (projT1 e2).
 Lemma env_incl_refl : reflexive env_incl.
-Proof. move => x. by apply/allP. Qed.
+Proof. move=> x; by apply/allP. Qed.
 Lemma env_incl_trans : transitive env_incl.
-Proof. move => x y z /allP xy /allP yz; by apply/allP => k /xy /yz. Qed.
+Proof. move=> x y z /allP xy /allP yz; by apply/allP => k /xy /yz. Qed.
 
 Module Env.
 Definition Env := sigT Env.
