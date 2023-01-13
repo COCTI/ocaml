@@ -147,21 +147,11 @@ with Exn :=
 Definition env_bindings (env : sigT Env) :=
   let: mkEnv _ _ refs _ := projT2 env in refs.
 
-(*
-Definition mem_env k env := mem_bindings _ k (env_bindings env).
-
-Definition env_incl (env env' : sigT Env) :=
-  forall k, mem_env k env -> mem_env k env'.
-*)
-
 Definition env_incl (e1 e2 : sigT Env) := incl_bindings (projT1 e1) (projT1 e2).
 Lemma env_incl_refl : reflexive env_incl.
-Proof. rewrite /env_incl /incl_bindings => x. by apply/allP. Qed.
+Proof. move => x. by apply/allP. Qed.
 Lemma env_incl_trans : transitive env_incl.
-Proof.
-rewrite /env_incl /incl_bindings => x y z /allP xy /allP yz.
-by apply/allP => k /xy /yz.
-Qed.
+Proof. move => x y z /allP xy /allP yz; by apply/allP => k /xy /yz. Qed.
 
 Module Env.
 Definition Env := sigT Env.
@@ -181,33 +171,17 @@ Lemma newref_envok {T} (val : coq_type T) keys n refs :
   envok M keys n refs ->
   envok M (mkkey n T :: keys) (n + 1) (mkbind (mkkey n T) val :: refs).
 Proof.
-  rewrite /envok => -[] Hkeys [] Huniq Hltn.
-  split => /=.
-  - by rewrite Hkeys.
-  split.
-  - rewrite /uniq_bindings /= => c.
-    case Hnc : (n =? c) => //=.
-    + move/eqP : Hnc => <-.
-      rewrite ltnS.
-      move:Hltn.
-      rewrite all_count; move/eqP.
-      rewrite -(count_predC (fun b : binding => key_id (bind_key M b) < n)).
-      rewrite -[LHS]addn0; move/eqP; rewrite eqn_add2l; move/eqP.
-      under eq_count => b /=.
-        rewrite -leqNgt.
-      over.
-      move=> ->.
-      apply sub_count.
-      rewrite /subpred => b.
-      move/eqP /esym.
-      by apply eq_leq.
-    + by apply Huniq.
-  - rewrite addn1.
-    apply/andP; split => //.
-    move:Hltn.
-    apply sub_all.
-    rewrite /subpred => b H.
-    by apply (@ltn_trans n).
+case => Hkeys [] Huniq Hltn.
+split => /=; first by rewrite Hkeys.
+split.
+- rewrite /uniq_bindings /= => c.
+  case Hnc : (n =? c) => /=; last by apply Huniq.
+  rewrite -(eqP Hnc) ltnS leqNgt -has_count -all_predC.
+  move: Hltn.
+  by apply sub_all => b /= /ltn_eqF /eqP /Nat.eqb_spec.
+- rewrite addn1 ltnS leqnn /=.
+  move: Hltn; apply sub_all => b /ltnW.
+  by rewrite ltnS.
 Qed.
 
 Definition exEnv {keys} (env : Env keys) : sigT Env := existT _ keys env.
