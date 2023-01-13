@@ -103,37 +103,73 @@ Arguments mkbind {M}.
 Definition uniq_bindings M env :=
  forall c, count (fun b => key_id (bind_key M b) =? c) env <= 1.
 
-Definition envok M c refs :=
-  uniq_bindings M refs /\ all (fun b => key_id (bind_key M b) < c) refs.
+Definition envok M keys c refs :=
+  map (bind_key M) refs = keys /\ uniq_bindings M refs /\
+  all (fun b => key_id (bind_key M b) < c) refs.
 
 Definition key_eqb (k1 k2 : key) :=
   (key_id k1 =? key_id k2) &&
   (ml_type_eq_dec (key_type k1) (key_type k2)).
 
+Lemma eq_keyP : Equality.axiom key_eqb.
+Proof.
+rewrite /key_eqb => -[] n1 T1 [] n2 T2 /=.
+apply: (iffP idP) => /=.
+- case/andP => /Nat.eqb_spec <-.
+  by case: ml_type_eq_dec => // H _; rewrite H.
+- move=> [] <- <-.
+  apply/andP. apply conj. by apply/Nat.eqb_spec.
+  by case: ml_type_eq_dec.
+Qed.
+
+Definition eq_key_mixin := EqMixin eq_keyP.
+Canonical key_eqType := Eval hnf in EqType _ eq_key_mixin.
+
 Definition mem_bindings M k :=
-  has (fun b => key_eqb k (bind_key M b)).
+  has (fun b => bind_key M b == k).
+
+Definition incl_bindings (k1 k2 : seq key) : bool :=
+  all (fun k => k \in k2) k1.
 
 #[bypass_check(positivity)]
-Inductive Env :=
-  mkEnv (c : nat) (refs : seq (binding (M0 Env Exn (fun _ _ => true)))) :
-    envok _ c refs -> Env
+Inductive Env : seq key -> Type :=
+  mkEnv keys (c : nat) (refs : seq (binding (M0 (sigT Env) Exn
+   (fun e1 e2 : sigT Env => incl_bindings (projT1 e1) (projT1 e2))))) :
+    envok _ keys c refs -> Env keys
 with Exn :=
   | GasExhausted
   | RefLookup
   | BoundedNat
-  | Catchable of coq_type (M0 Env Exn (fun _ _ => true)) ml_exn.
+  | Catchable of coq_type (M0 (sigT Env) Exn
+      (fun e1 e2 : sigT Env => incl_bindings (projT1 e1) (projT1 e2)))
+      ml_exn.
 
-Definition env_bindings env :=
-  let: mkEnv _ refs _ := env in refs.
+Definition env_bindings (env : sigT Env) :=
+  let: mkEnv _ _ refs _ := projT2 env in refs.
 
-Definition mem_env k env := mem_bindings k (env_bindings env).
+(*
+Definition mem_env k env := mem_bindings _ k (env_bindings env).
 
-Definition env_incl (env env' : Env) :=
+Definition env_incl (env env' : sigT Env) :=
   forall k, mem_env k env -> mem_env k env'.
+*)
 
+Definition env_incl (e1 e2 : sigT Env) := incl_bindings (projT1 e1) (projT1 e2).
+Lemma env_incl_refl : reflexive env_incl.
+Proof. rewrite /env_incl /incl_bindings => x. by apply/allP. Qed.
+Lemma env_incl_trans : transitive env_incl.
+Proof.
+rewrite /env_incl /incl_bindings => x y z /allP xy /allP yz.
+by apply/allP => k /xy /yz.
+Qed.
 
-
-Module Env. Definition Env := Env. Definition Exn := Exn. End Env.
+Module Env.
+Definition Env := sigT Env.
+Definition Exn := Exn.
+Definition env_incl := env_incl.
+Definition env_incl_refl := env_incl_refl.
+Definition env_incl_trans := env_incl_trans.
+End Env.
 Module EFmonadEnv := EFmonad(Env).
 Export EFmonadEnv.
 
@@ -141,12 +177,14 @@ Section monadic_operations.
 Let coq_type := coq_type M.
 Let binding := binding M.
 
-Lemma newref_envok {T} (val : coq_type T) n refs :
-  envok M n refs -> envok M (n + 1) (mkbind (mkkey n T) val :: refs).
+Lemma newref_envok {T} (val : coq_type T) keys n refs :
+  envok M keys n refs ->
+  envok M (mkkey n T :: keys) (n + 1) (mkbind (mkkey n T) val :: refs).
 Proof.
-  rewrite /envok.
-  move => [] Huniq Hltn.
-  split => //=.
+  rewrite /envok => -[] Hkeys [] Huniq Hltn.
+  split => /=.
+  - by rewrite Hkeys.
+  split.
   - rewrite /uniq_bindings /= => c.
     case Hnc : (n =? c) => //=.
     + move/eqP : Hnc => <-.
@@ -172,18 +210,19 @@ Proof.
     by apply (@ltn_trans n).
 Qed.
 
-Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
-  fun env =>
-    let: mkEnv c refs prf := env in
-    let key := mkkey c T in
-    Ret (mkloc key) (mkEnv _ _ (newref_envok val c refs prf)).
+Definition exEnv {keys} (env : Env keys) : sigT Env := existT _ keys env.
+Definition mkEnv' {keys c refs} (prf : envok _ keys c refs) :=
+  exEnv (mkEnv _ _ _ prf).
 
-Lemma newref_incl T val env : env_incl env (newref T val env).1.
-Proof.
-case: env => c refs prf k.
-rewrite /env_incl /mem_env /= => ->.
-by rewrite orbT.
-Qed.
+Definition newref (T : ml_type) (val : coq_type T) : M (loc T).
+exists
+  (fun env =>
+    let: existT _ (mkEnv keys c refs prf) := env in
+    let key := mkkey c T in
+    (mkEnv' (newref_envok val keys c refs prf), inl (mkloc key))).
+abstract (case => _ [] keys c /= refs prf;
+          apply/allP => k /=; by rewrite in_cons orbC => ->).
+Defined.
 
 Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
@@ -200,13 +239,16 @@ Fixpoint lookup key env :=
     else lookup key rest
   end.
 
-Definition getref T (l : loc T) : M (coq_type T) := fun env =>
+Definition getref T (l : loc T) : M (coq_type T).
+exists
+  (fun env =>
   let: mkloc key := l in
-  let: mkEnv _ refs := env in
-  match lookup key refs with
-  | None => Fail RefLookup env
-  | Some x => Ret x env
-  end.
+  match lookup key (env_bindings env) with
+  | None => (env, inr RefLookup)
+  | Some x => (env, inl x)
+  end).
+abstract (case: l => k env; by case: lookup => *; apply env_incl_refl).
+Defined.
 
 Fixpoint update b (env : seq binding) :=
   match env with
