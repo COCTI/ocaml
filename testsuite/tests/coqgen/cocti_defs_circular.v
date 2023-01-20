@@ -264,6 +264,7 @@ Definition update_dep b refs : option {refs' | update b refs = Some refs'} :=
   | Some refs' => fun H => Some (exist _ _ H)
   end erefl.
 Print update_dep.
+
 Definition setref T (l : loc T) (val : coq_type T) : M unit.
 destruct l as [k].
 eexists
@@ -286,13 +287,23 @@ Definition raise T (e : coq_type ml_exn) : M (coq_type T) :=
   Fail (Catchable e).
 
 Definition handle T (c : M (coq_type T))
-           (h : coq_type ml_exn -> M (coq_type T)) : M (coq_type T) :=
-  fun env =>
+           (h : coq_type ml_exn -> M (coq_type T)) : M (coq_type T).
+exists
+  (fun env =>
     let: exist g ee' := c in
     match g env with
-    | (env', inr (Catchable e)) => (h e).1 env'
+    | (env', inr (Catchable e)) => (proj1_sig (h e) env')
     | (env', r) => (env', r)
-    end.
+    end).
+abstract (
+    case: c => g eg env;
+    case: (g env) (eg env) => e' [] //= exn ee';
+    case: exn => //= exn /=;
+    case: (h exn) => /= f ef;
+    case: (f e') (ef e') => /= e'' w;
+    by apply env_incl_trans).
+Defined.
+Print handle.
 
 Section Comparison.
 Definition lexi_compare (cmp1 cmp2 : M comparison) :=
