@@ -1,4 +1,5 @@
 cocti_defs.v
+cocti_defs_circular.v
 #cocti_examples.v
 #example.v
 gcdproof.v

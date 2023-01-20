@@ -145,6 +145,11 @@ Proof. move=> x; by apply/allP. Qed.
 Lemma env_incl_trans : transitive env_incl.
 Proof. move=> x y z /allP xy /allP yz; by apply/allP => k /xy /yz. Qed.
 
+Definition empty_env : sigT Env.
+refine (existT _ [::] (mkEnv [::] 0 [::] _)).
+abstract (by []).
+Defined.
+
 Module Env.
 Definition Env := sigT Env.
 Definition Exn := Exn.
