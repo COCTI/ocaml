@@ -1,5 +1,6 @@
 From mathcomp Require Import all_ssreflect.
 Require Import Sint63 BinNums Ascii String ZArith Floats.
+Require Import ProofIrrelevance.
 
 (* Extra predefined types *)
 Inductive empty :=. (* for the value restriction *)
@@ -109,7 +110,7 @@ rewrite /key_eqb => -[] n1 T1 [] n2 T2 /=.
 apply: (iffP idP) => /=.
 - case/andP => /Nat.eqb_spec <-.
   by case: ml_type_eq_dec => // H _; rewrite H.
-- case=> <- <-.
+- case => <- <-.
   apply/andP; split; by [apply/Nat.eqb_spec | case: ml_type_eq_dec].
 Qed.
 
@@ -157,6 +158,28 @@ Export EFmonadEnv.
 Section monadic_operations.
 Let coq_type := coq_type M.
 Let binding := binding M.
+
+Axiom funext : forall A B (f g : A -> B), f =1 g -> f = g.
+
+Lemma bindretf A B (a : A) (f : A -> M B) : Ret a >>= f = f a.
+Proof.
+  rewrite /= [RHS](sig_eta (f a)).
+  apply eq_exist_uncurried.
+  exists erefl => /=.
+  exact: proof_irrelevance.
+Qed.
+
+Lemma bindmret A (m : M A) : m >>= Ret = m.
+Proof.
+  rewrite /Bind.
+  case Hm : m => [g ee'].
+  apply eq_exist_uncurried.
+  have p : (fun env : Env.Env => BindW (g env) Ret) = g.
+    apply funext => env.
+    by case (g env) => [g' []].
+  exists p.
+  exact: proof_irrelevance.
+Qed.
 
 Lemma newref_envok {T} (val : coq_type T) keys n refs :
   envok M keys n refs ->
@@ -228,17 +251,34 @@ Fixpoint update b (env : seq binding) :=
       Option.map (cons (mkbind k v)) (update b rest)
   end.
 
-Definition setref T (l : loc T) (val : coq_type T) : M unit := fun env =>
-  let: mkEnv c refs := env in
-  let b :=
-      match l in loc T return coq_type T -> binding with
-        mkloc key => mkbind key
-      end val
-  in
-  match update b refs with
-  | None => Fail RefLookup env
-  | Some refs' => Ret tt (mkEnv c refs')
-  end.
+Lemma setref_envok keys n b refs refs':
+  update b refs = Some refs' ->
+  envok M keys n refs ->
+  envok M keys n refs'.
+Proof.
+Admitted.
+
+Definition update_dep b refs : option {refs' | update b refs = Some refs'} :=
+  match update b refs as refs1 return update b refs = refs1 -> _ with
+  | None => fun _ => None
+  | Some refs' => fun H => Some (exist _ _ H)
+  end erefl.
+Print update_dep.
+Definition setref T (l : loc T) (val : coq_type T) : M unit.
+destruct l as [k].
+eexists
+  (fun env =>
+  let: existT _ (mkEnv keys n refs prf) := env in
+  let b := mkbind k val in
+  match update_dep b refs with
+  | None => (env, inr RefLookup)
+  | Some (exist refs' H) => (mkEnv' (setref_envok keys n b refs refs' H prf), inl tt)
+  end).
+abstract (case => _ [keys m refs eok] /=;
+          case : update_dep => [[refs' H]|] ; last (by apply env_incl_refl);
+          by apply /allP => /= k').
+Defined.
+Print setref.
 
 Definition FailGas {A} : M A := Fail GasExhausted.
 
@@ -248,8 +288,9 @@ Definition raise T (e : coq_type ml_exn) : M (coq_type T) :=
 Definition handle T (c : M (coq_type T))
            (h : coq_type ml_exn -> M (coq_type T)) : M (coq_type T) :=
   fun env =>
-    match c env with
-    | (env', inr (Catchable e)) => h e env'
+    let: exist g ee' := c in
+    match g env with
+    | (env', inr (Catchable e)) => (h e).1 env'
     | (env', r) => (env', r)
     end.
 
