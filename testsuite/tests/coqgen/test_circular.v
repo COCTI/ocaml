@@ -355,7 +355,7 @@ Definition it_2 := Eval simpl in
      do n_1 <- force ml_int n;
      do m_1 <- force ml_int m; Ret (m_1 :: n_1 :: @nil (coq_type ml_int))).
 Print it_2.
-Definition it_3 := Eval compute in
+Definition it_3 := Eval simpl in
   Restart it_2
     (do x <- newref (ml_list ml_empty) (@nil (coq_type ml_empty));
      getref (ml_list ml_empty) x).
@@ -377,7 +377,7 @@ Fixpoint fib (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
       do v_1 <- fib h (PrimInt63.sub n 1%int63); Ret (PrimInt63.add v_1 v)
   else FailGas.
 
-Definition it_4 := Eval compute in Restart nil_1 (fib h 10%int63).
+Definition it_4 := Eval simpl in Restart nil_1 (fib h 10%int63).
 Print it_4.
 Fixpoint ack (h : nat) (m n : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
@@ -389,9 +389,9 @@ Fixpoint ack (h : nat) (m n : coq_type ml_int) : M (coq_type ml_int) :=
         ack h (PrimInt63.sub m 1%int63) v
   else FailGas.
 
-Definition it_5 := Eval compute in Restart it_4 (ack h 3%int63 7%int63).
+Definition it_5 := Eval simpl in Restart it_4 (ack h 3%int63 7%int63).
 Print it_5.
-Definition it_6 := Eval compute in
+Definition it_6 := Eval simpl in
   Restart it_5 (ml_lt h ml_string "hellas"%string "hello"%string).
 Print it_6.
 Definition cmp := Restart it_6 (ml_lt h ml_char "a"%char "A"%char).
@@ -417,7 +417,7 @@ Fixpoint map' (h : nat) (T T_1 : ml_type) (f : coq_type (ml_arrow T_1 T))
     end
   else FailGas.
 
-Definition it_7 := Eval compute in
+Definition it_7 := Eval simpl in
   Restart cmp
     (map h ml_int ml_int
        (fun x : coq_type ml_int =>
@@ -440,7 +440,7 @@ Fixpoint map3 (h : nat) (T : ml_type) (f : coq_type (ml_arrow T ml_int))
     end
   else FailGas.
 
-Definition it_8 := Eval compute in
+Definition it_8 := Eval simpl in
   Restart one
     (map3 h ml_int
        (fun x : coq_type ml_int =>
@@ -458,17 +458,17 @@ Fixpoint append (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_list T))
 
 Definition arr := Restart it_8 (newarray ml_int 3%int63 5%int63).
 
-Definition it_9 := Eval compute in
+Definition it_9 := Eval simpl in
   Restart arr (do arr <- FromW arr; setarray ml_int arr 1%int63 6%int63).
 Print it_9.
-Definition it_10 := Eval compute in
+Definition it_10 := Eval simpl in
   Restart it_9 (ml_ge h ml_color Green Blue).
 Print it_10.
 Definition mknode (T : ml_type) (t1 t2 : coq_type (ml_tree T ml_int))
   : coq_type (ml_tree T ml_int) :=
   Node (coq_type T) (coq_type ml_int) t1 0%int63 t2.
 
-Definition it_11 := Eval compute in
+Definition it_11 := Eval simpl in
   Restart it_10
     (ml_lt h (ml_tree ml_string ml_int)
        (mknode ml_string
@@ -500,7 +500,7 @@ Definition fib2 (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
     tt;
   getref ml_int l1.
 
-Definition it_12 := Eval compute in Restart it_11 (fib2 h 1000%int63).
+Definition it_12 := Eval simpl in Restart it_11 (fib2 h 1000%int63).
 Print it_12.
 Fixpoint iota (h : nat) (m n : coq_type ml_int)
   : M (coq_type (ml_list ml_int)) :=
@@ -511,7 +511,7 @@ Fixpoint iota (h : nat) (m n : coq_type ml_int)
       Ret (@cons (coq_type ml_int) m v)
   else FailGas.
 
-Definition it_13 := Eval compute in Restart it_12 (iota h 1%int63 10%int63).
+Definition it_13 := Eval simpl in Restart it_12 (iota h 1%int63 10%int63).
 Print it_13.
 Definition r :=
   Restart it_13 (newref (ml_list ml_int) (3%int63 :: @nil (coq_type ml_int))).
@@ -526,12 +526,12 @@ Definition z :=
       setref (ml_list ml_int) r v);
      getref (ml_list ml_int) r).
 
-Definition it_14 := Eval compute in
+Definition it_14 := Eval simpl in
   Restart z (do r <- FromW r; getref (ml_list ml_int) r).
 Print it_14.
 Definition z' := Restart it_14 (do z <- FromW z; Ret z).
 
-Definition it_15 := Eval compute in
+Definition it_15 := Eval simpl in
   Restart z'
     (do r <- FromW r;
      let r_1 := r in
@@ -568,7 +568,7 @@ Definition double_r (v : coq_type ml_unit) : M (coq_type ml_unit) :=
     setref (ml_list ml_int) r v
   end.
 
-Definition it_16 := Eval compute in
+Definition it_16 := Eval simpl in
   Restart it_15
     (do r <- FromW r; do _ <- double_r tt; getref (ml_list ml_int) r).
 Print it_16.
@@ -579,7 +579,7 @@ Fixpoint mccarthy_m (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
       do v <- mccarthy_m h (PrimInt63.add n 11%int63); mccarthy_m h v
   else FailGas.
 
-Definition it_17 := Eval compute in Restart it_16 (mccarthy_m h 10%int63).
+Definition it_17 := Eval simpl in Restart it_16 (mccarthy_m h 10%int63).
 Print it_17.
 Fixpoint tarai (h : nat) (x y z_1 : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
@@ -591,26 +591,26 @@ Fixpoint tarai (h : nat) (x y z_1 : coq_type ml_int) : M (coq_type ml_int) :=
     else Ret y
   else FailGas.
 
-Definition it_18 := Eval compute in
+Definition it_18 := Eval simpl in
   Restart it_17 (tarai h 1%int63 2%int63 3%int63).
 Print it_18.
 Definition failwith (T : ml_type) (s : coq_type ml_string)
   : M (coq_type T) := raise T (Failure s).
 
-Definition it_19 := Eval compute in
+Definition it_19 := Eval simpl in
   Restart it_18 (failwith ml_empty "Bad"%string).
 Print it_19.
-Definition it_20 := Eval compute in
+Definition it_20 := Eval simpl in
   Restart it_19
     (handle ml_string
        (if true then failwith ml_string "a"%string else Ret "b"%string)
        (fun v => if v is Failure x then Ret x else raise ml_string v)).
 Print it_20.
-Definition it_21 := Eval compute in
+Definition it_21 := Eval simpl in
   Restart it_20
     ((fun x : coq_type ml_exn => raise ml_empty x) (Failure "Hello"%string)).
 Print it_21.
-Definition it_22 := Eval compute in
+Definition it_22 := Eval simpl in
   Restart it_21
     (handle ml_int
        (do v <-
@@ -647,12 +647,12 @@ Definition fib_1 :=
                  do v_1 <- fib_1 (PrimInt63.sub n 1%int63);
                  Ret (PrimInt63.add v_1 v)))).
 
-Definition it_23 := Eval compute in
+Definition it_23 := Eval simpl in
   Restart fib_1 (do fib_1 <- FromW fib_1; fib_1 10%int63).
 Print it_23.
-Definition it_24 := Eval compute in Restart it_23 (omega ml_int 1%int63).
+Definition it_24 := Eval simpl in Restart it_23 (omega ml_int 1%int63).
 Print it_24.
-Definition it_25 := Eval compute in
+Definition it_25 := Eval simpl in
   Restart it_24
     (AppM
        (fixpt h ml_empty ml_int
