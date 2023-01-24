@@ -398,8 +398,11 @@ let cltype_declaration s decl =
 let class_type s cty =
   For_copy.with_scope (fun copy_scope -> class_type copy_scope s cty)
 
+let type_scheme copy_scope s (ty : 'a type_scheme) : 'a type_scheme =
+  as_type_scheme_unsafe (typexp copy_scope s (of_type_scheme_unsafe ty))
+
 let value_description' copy_scope s descr =
-  { val_type = typexp copy_scope s descr.val_type;
+  { val_type = type_scheme copy_scope s descr.val_type;
     val_kind = descr.val_kind;
     val_loc = loc s descr.val_loc;
     val_attributes = attrs s descr.val_attributes;
@@ -481,7 +484,7 @@ module Lazy_types = struct
     (scoping * t * signature', signature') Lazy_backtrack.t
 
   and signature_item =
-      SigL_value of Ident.t * value_description * visibility
+      SigL_value of Ident.t * unit value_description * visibility
     | SigL_type of Ident.t * type_declaration * rec_status * visibility
     | SigL_typext of Ident.t * extension_constructor * ext_status * visibility
     | SigL_module of

@@ -28,7 +28,7 @@ exception Escape of type_expr Errortrace.escape
 exception Tags of label * label
 exception Cannot_expand
 exception Cannot_apply
-exception Matches_failure of Env.t * Errortrace.unification_error
+exception Matches_failure of Env.new_env * Errortrace.unification_error
   (* Raised from [matches], hence the odd name *)
 exception Incompatible
   (* Raised from [mcomp] *)
@@ -119,7 +119,8 @@ val opened_object: type_expr -> bool
 val set_object_name:
         Ident.t -> type_expr list -> type_expr -> unit
 val remove_object_name: type_expr -> unit
-val find_cltype_for_path: Env.t -> Path.t -> type_declaration * type_expr
+val find_cltype_for_path:
+        'a Env.t -> Path.t -> type_declaration * 'a type_scheme
 
 val sort_row_fields: (label * row_field) list -> (label * row_field) list
 val merge_row_fields:
@@ -129,16 +130,16 @@ val merge_row_fields:
 val filter_row_fields:
         bool -> (label * row_field) list -> (label * row_field) list
 
-val generalize: type_expr -> unit
+val generalize: 'a Env.t -> type_expr -> 'a type_scheme
         (* Generalize in-place the given type *)
-val lower_contravariant: Env.t -> type_expr -> unit
+val lower_contravariant: 'a Env.t -> type_expr -> unit
         (* Lower level of type variables inside contravariant branches;
            to be used before generalize for expansive expressions *)
-val lower_variables_only: Env.t -> int -> type_expr -> unit
+val lower_variables_only: 'a Env.t -> int -> type_expr -> unit
         (* Lower all variables to the given level *)
-val enforce_current_level: Env.t -> type_expr -> unit
+val enforce_current_level: 'a Env.t -> type_expr -> unit
         (* Lower whole type to !current_level *)
-val generalize_structure: type_expr -> unit
+val generalize_structure: 'a Env.t -> type_expr -> 'a type_scheme
         (* Generalize the structure of a type, lowering variables
            to !current_level *)
 val generalize_class_type : class_type -> unit

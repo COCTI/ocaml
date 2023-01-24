@@ -99,11 +99,16 @@ module VarSet = Misc.Stdlib.String.Set
 module Meths = Misc.Stdlib.String.Map
 module Vars = Misc.Stdlib.String.Map
 
+(* Type schemes *)
+
+type 'a type_scheme = type_expr
+let as_type_scheme_unsafe x = x
+let of_type_scheme_unsafe x = x
 
 (* Value descriptions *)
 
-type value_description =
-  { val_type: type_expr;                (* Type of the value *)
+type 'a value_description =
+  { val_type: 'a type_scheme;           (* Type of the value *)
     val_kind: value_kind;
     val_loc: Location.t;
     val_attributes: Parsetree.attributes;
@@ -133,6 +138,10 @@ and class_signature =
 and method_privacy =
   | Mpublic
   | Mprivate of field_kind
+
+(* Allow changing the phantom type parameter using subtyping *)
+let cast_value_description_unsafe x =
+  (x : _ value_description :> _ value_description)
 
 (* Variance *)
 (* Variance forms a product lattice of the following partial orders:
@@ -358,7 +367,8 @@ and module_presence =
 and signature = signature_item list
 
 and signature_item =
-    Sig_value of Ident.t * value_description * visibility
+    (* Approximation: values in signatures are (usually) closed *)
+    Sig_value of Ident.t * unit value_description * visibility
   | Sig_type of Ident.t * type_declaration * rec_status * visibility
   | Sig_typext of Ident.t * extension_constructor * ext_status * visibility
   | Sig_module of

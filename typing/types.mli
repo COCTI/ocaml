@@ -364,10 +364,16 @@ module VarSet : Set.S with type elt = string
 module Meths : Map.S with type key = string
 module Vars  : Map.S with type key = string
 
+(* Type schemes *)
+
+type 'a type_scheme
+val as_type_scheme_unsafe : type_expr -> 'a type_scheme
+val of_type_scheme_unsafe : 'a type_scheme -> type_expr
+
 (* Value descriptions *)
 
-type value_description =
-  { val_type: type_expr;                (* Type of the value *)
+type 'a value_description =
+  { val_type: 'a type_scheme;             (* Type of the value *)
     val_kind: value_kind;
     val_loc: Location.t;
     val_attributes: Parsetree.attributes;
@@ -397,6 +403,9 @@ and method_privacy =
   | Mpublic
   | Mprivate of field_kind
     (* The [field_kind] is always [Fabsent] in a complete class type. *)
+
+val cast_value_description_unsafe :
+    'a value_description -> 'b value_description
 
 (* Variance *)
 
@@ -596,7 +605,7 @@ and module_presence =
 and signature = signature_item list
 
 and signature_item =
-    Sig_value of Ident.t * value_description * visibility
+    Sig_value of Ident.t * unit value_description * visibility
   | Sig_type of Ident.t * type_declaration * rec_status * visibility
   | Sig_typext of Ident.t * extension_constructor * ext_status * visibility
   | Sig_module of

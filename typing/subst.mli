@@ -52,7 +52,7 @@ val modtype_path: t -> Path.t -> Path.t
 
 val type_expr: t -> type_expr -> type_expr
 val class_type: t -> class_type -> class_type
-val value_description: t -> value_description -> value_description
+val value_description: t -> 'a value_description -> 'a value_description
 val type_declaration: t -> type_declaration -> type_declaration
 val extension_constructor:
         t -> extension_constructor -> extension_constructor
@@ -115,7 +115,7 @@ module Lazy : sig
   and signature
 
   and signature_item =
-      SigL_value of Ident.t * value_description * visibility
+      SigL_value of Ident.t * unit value_description * visibility
     | SigL_type of Ident.t * type_declaration * rec_status * visibility
     | SigL_typext of Ident.t * extension_constructor * ext_status * visibility
     | SigL_module of

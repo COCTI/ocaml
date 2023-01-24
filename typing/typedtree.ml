@@ -40,14 +40,14 @@ and 'a pattern_data =
     pat_loc: Location.t;
     pat_extra : (pat_extra * Location.t * attribute list) list;
     pat_type: type_expr;
-    pat_env: Env.t;
+    pat_env: Env.new_env;
     pat_attributes: attribute list;
    }
 
 and pat_extra =
   | Tpat_constraint of core_type
   | Tpat_type of Path.t * Longident.t loc
-  | Tpat_open of Path.t * Longident.t loc * Env.t
+  | Tpat_open of Path.t * Longident.t loc * Env.new_env
   | Tpat_unpack
 
 and 'k pattern_desc =
@@ -86,7 +86,7 @@ and expression =
     exp_loc: Location.t;
     exp_extra: (exp_extra * Location.t * attribute list) list;
     exp_type: type_expr;
-    exp_env: Env.t;
+    exp_env: Env.new_env;
     exp_attributes: attribute list;
    }
 
@@ -97,7 +97,7 @@ and exp_extra =
   | Texp_newtype of string
 
 and expression_desc =
-    Texp_ident of Path.t * Longident.t loc * Types.value_description
+    Texp_ident of Path.t * Longident.t loc * unit Types.value_description
   | Texp_constant of constant
   | Texp_let of rec_flag * value_binding list * expression
   | Texp_function of { arg_label : arg_label; param : Ident.t;
@@ -168,7 +168,7 @@ and binding_op =
   {
     bop_op_path : Path.t;
     bop_op_name : string loc;
-    bop_op_val : Types.value_description;
+    bop_op_val : unit Types.value_description;
     bop_op_type : Types.type_expr;
     bop_exp : expression;
     bop_loc : Location.t;
@@ -181,7 +181,7 @@ and class_expr =
      cl_desc: class_expr_desc;
      cl_loc: Location.t;
      cl_type: Types.class_type;
-     cl_env: Env.t;
+     cl_env: Env.new_env;
      cl_attributes: attribute list;
     }
 
@@ -235,7 +235,7 @@ and module_expr =
   { mod_desc: module_expr_desc;
     mod_loc: Location.t;
     mod_type: Types.module_type;
-    mod_env: Env.t;
+    mod_env: Env.new_env;
     mod_attributes: attribute list;
    }
 
@@ -259,13 +259,13 @@ and module_expr_desc =
 and structure = {
   str_items : structure_item list;
   str_type : Types.signature;
-  str_final_env : Env.t;
+  str_final_env : Env.new_env;
 }
 
 and structure_item =
   { str_desc : structure_item_desc;
     str_loc : Location.t;
-    str_env : Env.t
+    str_env : Env.new_env
   }
 
 and structure_item_desc =
@@ -308,12 +308,12 @@ and module_coercion =
                          (Ident.t * int * module_coercion) list
   | Tcoerce_functor of module_coercion * module_coercion
   | Tcoerce_primitive of primitive_coercion
-  | Tcoerce_alias of Env.t * Path.t * module_coercion
+  | Tcoerce_alias of Env.new_env * Path.t * module_coercion
 
 and module_type =
   { mty_desc: module_type_desc;
     mty_type : Types.module_type;
-    mty_env : Env.t;
+    mty_env : Env.new_env;
     mty_loc: Location.t;
     mty_attributes: attribute list;
    }
@@ -331,19 +331,19 @@ and primitive_coercion =
   {
     pc_desc: Primitive.description;
     pc_type: type_expr;
-    pc_env: Env.t;
+    pc_env: Env.new_env;
     pc_loc : Location.t;
   }
 
 and signature = {
   sig_items : signature_item list;
   sig_type : Types.signature;
-  sig_final_env : Env.t;
+  sig_final_env : Env.new_env;
 }
 
 and signature_item =
   { sig_desc: signature_item_desc;
-    sig_env : Env.t; (* BINANNOT ADDED *)
+    sig_env : Env.new_env; (* BINANNOT ADDED *)
     sig_loc: Location.t }
 
 and signature_item_desc =
@@ -397,7 +397,7 @@ and 'a open_infos =
      open_expr: 'a;
      open_bound_items: Types.signature;
      open_override: override_flag;
-     open_env: Env.t;
+     open_env: Env.new_env;
      open_loc: Location.t;
      open_attributes: attribute list;
     }
@@ -431,7 +431,7 @@ and core_type =
 (* mutable because of [Typeclass.declare_method] *)
   { mutable ctyp_desc : core_type_desc;
     mutable ctyp_type : type_expr;
-    ctyp_env : Env.t; (* BINANNOT ADDED *)
+    ctyp_env : Env.new_env; (* BINANNOT ADDED *)
     ctyp_loc : Location.t;
     ctyp_attributes: attribute list;
    }
@@ -480,7 +480,7 @@ and value_description =
   { val_id: Ident.t;
     val_name: string loc;
     val_desc: core_type;
-    val_val: Types.value_description;
+    val_val: unit Types.value_description;
     val_prim: string list;
     val_loc: Location.t;
     val_attributes: attribute list;
@@ -566,7 +566,7 @@ and class_type =
     {
      cltyp_desc: class_type_desc;
      cltyp_type: Types.class_type;
-     cltyp_env: Env.t;
+     cltyp_env: Env.new_env;
      cltyp_loc: Location.t;
      cltyp_attributes: attribute list;
     }

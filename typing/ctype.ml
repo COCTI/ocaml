@@ -868,8 +868,10 @@ let update_level_for tr_exn env level ty =
 (* Lower level of type variables inside contravariant branches *)
 
 let rec lower_contravariant env var_level visited contra ty =
+  let level = get_level ty in
+  assert (level < generic_level);
   let must_visit =
-    get_level ty > var_level &&
+    level > var_level &&
     match Hashtbl.find visited (get_id ty) with
     | done_contra -> contra && not done_contra
     | exception Not_found -> true

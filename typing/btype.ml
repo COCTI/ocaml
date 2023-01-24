@@ -298,7 +298,7 @@ let rec iter_abbrev f = function
 type type_iterators =
   { it_signature: type_iterators -> signature -> unit;
     it_signature_item: type_iterators -> signature_item -> unit;
-    it_value_description: type_iterators -> value_description -> unit;
+    it_value_description: 'a. type_iterators -> 'a value_description -> unit;
     it_type_declaration: type_iterators -> type_declaration -> unit;
     it_extension_constructor: type_iterators -> extension_constructor -> unit;
     it_module_declaration: type_iterators -> module_declaration -> unit;
@@ -311,6 +311,7 @@ type type_iterators =
     it_type_kind: type_iterators -> type_decl_kind -> unit;
     it_do_type_expr: type_iterators -> type_expr -> unit;
     it_type_expr: type_iterators -> type_expr -> unit;
+    it_type_scheme: 'a. type_iterators -> 'a type_scheme -> unit;
     it_path: Path.t -> unit; }
 
 let iter_type_expr_cstr_args f = function
@@ -349,7 +350,7 @@ let type_iterators =
     | Sig_class (_, cd, _, _)       -> it.it_class_declaration it cd
     | Sig_class_type (_, ctd, _, _) -> it.it_class_type_declaration it ctd
   and it_value_description it vd =
-    it.it_type_expr it vd.val_type
+    it.it_type_scheme it vd.val_type
   and it_type_declaration it td =
     List.iter (it.it_type_expr it) td.type_params;
     Option.iter (it.it_type_expr it) td.type_manifest;
@@ -407,9 +408,10 @@ let type_iterators =
     | Tvariant row ->
         Option.iter (fun (p,_) -> it.it_path p) (row_name row)
     | _ -> ()
+  and it_type_scheme it ty = it.it_type_expr it (of_type_scheme_unsafe ty)
   and it_path _p = ()
   in
-  { it_path; it_type_expr = it_do_type_expr; it_do_type_expr;
+  { it_path; it_type_expr = it_do_type_expr; it_do_type_expr; it_type_scheme;
     it_type_kind; it_class_type; it_functor_param; it_module_type;
     it_signature; it_class_type_declaration; it_class_declaration;
     it_modtype_declaration; it_module_declaration; it_extension_constructor;

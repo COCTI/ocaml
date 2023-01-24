@@ -136,7 +136,7 @@ val map_type_expr_cstr_args: (type_expr -> type_expr) ->
 type type_iterators =
   { it_signature: type_iterators -> signature -> unit;
     it_signature_item: type_iterators -> signature_item -> unit;
-    it_value_description: type_iterators -> value_description -> unit;
+    it_value_description: 'a. type_iterators -> 'a value_description -> unit;
     it_type_declaration: type_iterators -> type_declaration -> unit;
     it_extension_constructor: type_iterators -> extension_constructor -> unit;
     it_module_declaration: type_iterators -> module_declaration -> unit;
@@ -149,6 +149,7 @@ type type_iterators =
     it_type_kind: type_iterators -> type_decl_kind -> unit;
     it_do_type_expr: type_iterators -> type_expr -> unit;
     it_type_expr: type_iterators -> type_expr -> unit;
+    it_type_scheme: 'a. type_iterators -> 'a type_scheme -> unit;
     it_path: Path.t -> unit; }
 val type_iterators: type_iterators
         (* Iteration on arbitrary type information.

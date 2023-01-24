@@ -332,7 +332,7 @@ and lambda_event =
   { lev_loc: scoped_location;
     lev_kind: lambda_event_kind;
     lev_repr: int ref option;
-    lev_env: Env.t }
+    lev_env: Env.new_env }
 
 and lambda_event_kind =
     Lev_before
@@ -401,15 +401,15 @@ val transl_prim: string -> string -> lambda
 
 val free_variables: lambda -> Ident.Set.t
 
-val transl_module_path: scoped_location -> Env.t -> Path.t -> lambda
-val transl_value_path: scoped_location -> Env.t -> Path.t -> lambda
-val transl_extension_path: scoped_location -> Env.t -> Path.t -> lambda
-val transl_class_path: scoped_location -> Env.t -> Path.t -> lambda
+val transl_module_path: scoped_location -> 'a Env.t -> Path.t -> lambda
+val transl_value_path: scoped_location -> 'a Env.t -> Path.t -> lambda
+val transl_extension_path: scoped_location -> 'a Env.t -> Path.t -> lambda
+val transl_class_path: scoped_location -> 'a Env.t -> Path.t -> lambda
 
 val make_sequence: ('a -> lambda) -> 'a list -> lambda
 
 val subst:
-  (Ident.t -> Types.value_description -> Env.t -> Env.t) ->
+  (Ident.t -> 'a Types.value_description -> 'a Env.t -> 'a Env.t) ->
   ?freshen_bound_variables:bool ->
   lambda Ident.Map.t -> lambda -> lambda
 (** [subst update_env ?freshen_bound_variables s lt]

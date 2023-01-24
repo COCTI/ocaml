@@ -26,8 +26,6 @@ open Local_store
 
 module String = Misc.Stdlib.String
 
-let add_delayed_check_forward = ref (fun _ -> assert false)
-
 type 'a usage_tbl = ('a -> unit) Types.Uid.Tbl.t
 (** This table is used to track usage of value declarations.
     A declaration is identified by its uid.
@@ -148,7 +146,7 @@ type module_unbound_reason =
 
 type summary =
     Env_empty
-  | Env_value of summary * Ident.t * value_description
+  | Env_value of summary * Ident.t * unit value_description
   | Env_type of summary * Ident.t * type_declaration
   | Env_extension of summary * Ident.t * extension_constructor
   | Env_module of summary * Ident.t * module_presence * module_declaration
@@ -513,7 +511,7 @@ type type_descriptions = type_descr_kind
 
 let in_signature_flag = 0x01
 
-type t = {
+type t0 = {
   values: (value_entry, value_data) IdTbl.t;
   constrs: constructor_data TycompTbl.t;
   labels: label_data TycompTbl.t;
@@ -526,7 +524,13 @@ type t = {
   summary: summary;
   local_constraints: type_declaration Path.Map.t;
   flags: int;
+  current_level: int;
+  nongen_level: int;
 }
+
+and 'a t = t0
+
+and new_env = NewEnv : 'a t -> new_env
 
 and module_components =
   {
@@ -539,7 +543,7 @@ and module_components =
   }
 
 and components_maker = {
-  cm_env: t;
+  cm_env: t0;
   cm_prefixing_subst: Subst.t;
   cm_path: Path.t;
   cm_addr: address_lazy;
@@ -577,12 +581,12 @@ and functor_components = {
 
 and address_unforced =
   | Projection of { parent : address_lazy; pos : int; }
-  | ModAlias of { env : t; path : Path.t; }
+  | ModAlias of { env : t0; path : Path.t; }
 
 and address_lazy = (address_unforced, address) Lazy_backtrack.t
 
 and value_data =
-  { vda_description : value_description;
+  { vda_description : unit value_description;
     vda_address : address_lazy;
     vda_shape : Shape.t }
 
@@ -665,18 +669,76 @@ type lookup_error =
 type error =
   | Missing_module of Location.t * Path.t * Path.t
   | Illegal_value_name of Location.t * string
-  | Lookup_error of Location.t * t * lookup_error
+  | Lookup_error of Location.t * new_env * lookup_error
 
 exception Error of error
 
 let error err = raise (Error err)
 
 let lookup_error loc env err =
-  error (Lookup_error(loc, env, err))
+  error (Lookup_error(loc, NewEnv env, err))
 
-let same_constr = ref (fun _ _ _ -> assert false)
+(* Level handling *)
+let current_level env = env.current_level
+let nongen_level env = env.nongen_level
+let raise_level env =
+  let current_level = env.current_level + 1 in
+  NewEnv {env with current_level; nongen_level = current_level}
+let raise_class_level env =
+  let current_level = env.current_level + 1 in
+  NewEnv {env with current_level}
+let raise_nongen_level env =
+  {env with nongen_level = env.current_level}
 
-let check_well_formed_module = ref (fun _ -> assert false)
+(* Forward declarations *)
+
+type forward = {
+(* Forward declaration to break mutual recursion with Includemod. *)
+mutable check_functor_application: 'a.
+    errors:bool -> loc:Location.t ->
+    lid_whole_app:Longident.t ->
+    f0_path:Path.t -> args:(Path.t * Types.module_type) list ->
+    arg_path:Path.t -> arg_mty:Types.module_type ->
+    param_mty:Types.module_type ->
+    'a t -> unit;
+(* Forward declaration to break mutual recursion with Typemod. *)
+mutable check_well_formed_module: 'a.
+    'a t -> Location.t -> string -> module_type -> unit;
+(* Forward declaration to break mutual recursion with Typecore. *)
+mutable add_delayed_check: (unit -> unit) -> unit;
+(* Forward declaration to break mutual recursion with Mtype. *)
+mutable strengthen: 'a.
+    aliasable:bool -> 'a t -> Subst.Lazy.modtype ->
+    Path.t -> Subst.Lazy.modtype;
+(* Forward declaration to break mutual recursion with Ctype. *)
+mutable same_constr: 'a. 'a t -> type_expr -> type_expr -> bool;
+(* Forward declaration to break mutual recursion with Printtyp. *)
+mutable print_longident: Format.formatter -> Longident.t -> unit;
+(* Forward declaration to break mutual recursion with Printtyp. *)
+mutable print_path: Format.formatter -> Path.t -> unit;
+}
+
+let forward = {
+  check_functor_application =
+  (fun ~errors:_ ~loc:_  ~lid_whole_app:_  ~f0_path:_ ~args:_
+      ~arg_path:_ ~arg_mty:_ ~param_mty:_ _env -> assert false);
+  strengthen = (fun ~aliasable:_ _env _mty _path -> assert false);
+  same_constr = (fun _ _ _ -> assert false);
+  check_well_formed_module = (fun _ -> assert false);
+  print_longident = (fun _ _ -> assert false);
+  print_path = (fun _ _ -> assert false);
+  add_delayed_check = (fun _ -> assert false);
+}
+
+let components_of_module_maker' =
+  ref ((fun _ -> assert false) :
+          components_maker ->
+            (module_components_repr, module_components_failure) result)
+
+let components_of_functor_appl' =
+  ref ((fun ~loc:_ ~f_path:_ ~f_comp:_ ~arg:_ _env -> assert false) :
+          loc:Location.t -> f_path:Path.t -> f_comp:functor_components ->
+            arg:Path.t -> t0 -> module_components)
 
 (* Helper to decide whether to report an identifier shadowing
    by some 'open'. For labels and constructors, we do not report
@@ -687,12 +749,12 @@ let check_well_formed_module = ref (fun _ -> assert false)
 
 let check_shadowing env = function
   | `Constructor (Some (cda1, cda2))
-    when not (!same_constr env
+    when not (forward.same_constr env
                 cda1.cda_description.cstr_res
                 cda2.cda_description.cstr_res) ->
       Some "constructor"
   | `Label (Some (l1, l2))
-    when not (!same_constr env l1.lbl_res l2.lbl_res) ->
+    when not (forward.same_constr env l1.lbl_res l2.lbl_res) ->
       Some "label"
   | `Value (Some _) -> Some "value"
   | `Type (Some _) -> Some "type"
@@ -713,6 +775,8 @@ let empty = {
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
   functor_args = Ident.empty;
+  current_level = 0;
+  nongen_level = 0;
  }
 
 let in_signature b env =
@@ -751,35 +815,6 @@ let diff env1 env2 =
 let wrap_identity x = x
 let wrap_value vda = Val_bound vda
 let wrap_module mda = Mod_local mda
-
-(* Forward declarations *)
-
-let components_of_module_maker' =
-  ref ((fun _ -> assert false) :
-          components_maker ->
-            (module_components_repr, module_components_failure) result)
-
-let components_of_functor_appl' =
-  ref ((fun ~loc:_ ~f_path:_ ~f_comp:_ ~arg:_ _env -> assert false) :
-          loc:Location.t -> f_path:Path.t -> f_comp:functor_components ->
-            arg:Path.t -> t -> module_components)
-let check_functor_application =
-  (* to be filled by Includemod *)
-  ref ((fun ~errors:_ ~loc:_
-         ~lid_whole_app:_  ~f0_path:_ ~args:_
-         ~arg_path:_ ~arg_mty:_ ~param_mty:_
-         _env
-         -> assert false) :
-         errors:bool -> loc:Location.t ->
-       lid_whole_app:Longident.t ->
-       f0_path:Path.t -> args:(Path.t * Types.module_type) list ->
-       arg_path:Path.t -> arg_mty:module_type -> param_mty:module_type ->
-       t -> unit)
-let strengthen =
-  (* to be filled with Mtype.strengthen *)
-  ref ((fun ~aliasable:_ _env _mty _path -> assert false) :
-         aliasable:bool -> t -> Subst.Lazy.modtype ->
-         Path.t -> Subst.Lazy.modtype)
 
 let md md_type =
   {md_type; md_attributes=[]; md_loc=Location.none
@@ -1014,7 +1049,7 @@ let check_functor_appl
     ~arg_path ~arg_mty ~param_mty
     env =
   if not (Hashtbl.mem f_comp.fcomp_cache arg_path) then
-    !check_functor_application
+    forward.check_functor_application
       ~errors ~loc ~lid_whole_app ~f0_path ~args
       ~arg_path ~arg_mty ~param_mty
       env
@@ -1084,7 +1119,7 @@ let find_module_lazy ~alias path env =
 
 let find_strengthened_module ~aliasable path env =
   let md = find_module_lazy ~alias:true path env in
-  let mty = !strengthen ~aliasable env md.mdl_type path in
+  let mty = forward.strengthen ~aliasable env md.mdl_type path in
   Subst.Lazy.force_modtype mty
 
 let find_value_full path env =
@@ -1189,8 +1224,8 @@ let find_cltype path env =
       (NameMap.find s sc.comp_cltypes).cltda_declaration
   | Papply _ | Pextra_ty _ -> raise Not_found
 
-let find_value path env =
-  (find_value_full path env).vda_description
+let find_value path (env : 'a t) : 'a value_description =
+  cast_value_description_unsafe (find_value_full path env).vda_description
 
 let find_class path env =
   (find_class_full path env).clda_declaration
@@ -1428,13 +1463,16 @@ let rec is_functor_arg path env =
 
 let make_copy_of_types env0 =
   let memo = Hashtbl.create 16 in
-  let copy t =
+  let copy (t : 'a type_scheme) : 'a type_scheme =
+    let t = of_type_scheme_unsafe t in
+    as_type_scheme_unsafe (
     try
       Hashtbl.find memo (get_id t)
     with Not_found ->
       let t2 = Subst.type_expr Subst.identity t in
       Hashtbl.add memo (get_id t) t2;
       t2
+   )
   in
   let f = function
     | Val_unbound _ as entry -> entry
@@ -1593,7 +1631,7 @@ let rec scrape_alias env ?path mty =
         mty
       end
   | mty, Some path ->
-      !strengthen ~aliasable:true env mty path
+      forward.strengthen ~aliasable:true env mty path
   | _ -> mty
 
 (* Given a signature and a root path, prefix all idents in the signature
@@ -1656,15 +1694,15 @@ let add_to_tbl id decl tbl =
   let decls = try NameMap.find id tbl with Not_found -> [] in
   NameMap.add id (decl :: decls) tbl
 
-let value_declaration_address (_ : t) id decl =
+let value_declaration_address (_ : t0) id decl =
   match decl.val_kind with
   | Val_prim _ -> Lazy_backtrack.create_failed Not_found
   | _ -> Lazy_backtrack.create_forced (Aident id)
 
-let extension_declaration_address (_ : t) id (_ : extension_constructor) =
+let extension_declaration_address (_ : t0) id (_ : extension_constructor) =
   Lazy_backtrack.create_forced (Aident id)
 
-let class_declaration_address (_ : t) id (_ : class_declaration) =
+let class_declaration_address (_ : t0) id (_ : class_declaration) =
   Lazy_backtrack.create_forced (Aident id)
 
 let module_declaration_address env id presence md =
@@ -1885,7 +1923,7 @@ and check_usage loc id uid warn tbl =
     Types.Uid.Tbl.add tbl uid (fun () -> used := true);
     if not (name = "" || name.[0] = '_' || name.[0] = '#')
     then
-      !add_delayed_check_forward
+      forward.add_delayed_check
         (fun () -> if not !used then Location.prerr_warning loc (warn name))
   end;
 
@@ -1929,7 +1967,7 @@ and store_constructor ~check type_decl type_id cstr_id cstr env =
         (add_constructor_usage used);
       if not (ty_name = "" || ty_name.[0] = '_')
       then
-        !add_delayed_check_forward
+        forward.add_delayed_check
           (fun () ->
             Option.iter
               (fun complaint ->
@@ -1962,7 +2000,7 @@ and store_label ~check type_decl type_id lbl_id lbl env =
       Types.Uid.Tbl.add !used_labels k
         (add_label_usage used);
       if not (ty_name = "" || ty_name.[0] = '_' || name.[0] = '_')
-      then !add_delayed_check_forward
+      then forward.add_delayed_check
           (fun () ->
             Option.iter
               (fun complaint ->
@@ -2051,7 +2089,7 @@ and store_extension ~check ~rebind id addr ext shape env =
       let used = constructor_usages () in
       Types.Uid.Tbl.add !used_constructors k
         (add_constructor_usage used);
-      !add_delayed_check_forward
+      forward.add_delayed_check
          (fun () ->
            Option.iter
              (fun complaint ->
@@ -2135,7 +2173,7 @@ let components_of_functor_appl ~loc ~f_path ~f_comp ~arg env =
        because of the call to [check_well_formed_module]. *)
     let mty = Subst.modtype (Rescope (Path.scope p)) sub f_comp.fcomp_res in
     let addr = Lazy_backtrack.create_failed Not_found in
-    !check_well_formed_module env loc
+    forward.check_well_formed_module env loc
       ("the signature of " ^ Path.name p) mty;
     let shape_arg =
       shape_of_path ~namespace:Shape.Sig_component_kind.Module env arg
@@ -2163,7 +2201,8 @@ let add_functor_arg id env =
    functor_args = Ident.add id () env.functor_args;
    summary = Env_functor_arg (env.summary, id)}
 
-let add_value ?check ?shape id desc env =
+let add_value ?check ?shape id (desc : 'a value_description) (env : 'a t) =
+  let desc = cast_value_description_unsafe desc in
   let addr = value_declaration_address env id desc in
   let shape = shape_or_leaf desc.val_uid shape in
   store_value ?check id addr desc shape env
@@ -2238,7 +2277,8 @@ let scrape_alias t mty =
 
 (* Insertion of bindings by name *)
 
-let enter_value ?check name desc env =
+let enter_value ?check name (desc : 'a value_description) (env : 'a t) =
+  let desc = cast_value_description_unsafe desc in
   let id = Ident.create_local name in
   let addr = value_declaration_address env id desc in
   let env = store_value ?check id addr desc (Shape.leaf desc.val_uid) env in
@@ -2477,7 +2517,7 @@ let open_signature
   then begin
     let used = used_slot in
     if warn_unused then
-      !add_delayed_check_forward
+      forward.add_delayed_check
         (fun () ->
            if not !used then begin
              used := true;
@@ -2782,11 +2822,12 @@ let lookup_ident_module (type a) (load : a load) ~errors ~use ~loc s env =
         end
     end
 
-let lookup_ident_value ~errors ~use ~loc name env =
+let lookup_ident_value ~errors ~use ~loc name (env : 'a t)
+  : Path.t * 'a value_description =
   match IdTbl.find_name wrap_value ~mark:use name env.values with
   | (path, Val_bound vda) ->
       use_value ~use ~loc path vda;
-      path, vda.vda_description
+      path, cast_value_description_unsafe vda.vda_description
   | (_, Val_unbound reason) ->
       report_value_unbound ~errors ~loc env reason (Lident name)
   | exception Not_found ->
@@ -2964,7 +3005,8 @@ and lookup_dot_module ~errors ~use ~loc l s env =
   | exception Not_found ->
       may_lookup_error errors loc env (Unbound_module (Ldot(l, s)))
 
-let lookup_dot_value ~errors ~use ~loc l s env =
+let lookup_dot_value ~errors ~use ~loc l s (env : 'a t)
+  : Path.t * 'a value_description =
   let (path, comps) =
     lookup_structure_components ~errors ~use ~loc l env
   in
@@ -2972,7 +3014,7 @@ let lookup_dot_value ~errors ~use ~loc l s env =
   | vda ->
       let path = Pdot(path, s) in
       use_value ~use ~loc path vda;
-      (path, vda.vda_description)
+      (path, cast_value_description_unsafe vda.vda_description)
   | exception Not_found ->
       may_lookup_error errors loc env (Unbound_value (Ldot(l, s), No_hint))
 
@@ -3255,7 +3297,7 @@ let lookup_instance_variable ?(use=true) ~loc name env =
       match desc.val_kind with
       | Val_ivar(mut, cl_num) ->
           use_value ~use ~loc path vda;
-          path, mut, cl_num, desc.val_type
+          path, mut, cl_num, of_type_scheme_unsafe desc.val_type
       | _ ->
           lookup_error loc env (Not_an_instance_variable name)
     end
@@ -3394,7 +3436,8 @@ let fold_values f =
     (fun k p ve acc ->
        match ve with
        | Val_unbound _ -> acc
-       | Val_bound vda -> f k p vda.vda_description acc)
+       | Val_bound vda ->
+           f k p (cast_value_description_unsafe vda.vda_description) acc)
 and fold_constructors f =
   find_all_simple_list (fun env -> env.constrs) (fun sc -> sc.comp_constrs)
     (fun cda acc -> f cda.cda_description acc)
@@ -3507,14 +3550,6 @@ let env_of_only_summary env_from_summary env =
 
 open Format
 
-(* Forward declarations *)
-
-let print_longident =
-  ref ((fun _ _ -> assert false) : formatter -> Longident.t -> unit)
-
-let print_path =
-  ref ((fun _ _ -> assert false) : formatter -> Path.t -> unit)
-
 let spellcheck ppf extract env lid =
   let choices ~path name = Misc.spellcheck (extract path env) name in
   match lid with
@@ -3553,7 +3588,7 @@ let extract_instance_variables env =
 
 let report_lookup_error _loc env ppf = function
   | Unbound_value(lid, hint) -> begin
-      fprintf ppf "Unbound value %a" !print_longident lid;
+      fprintf ppf "Unbound value %a" forward.print_longident lid;
       spellcheck ppf extract_values env lid;
       match hint with
       | No_hint -> ()
@@ -3567,46 +3602,46 @@ let report_lookup_error _loc env ppf = function
             line
     end
   | Unbound_type lid ->
-      fprintf ppf "Unbound type constructor %a" !print_longident lid;
+      fprintf ppf "Unbound type constructor %a" forward.print_longident lid;
       spellcheck ppf extract_types env lid;
   | Unbound_module lid -> begin
-      fprintf ppf "Unbound module %a" !print_longident lid;
+      fprintf ppf "Unbound module %a" forward.print_longident lid;
        match find_modtype_by_name lid env with
       | exception Not_found -> spellcheck ppf extract_modules env lid;
       | _ ->
          fprintf ppf
            "@.@[@{<hint>Hint@}: There is a module type named %a, %s@]"
-           !print_longident lid
+           forward.print_longident lid
            "but module types are not modules"
     end
   | Unbound_constructor lid ->
-      fprintf ppf "Unbound constructor %a" !print_longident lid;
+      fprintf ppf "Unbound constructor %a" forward.print_longident lid;
       spellcheck ppf extract_constructors env lid;
   | Unbound_label lid ->
-      fprintf ppf "Unbound record field %a" !print_longident lid;
+      fprintf ppf "Unbound record field %a" forward.print_longident lid;
       spellcheck ppf extract_labels env lid;
   | Unbound_class lid -> begin
-      fprintf ppf "Unbound class %a" !print_longident lid;
+      fprintf ppf "Unbound class %a" forward.print_longident lid;
       match find_cltype_by_name lid env with
       | exception Not_found -> spellcheck ppf extract_classes env lid;
       | _ ->
          fprintf ppf
            "@.@[@{<hint>Hint@}: There is a class type named %a, %s@]"
-           !print_longident lid
+           forward.print_longident lid
            "but classes are not class types"
     end
   | Unbound_modtype lid -> begin
-      fprintf ppf "Unbound module type %a" !print_longident lid;
+      fprintf ppf "Unbound module type %a" forward.print_longident lid;
       match find_module_by_name lid env with
       | exception Not_found -> spellcheck ppf extract_modtypes env lid;
       | _ ->
          fprintf ppf
            "@.@[@{<hint>Hint@}: There is a module named %a, %s@]"
-           !print_longident lid
+           forward.print_longident lid
            "but modules are not module types"
     end
   | Unbound_cltype lid ->
-      fprintf ppf "Unbound class type %a" !print_longident lid;
+      fprintf ppf "Unbound class type %a" forward.print_longident lid;
       spellcheck ppf extract_cltypes env lid;
   | Unbound_instance_variable s ->
       fprintf ppf "Unbound instance variable %s" s;
@@ -3618,34 +3653,34 @@ let report_lookup_error _loc env ppf = function
       fprintf ppf
         "The instance variable %a@ \
          cannot be accessed from the definition of another instance variable"
-        !print_longident lid
+        forward.print_longident lid
   | Masked_self_variable lid ->
       fprintf ppf
         "The self variable %a@ \
          cannot be accessed from the definition of an instance variable"
-        !print_longident lid
+        forward.print_longident lid
   | Masked_ancestor_variable lid ->
       fprintf ppf
         "The ancestor variable %a@ \
          cannot be accessed from the definition of an instance variable"
-        !print_longident lid
+        forward.print_longident lid
   | Illegal_reference_to_recursive_module ->
      fprintf ppf "Illegal recursive module reference"
   | Structure_used_as_functor lid ->
       fprintf ppf "@[The module %a is a structure, it cannot be applied@]"
-        !print_longident lid
+        forward.print_longident lid
   | Abstract_used_as_functor lid ->
       fprintf ppf "@[The module %a is abstract, it cannot be applied@]"
-        !print_longident lid
+        forward.print_longident lid
   | Functor_used_as_structure lid ->
       fprintf ppf "@[The module %a is a functor, \
-                   it cannot have any components@]" !print_longident lid
+                   it cannot have any components@]" forward.print_longident lid
   | Abstract_used_as_structure lid ->
       fprintf ppf "@[The module %a is abstract, \
-                   it cannot have any components@]" !print_longident lid
+                   it cannot have any components@]" forward.print_longident lid
   | Generative_used_as_applicative lid ->
       fprintf ppf "@[The functor %a is generative,@ it@ cannot@ be@ \
-                   applied@ in@ type@ expressions@]" !print_longident lid
+                   applied@ in@ type@ expressions@]" forward.print_longident lid
   | Cannot_scrape_alias(lid, p) ->
       let cause =
         if Current_unit_name.is_path p then "is the current compilation unit"
@@ -3653,7 +3688,7 @@ let report_lookup_error _loc env ppf = function
       in
       fprintf ppf
         "The module %a is an alias for module %a, which %s"
-        !print_longident lid !print_path p cause
+        forward.print_longident lid forward.print_path p cause
 
 let report_error ppf = function
   | Missing_module(_, path1, path2) ->
@@ -3669,7 +3704,7 @@ let report_error ppf = function
   | Illegal_value_name(_loc, name) ->
       fprintf ppf "'%s' is not a valid value identifier."
         name
-  | Lookup_error(loc, t, err) -> report_lookup_error loc t ppf err
+  | Lookup_error(loc, NewEnv t, err) -> report_lookup_error loc t ppf err
 
 let () =
   Location.register_error_of_exn
