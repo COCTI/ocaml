@@ -57,8 +57,8 @@ type address =
 type 'a t
 type new_env = NewEnv : 'a t -> new_env
 
-val empty: 'a t
-val initial: 'a t
+val empty: closed t
+val initial: closed t
 val diff: 'a t -> 'b t -> Ident.t list
 
 (* Level handling *)
@@ -67,6 +67,10 @@ val nongen_level: 'a t -> int
 val raise_level: 'a t -> new_env
 val raise_class_level: 'a t -> new_env
 val raise_nongen_level: 'a t -> 'a t
+
+val cast_level: new_env -> level_of: 'a t -> 'a t
+
+val quick_same_types: 'a t -> 'b t -> bool
 
 type type_descr_kind =
   (label_description, constructor_description) type_kind

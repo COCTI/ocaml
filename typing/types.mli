@@ -370,6 +370,9 @@ type 'a type_scheme
 val as_type_scheme_unsafe : type_expr -> 'a type_scheme
 val of_type_scheme_unsafe : 'a type_scheme -> type_expr
 
+type closed
+type closed_scheme = closed type_scheme
+
 (* Value descriptions *)
 
 type 'a value_description =

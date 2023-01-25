@@ -690,6 +690,18 @@ let raise_class_level env =
 let raise_nongen_level env =
   {env with nongen_level = env.current_level}
 
+let cast_level newenv ~(level_of : 'a t) : 'a t =
+  let NewEnv env = newenv in
+  if env.current_level = level_of.current_level
+  && env.nongen_level = level_of.nongen_level
+  then env
+  else invalid_arg "Env.cast_level"
+
+let quick_same_types e1 e2 =
+  e1.types == e2.types &&
+  e1.modules == e2.modules &&
+  e1.local_constraints == e2.local_constraints 
+
 (* Forward declarations *)
 
 type forward = {
@@ -775,8 +787,8 @@ let empty = {
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
   functor_args = Ident.empty;
-  current_level = 0;
-  nongen_level = 0;
+  current_level = Btype.lowest_level;
+  nongen_level = Btype.lowest_level;
  }
 
 let in_signature b env =

@@ -105,6 +105,9 @@ type 'a type_scheme = type_expr
 let as_type_scheme_unsafe x = x
 let of_type_scheme_unsafe x = x
 
+type closed
+type closed_scheme = closed type_scheme
+
 (* Value descriptions *)
 
 type 'a value_description =
