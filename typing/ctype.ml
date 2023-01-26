@@ -716,17 +716,25 @@ let rec generalize_spine ty =
   | _ -> ()
 
 (* Forward declarations *)
-type forward = {
+type priv_forward = {
     mutable try_expand_safe: 'a. 'a Env.t -> type_expr -> type_expr;
     mutable unify_var: 'a. 'a Env.t -> type_expr -> type_expr -> unit;
     mutable nondep_type: 'a. 'a Env.t -> Ident.t list -> type_expr -> type_expr;
-  }
-let forward = {
+}
+let priv_forward = {
   try_expand_safe = (fun _env _ty -> assert false);
   unify_var = (fun _env _ty1 _ty2 -> assert false);
   nondep_type = (fun _ _ _ -> assert false);
 }
 
+type forward = {
+mutable package_subtype : 'a.
+    'a Env.t -> Path.t -> (Longident.t * type_expr) list ->
+      Path.t -> (Longident.t * type_expr) list -> bool;
+}
+let forward = {
+  package_subtype = (fun _ _ _ _ _ -> assert false);
+}
 (*
    Lower the levels of a type (assume [level] is not
    [generic_level]).
@@ -755,7 +763,7 @@ let rec check_scope_escape env level ty =
       raise_scope_escape_exn ty;
     begin match get_desc ty with
     | Tconstr (p, _, _) when level < Path.scope p ->
-        begin match forward.try_expand_safe env ty with
+        begin match priv_forward.try_expand_safe env ty with
         | ty' ->
             check_scope_escape env level ty'
         | exception Cannot_expand ->
@@ -806,7 +814,7 @@ let rec update_level env level expand ty =
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
         begin try
-          let ty' = forward.try_expand_safe env ty in
+          let ty' = priv_forward.try_expand_safe env ty in
           link_type ty ty';
           update_level env level expand ty'
         with Cannot_expand ->
@@ -824,7 +832,7 @@ let rec update_level env level expand ty =
         in
         begin try
           if not needs_expand then raise Cannot_expand;
-          let ty' = forward.try_expand_safe env ty in
+          let ty' = priv_forward.try_expand_safe env ty in
           link_type ty ty';
           update_level env level expand ty'
         with Cannot_expand ->
@@ -912,7 +920,7 @@ let rec lower_contravariant env var_level visited contra ty =
                   else lower_rec contra t)
               variance tyl in
           if maybe_expand then (* we expand cautiously to avoid missing cmis *)
-            match forward.try_expand_safe env ty with
+            match priv_forward.try_expand_safe env ty with
             | ty -> lower_rec contra ty
             | exception Cannot_expand -> not_expanded ()
           else not_expanded ()
@@ -1492,8 +1500,8 @@ let subst env level priv abbrev oty params args body =
   umode := Subst;
   try
     (* NB: since this is [unify_var], it raises [Unify], not [Unify_trace] *)
-    forward.unify_var env body0 body';
-    List.iter2 (forward.unify_var env) params' args;
+    priv_forward.unify_var env body0 body';
+    List.iter2 (priv_forward.unify_var env) params' args;
     current_level := old_level;
     umode := old_umode;
     body'
@@ -1670,7 +1678,7 @@ let expand_head env ty =
   try try_expand_head try_expand_safe env ty
   with Cannot_expand -> ty
 
-let _ = forward.try_expand_safe <- try_expand_safe
+let _ = priv_forward.try_expand_safe <- try_expand_safe
 
 
 (* Expand until we find a non-abstract type declaration,
@@ -2508,8 +2516,6 @@ let eq_package_path env p1 p2 =
   Path.same p1 p2 ||
   Path.same (normalize_package_path env p1) (normalize_package_path env p2)
 
-let package_subtype = ref (fun _ _ _ _ _ -> assert false)
-
 exception Nondep_cannot_erase of Ident.t
 
 let rec concat_longident lid1 =
@@ -2520,7 +2526,7 @@ let rec concat_longident lid1 =
   | Lapply (lid2, lid) -> Lapply (concat_longident lid1 lid2, lid)
 
 let nondep_instance env level id ty =
-  let ty = forward.nondep_type env [id] ty in
+  let ty = priv_forward.nondep_type env [id] ty in
   if level = generic_level then duplicate_type ty else
   let old = !current_level in
   current_level := level;
@@ -2575,13 +2581,12 @@ let complete_type_list ?(allow_absent=false) env fl1 lv2 mty2 fl2 =
 
 (* raise Not_found rather than Unify if the module types are incompatible *)
 let unify_package env unify_list lv1 p1 fl1 lv2 p2 fl2 =
-  let unify_list = unify_list env in
   let ntl2 = complete_type_list env fl1 lv2 (Mty_ident p2) fl2
   and ntl1 = complete_type_list env fl2 lv1 (Mty_ident p1) fl1 in
   unify_list (List.map snd ntl1) (List.map snd ntl2);
   if eq_package_path env p1 p2
-  || !package_subtype env p1 fl1 p2 fl2
-  && !package_subtype env p2 fl2 p1 fl1 then () else raise Not_found
+  || forward.package_subtype env p1 fl1 p2 fl2
+  && forward.package_subtype env p2 fl2 p1 fl1 then () else raise Not_found
 
 
 (* force unification in Reither when one side has a non-conjunctive type *)
@@ -2647,7 +2652,7 @@ let unify3_var env t1' t2 t2' =
       information is indeed lost, but it probably does not worth it.
 *)
 
-let rec unify (env:Env.new_env ref) t1 t2 =
+let rec unify (env: Env.new_env ref) t1 t2 =
   (* First step: special case (optimizations) *)
   if unify_eq t1 t2 then () else
 
@@ -2658,13 +2663,13 @@ let rec unify (env:Env.new_env ref) t1 t2 =
     type_changed := true;
     begin match (get_desc t1, get_desc t2) with
       (Tvar _, Tconstr _) when deep_occur t1 t2 ->
-        unify2 env t1 t2
+        unify2 env' t1 t2
     | (Tconstr _, Tvar _) when deep_occur t2 t1 ->
-        unify2 env t1 t2
+        unify2 env' t1 t2
     | (Tvar _, _) ->
-        if unify1_var env' t1 t2 then () else unify2 env t1 t2
+        if unify1_var env' t1 t2 then () else unify2' env t1 t2
     | (_, Tvar _) ->
-        if unify1_var env' t2 t1 then () else unify2 env t1 t2
+        if unify1_var env' t2 t1 then () else unify2' env t1 t2
     | (Tunivar _, Tunivar _) ->
         unify_univar_for Unify t1 t2 !univar_pairs;
         update_level_for Unify env' (get_level t1) t2;
@@ -2683,7 +2688,7 @@ let rec unify (env:Env.new_env ref) t1 t2 =
     | (Tconstr _, Tconstr _) when Env.has_local_constraints env' ->
         unify2_rec env t1 t1 t2 t2
     | _ ->
-        unify2 env t1 t2
+        unify2' env t1 t2
     end;
     reset_trace_gadt_instances reset_tracing;
   with Unify_trace trace ->
@@ -2694,7 +2699,7 @@ and unify2 env t1 t2 = unify2_expand env t1 t1 t2 t2
 
 and unify2_rec env t10 t1 t20 t2 =
   if unify_eq t1 t2 then () else
-  let NewEnv env' = !env in
+  let Env.NewEnv env' = !env in
   try match (get_desc t1, get_desc t2) with
   | (Tconstr (p1, tl1, a1), Tconstr (p2, tl2, a2)) ->
       if Path.same p1 p2 && tl1 = [] && tl2 = []
@@ -2710,20 +2715,19 @@ and unify2_rec env t10 t1 t20 t2 =
   | _ ->
       raise Cannot_expand
   with Cannot_expand ->
-    unify2_expand env t10 t1 t20 t2
+    unify2_expand env' t10 t1 t20 t2
 
 and unify2_expand env t1 t1' t2 t2' =
   (* Second step: expansion of abbreviations *)
   (* Expansion may change the representative of the types. *)
-  let NewEnv env' = !env in
-  ignore (expand_head_unif env' t1');
-  ignore (expand_head_unif env' t2');
-  let t1' = expand_head_unif env' t1' in
-  let t2' = expand_head_unif env' t2' in
+  ignore (expand_head_unif env t1');
+  ignore (expand_head_unif env t2');
+  let t1' = expand_head_unif env t1' in
+  let t2' = expand_head_unif env t2' in
   let lv = Int.min (get_level t1') (get_level t2') in
   let scope = Int.max (get_scope t1') (get_scope t2') in
-  update_level_for Unify env' lv t2;
-  update_level_for Unify env' lv t1;
+  update_level_for Unify env lv t2;
+  update_level_for Unify env lv t1;
   update_scope_for Unify scope t2;
   update_scope_for Unify scope t1;
   if unify_eq t1' t2' then () else
@@ -2751,7 +2755,7 @@ and unify3 env t1 t1' t2 t2' =
   let create_recursion =
     (not (eq_type t2 t2')) && (deep_occur t1'  t2) in
 
-  let NewEnv env' = !env in
+  let Env.NewEnv env' = !env in
 
   begin match (d1, d2) with (* handle vars and univars specially *)
     (Tunivar _, Tunivar _) ->
@@ -2887,7 +2891,7 @@ and unify3 env t1 t1' t2 t2' =
           enter_poly_for Unify env' univar_pairs t1 tl1 t2 tl2 (unify env)
       | (Tpackage (p1, fl1), Tpackage (p2, fl2)) ->
           begin try
-            unify_package env' unify_list
+            unify_package env' (unify_list env)
               (get_level t1) p1 fl1 (get_level t2) p2 fl2
           with Not_found ->
             if not (in_pattern_mode ()) then raise_unexplained_for Unify;
@@ -2958,7 +2962,8 @@ and unify_fields env ty1 ty2 =          (* Optimization *)
         try
           if !trace_gadt_instances && not (in_subst_mode ()) then begin
             (* in_subst_mode: see PR#11771 *)
-            update_level_for Unify !env (get_level va) t1;
+            let Env.NewEnv env' = !env in
+            update_level_for Unify env' (get_level va) t1;
             update_scope_for Unify (get_scope va) t1
           end;
           unify env t1 t2
@@ -3224,7 +3229,7 @@ let unify_var env t1 t2 =
   | _ ->
       unify (ref env) t1 t2
 
-let _ = forward.unify_var <- unify_var
+let _ = priv_forward.unify_var <- unify_var
 
 let unify_pairs env ty1 ty2 pairs =
   univar_pairs := pairs;
@@ -3719,7 +3724,7 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
               moregen_list inst_nongen type_pairs env tl1 tl2
           | (Tpackage (p1, fl1), Tpackage (p2, fl2)) ->
               begin try
-                unify_package env (moregen_list inst_nongen type_pairs)
+                unify_package env (moregen_list inst_nongen type_pairs env)
                   (get_level t1') p1 fl1 (get_level t2') p2 fl2
               with Not_found -> raise_unexplained_for Moregen
               end
@@ -4069,7 +4074,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
               eqtype_list rename type_pairs subst env tl1 tl2
           | (Tpackage (p1, fl1), Tpackage (p2, fl2)) ->
               begin try
-                unify_package env (eqtype_list rename type_pairs subst)
+                unify_package env (eqtype_list rename type_pairs subst env)
                   (get_level t1') p1 fl1 (get_level t2') p2 fl2
               with Not_found -> raise_unexplained_for Equality
               end
@@ -4879,7 +4884,7 @@ let rec subtype_rec env trace t1 t2 cstrs =
             (* need to check module subtyping *)
             let snap = Btype.snapshot () in
             match List.iter (fun (_, t1, t2, _) -> unify env t1 t2) cstrs' with
-            | () when !package_subtype env p1 fl1 p2 fl2 ->
+            | () when forward.package_subtype env p1 fl1 p2 fl2 ->
               Btype.backtrack snap; cstrs' @ cstrs
             | () | exception Unify _ ->
               Btype.backtrack snap; raise Not_found
@@ -5299,7 +5304,7 @@ let nondep_type env id ty =
     clear_hash ();
     raise exn
 
-let () = forward.nondep_type <- nondep_type
+let () = priv_forward.nondep_type <- nondep_type
 
 (* Preserve sharing inside type declarations. *)
 let nondep_type_decl env mid is_covariant decl =

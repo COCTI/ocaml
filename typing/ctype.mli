@@ -467,10 +467,12 @@ val reset_reified_var_counter: unit -> unit
 
 val immediacy : 'a Env.t -> type_expr -> Type_immediacy.t
 
-(* Stubs *)
-val package_subtype :
-    (Env.new_env -> Path.t -> (Longident.t * type_expr) list ->
-      Path.t -> (Longident.t * type_expr) list -> bool) ref
+type forward = {
+mutable package_subtype : 'a.
+    'a Env.t -> Path.t -> (Longident.t * type_expr) list ->
+      Path.t -> (Longident.t * type_expr) list -> bool;
+}
+val forward : forward
 
 (* Raises [Incompatible] *)
 val mcomp : 'a Env.t -> type_expr -> type_expr -> unit
