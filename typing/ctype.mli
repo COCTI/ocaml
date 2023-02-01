@@ -35,10 +35,11 @@ exception Incompatible
 
 (* All the following wrapper functions revert to the original level,
    even in case of exception. *)
-val with_local_level: ?post:('a -> unit) -> (unit -> 'a) -> 'a
-        (* [with_local_level (fun () -> cmd) ~post] evaluates [cmd] at a
-           raised level.
-           If given, [post] is applied to the result, at the original level.
+val with_local_level:
+    Env.t -> ?post:(Env.t -> 'a -> unit) -> (Env.t -> 'a) -> 'a
+        (* [with_local_level env (fun env' -> cmd) ~post] evaluates [cmd]
+           with [env'] at a raised level.
+           If given, [post] is applied to the result and the original [env].
            It is expected to contain only level related post-processing. *)
 val with_local_level_if: bool -> (unit -> 'a) -> post:('a -> unit) -> 'a
         (* Same as [with_local_level], but only raise the level conditionally.
