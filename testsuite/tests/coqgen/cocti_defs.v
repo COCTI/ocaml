@@ -203,6 +203,15 @@ Definition bounded_nat_of_int (m : nat) (n : int) : M nat :=
   do n <- nat_of_int n;
   if n < m then Ret n else Fail BoundedNat.
 
+Definition nat_of_uint (n : int) : nat :=
+  if Uint63.to_Z n is Zpos pos then Pos.to_nat pos else 0.
+
+Definition forloop' (n_1 n_2 : int) (b : int -> M unit) : M unit :=
+  if ltsb n_2 n_1 then Ret tt else
+  iteri (nat_of_uint (n_2 - n_1 + 1)%sint63)
+       (fun i (m : M unit) => m >> b (n_1 + Uint63.of_Z (Z.of_nat i))%sint63)
+       (Ret tt).
+
 Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
   if h is h.+1 then
     if ltsb n_2 n_1 then Ret tt
