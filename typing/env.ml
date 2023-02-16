@@ -526,8 +526,10 @@ type t = {
   summary: summary;
   local_constraints: type_declaration Path.Map.t;
   flags: int;
+  (* levels for generalization *)
   current_level: int;
   nongen_level: int;
+  (* data for type variables *)
   global_level: int;
   type_variables: type_expr Btype.TyVarMap.t ref
 }
