@@ -526,6 +526,10 @@ type t = {
   summary: summary;
   local_constraints: type_declaration Path.Map.t;
   flags: int;
+  current_level: int;
+  nongen_level: int;
+  global_level: int;
+  type_variables: type_expr Btype.TyVarMap.t ref
 }
 
 and module_components =
@@ -674,6 +678,35 @@ let error err = raise (Error err)
 let lookup_error loc env err =
   error (Lookup_error(loc, env, err))
 
+(* Level handling *)
+let current_level env = env.current_level
+let nongen_level env = env.nongen_level
+let global_level env = env.global_level
+let set_level env level =
+  {env with current_level = level; nongen_level = level}
+let raise_level env =
+  let current_level = env.current_level + 1 in
+  {env with current_level; nongen_level = current_level}
+let raise_current_level env =
+  let current_level = env.current_level + 1 in
+  {env with current_level}
+let reset_nongen_level env =
+  {env with nongen_level = env.current_level}
+(* reset_global_level prepares the global level for a subsequent generalization *)
+(* should be named pregen_global_level? *)
+let reset_global_level env =
+  {env with global_level = env.current_level + 1}
+(* increase_global_level is used only in Typetexp.narrow *)
+(* should be named reset_global_level? *)
+let increase_global_level env =
+  {env with global_level = env.current_level}
+
+let quick_same_types e1 e2 =
+  e1.types == e2.types &&
+  e1.modules == e2.modules &&
+  e1.local_constraints == e2.local_constraints
+
+(* Forward declarations *)
 let same_constr = ref (fun _ _ _ -> assert false)
 
 let check_well_formed_module = ref (fun _ -> assert false)
@@ -713,6 +746,10 @@ let empty = {
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
   functor_args = Ident.empty;
+  current_level = Btype.lowest_level;
+  nongen_level = Btype.lowest_level;
+  global_level = Btype.lowest_level;
+  type_variables = ref (Btype.TyVarMap.empty : type_expr Btype.TyVarMap.t)
  }
 
 let in_signature b env =

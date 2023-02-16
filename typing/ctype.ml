@@ -145,6 +145,7 @@ exception Incompatible
 
 (**** Type level management ****)
 
+(*
 let current_level = s_ref 0
 let nongen_level = s_ref 0
 let global_level = s_ref 0
@@ -170,51 +171,41 @@ let create_scope () =
   !current_level
 
 let wrap_end_def f = Misc.try_finally f ~always:end_def
+*)
 
-let with_local_level ?post f =
-  begin_def ();
-  let result = wrap_end_def f in
-  Option.iter (fun g -> g result) post;
+let with_local_level ?post env f =
+  let env' = Env.raise_level env in
+  let result = f env' in
+  Option.iter (fun g -> g env result) post;
   result
-let with_local_level_if cond f ~post =
-  if cond then with_local_level f ~post else f ()
-let with_local_level_iter f ~post =
-  begin_def ();
-  let result, l = wrap_end_def f in
-  List.iter post l;
+let with_local_level_if cond env f ~post =
+  if cond then with_local_level env f ~post else f env ()
+let with_local_level_iter env f ~post =
+  let env' = Env.raise_level env in
+  let result, l = f env' in
+  List.iter (post env) l;
   result
-let with_local_level_iter_if cond f ~post =
-  if cond then with_local_level_iter f ~post else fst (f ())
-let with_local_level_if_principal f ~post =
-  with_local_level_if !Clflags.principal f ~post
-let with_local_level_iter_if_principal f ~post =
-  with_local_level_iter_if !Clflags.principal f ~post
-let with_level ~level f =
-  begin_def (); init_def level;
-  let result = wrap_end_def f in
+let with_local_level_iter_if cond env f ~post =
+  if cond then with_local_level_iter env f ~post else fst (f env)
+let with_local_level_if_principal env f ~post =
+  with_local_level_if !Clflags.principal env f ~post
+let with_local_level_iter_if_principal env f ~post =
+  with_local_level_iter_if !Clflags.principal env f ~post
+let with_level ~level env f =
+  let env' = Env.set_level env level in
+  f env'
+let with_level_if cond ~level env f =
+  if cond then with_level ~level env f else f env
+
+let with_local_level_for_class ?post env f =
+  let env' = raise_current_level env in
+  let result = f env' in
+  Option.iter (fun g -> g env result) post;
   result
-let with_level_if cond ~level f =
-  if cond then with_level ~level f else f ()
 
-let with_local_level_for_class ?post f =
-  begin_class_def ();
-  let result = wrap_end_def f in
-  Option.iter (fun g -> g result) post;
-  result
-
-let with_raised_nongen_level f =
-  raise_nongen_level ();
-  wrap_end_def f
-
-
-let reset_global_level () =
-  global_level := !current_level
-let increase_global_level () =
-  let gl = !global_level in
-  global_level := !current_level;
-  gl
-let restore_global_level gl =
-  global_level := gl
+let with_raised_nongen_level env f =
+  let env' = reset_nongen_level env in
+  f env'
 
 (**** Control tracing of GADT instances *)
 
@@ -873,8 +864,11 @@ let update_level_for tr_exn env level ty =
 (* Lower level of type variables inside contravariant branches *)
 
 let rec lower_contravariant env var_level visited contra ty =
+  let level = get_level ty in
+  assert (level < generic_level);
+  (* lower_contravariant after a generalization is an anomaly *)
   let must_visit =
-    get_level ty > var_level &&
+    level > var_level &&
     match Hashtbl.find visited (get_id ty) with
     | done_contra -> contra && not done_contra
     | exception Not_found -> true

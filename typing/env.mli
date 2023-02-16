@@ -60,6 +60,22 @@ val empty: t
 val initial: t
 val diff: t -> t -> Ident.t list
 
+(* Level handling:
+   An environment has two kinds of levels: [current_level] and [nongen_level].
+   [raise_current_level] increases [current_level] by one.
+   [reset_nongen_level] sets [nongen_level] to be [current_level].
+   [raise_level] = [raise_nongen_level] \o [raise_class_level]. *)
+val current_level: t -> int
+val nongen_level: t -> int
+val set_level: t -> int -> t
+val raise_level: t -> t
+val raise_current_level: t -> t
+val reset_nongen_level: t -> t
+
+(* [quick_same_types] compares two environments only at [types], [modules],
+   and [local_constraints] fields. *)
+val quick_same_types: t -> t -> bool
+
 type type_descr_kind =
   (label_description, constructor_description) type_kind
 

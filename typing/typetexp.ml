@@ -161,6 +161,28 @@ end = struct
     assert (not_generic v);
     type_variables := TyVarMap.add name v !type_variables
 
+(*
+let univars        = ref ([] : (string * type_expr) list)
+let pre_univars    = ref ([] : type_expr list)
+let used_variables = ref (TyVarMap.empty : (type_expr * Location.t) TyVarMap.t)
+
+let reset_type_variables env =
+  let env = reset_global_level env in
+  Ctype.reset_reified_var_counter ();
+  Env.reset_type_variables env  (* type_variables := TyVarMap.empty*)
+
+let narrow () = !type_variables
+
+let widen tv = type_variables := tv
+
+let with_local_type_variable_scope env f =
+  let env' = increase_global_level env in
+  let context = narrow () in
+  let r = f env' in
+  widen context;
+  r
+*)
+
   let narrow () =
     (increase_global_level (), !type_variables)
 

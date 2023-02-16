@@ -92,6 +92,9 @@ module TypePairs = struct
         f (type_expr t1, type_expr t2))
 end
 
+(** Map indexed by type variable names. *)
+module TyVarMap = Misc.Stdlib.String.Map
+
 (**** Forward declarations ****)
 
 let print_raw =

@@ -1745,7 +1745,7 @@ and type_pat_aux
           module_variables := initial_module_variables;
           let env2 = ref !env in
           let p2 = type_pat_rec env2 sp2 in
-          (env1, p1, p1_variables, p1_module_variables, env2, p2)
+          (!env1, p1, p1_variables, p1_module_variables, !env2, p2)
         end
       in
       gadt_equations_level := equation_level;
@@ -1753,10 +1753,10 @@ and type_pat_aux
       (* Make sure no variable with an ambiguous type gets added to the
          environment. *)
       List.iter (fun { pv_type; pv_loc; _ } ->
-        check_scope_escape pv_loc !env1 outter_lev pv_type
+        check_scope_escape pv_loc env1 outter_lev pv_type
       ) p1_variables;
       List.iter (fun { pv_type; pv_loc; _ } ->
-        check_scope_escape pv_loc !env2 outter_lev pv_type
+        check_scope_escape pv_loc env2 outter_lev pv_type
       ) p2_variables;
       let alpha_env =
         enter_orpat_variables loc !env p1_variables p2_variables in

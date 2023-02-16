@@ -53,6 +53,9 @@ module TypePairs : sig
   val iter: (type_expr * type_expr -> unit) -> t -> unit
 end
 
+(** Map indexed by type variable names. *)
+module TyVarMap = Misc.Stdlib.String.Map
+
 (**** Levels ****)
 
 val generic_level: int
