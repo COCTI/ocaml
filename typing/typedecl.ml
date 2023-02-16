@@ -273,6 +273,8 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
       (* if it's a generalized constructor we must first narrow and
          then widen so as to not introduce any new constraints *)
       (* narrow and widen are now invoked through wrap_type_variable_scope *)
+      (* XXX: with_local_scope + reset = with_fresh_scope *)
+      (* XXX: with_local_scope should be renamed to with_narrowed_scope *)
       TyVarEnv.with_local_scope begin fun () ->
       let closed = svars <> [] in
       let targs, tret_type, args, ret_type, _univars =

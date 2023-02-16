@@ -531,7 +531,7 @@ type t = {
   nongen_level: int;
   (* data for type variables *)
   global_level: int;
-  type_variables: type_expr Btype.TyVarMap.t ref
+  type_variables: type_expr TyVarMap.t ref
 }
 
 and module_components =
@@ -700,8 +700,26 @@ let reset_global_level env =
   {env with global_level = env.current_level + 1}
 (* increase_global_level is used only in Typetexp.narrow *)
 (* should be named reset_global_level? *)
-let increase_global_level env =
-  {env with global_level = env.current_level}
+
+let with_narrowed_variable_scope env f =
+  f { env with
+      global_level = env.current_level;
+      type_variables = ref !(env.type_variables) }
+
+let with_fresh_variable_scope env f =
+  f { env with
+      global_level = env.current_level + 1;
+      type_variables = ref !(env.type_variables) }
+
+(* Re-export generic type creators *)
+let newty env desc               = newty2 ~level:env.current_level desc
+let new_scoped_ty env scope desc = newty3 ~level:env.current_level ~scope desc
+
+let newvar ?name ?level env =
+ let level = match level with None -> env.current_level | Some l -> l in
+ newty2 ~level (Tvar name)
+let new_global_var ?name env = newty2 ~level:env.global_level (Tvar name)
+let newstub ~scope env = newty3 ~level:env.current_level ~scope (Tvar None)
 
 let quick_same_types e1 e2 =
   e1.types == e2.types &&

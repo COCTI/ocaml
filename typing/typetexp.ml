@@ -158,7 +158,7 @@ end = struct
     TyVarMap.mem name !type_variables
 
   let add name v =
-    assert (not_generic v);
+    assert (not_generic v); (* chech if the level <= global_level *)
     type_variables := TyVarMap.add name v !type_variables
 
 (*
@@ -366,10 +366,10 @@ let validate_name = function
   | Some name as s ->
       if name <> "" && strict_ident name.[0] then s else None
 
-let new_global_var ?name () =
-  new_global_var ?name:(validate_name name) ()
-let newvar ?name () =
-  newvar ?name:(validate_name name) ()
+let new_global_var ?name env =
+  new_global_var ?name:(validate_name name) env
+let newvar ?name env =
+  newvar ?name:(validate_name name) env
 
 let valid_tyvar_name name =
   name <> "" && name.[0] <> '_'

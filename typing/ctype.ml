@@ -235,21 +235,20 @@ let proper_abbrevs tl abbrev =
 
 (**** Some type creators ****)
 
-(* Re-export generic type creators *)
+(* Re-export type creators *)
 
-let newty desc              = newty2 ~level:!current_level desc
-let new_scoped_ty scope desc = newty3 ~level:!current_level ~scope desc
+let newty = Env.newty
+let new_scoped_ty = Env.new_scoped_ty
 
-let newvar ?name ()         = newty2 ~level:!current_level (Tvar name)
-let newvar2 ?name level     = newty2 ~level:level (Tvar name)
-let new_global_var ?name () = newty2 ~level:!global_level (Tvar name)
-let newstub ~scope          = newty3 ~level:!current_level ~scope (Tvar None)
+let newvar = Env.newvar
+let new_global_var = Env.new_global_var
+let newstub = Env.newstub
 
-let newobj fields      = newty (Tobject (fields, ref None))
+let newobj env fields      = newty env (Tobject (fields, ref None))
 
-let newconstr path tyl = newty (Tconstr (path, tyl, ref Mnil))
+let newconstr env path tyl = newty env (Tconstr (path, tyl, ref Mnil))
 
-let none = newty (Ttuple [])                (* Clearly ill-formed type *)
+let none = newty2 ~level:lowest_level (Ttuple [])  (* Clearly ill-formed type *)
 
 (**** unification mode ****)
 
