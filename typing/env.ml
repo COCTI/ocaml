@@ -694,12 +694,6 @@ let raise_current_level env =
   {env with current_level}
 let reset_nongen_level env =
   {env with nongen_level = env.current_level}
-(* reset_global_level prepares the global level for a subsequent generalization *)
-(* should be named pregen_global_level? *)
-let reset_global_level env =
-  {env with global_level = env.current_level + 1}
-(* increase_global_level is used only in Typetexp.narrow *)
-(* should be named reset_global_level? *)
 
 let with_narrowed_variable_scope env f =
   f { env with
@@ -708,8 +702,8 @@ let with_narrowed_variable_scope env f =
 
 let with_fresh_variable_scope env f =
   f { env with
-      global_level = env.current_level + 1;
-      type_variables = ref !(env.type_variables) }
+      global_level = env.current_level;
+      type_variables = ref Btype.TyVarMap.empty }
 
 (* Re-export generic type creators *)
 let newty env desc               = newty2 ~level:env.current_level desc
