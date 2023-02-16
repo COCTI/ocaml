@@ -531,7 +531,7 @@ type t = {
   nongen_level: int;
   (* data for type variables *)
   global_level: int;
-  type_variables: type_expr TyVarMap.t ref
+  type_variables: type_expr Btype.TyVarMap.t ref
 }
 
 and module_components =
@@ -688,22 +688,50 @@ let set_level env level =
   {env with current_level = level; nongen_level = level}
 let raise_level env =
   let current_level = env.current_level + 1 in
-  {env with current_level; nongen_level = current_level}
+  set_level env current_level
 let raise_current_level env =
   let current_level = env.current_level + 1 in
   {env with current_level}
-let reset_nongen_level env =
+let raise_nongen_level env =
   {env with nongen_level = env.current_level}
+let create_scope env =
+  (env.current_level, raise_level env)
 
-let with_narrowed_variable_scope env f =
-  f { env with
-      global_level = env.current_level;
-      type_variables = ref !(env.type_variables) }
+let with_local_level env ?post f =
+  let result = f (raise_level env) in
+  Option.iter (fun g -> g env result) post;
+  result
+let with_local_level_if cond env f ~post =
+  if cond then with_local_level env f ~post else f env
+let with_local_level_iter env f ~post =
+  let result, l = f (raise_level env) in
+  List.iter (post env) l;
+  result
+let with_local_level_iter_if cond env f ~post =
+  if cond then with_local_level_iter env f ~post else fst (f env)
+let with_local_level_if_principal env f ~post =
+  with_local_level_if !Clflags.principal env f ~post
+let with_local_level_iter_if_principal env f ~post =
+  with_local_level_iter_if !Clflags.principal env f ~post
+let with_level ~level env f =
+  f (set_level env level)
+let with_level_if cond ~level env f =
+  if cond then with_level ~level env f else f env
 
-let with_fresh_variable_scope env f =
-  f { env with
-      global_level = env.current_level;
-      type_variables = ref Btype.TyVarMap.empty }
+let with_local_level_for_class env ?post f =
+  let result = f (raise_current_level env) in
+  Option.iter (fun g -> g env result) post;
+  result
+
+let narrow_variable_scope env =
+  { env with
+    global_level = env.current_level;
+    type_variables = ref !(env.type_variables) }
+
+let empty_variable_scope env =
+  { env with
+    global_level = env.current_level;
+    type_variables = ref Btype.TyVarMap.empty }
 
 (* Re-export generic type creators *)
 let newty env desc               = newty2 ~level:env.current_level desc
