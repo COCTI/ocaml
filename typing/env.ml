@@ -709,10 +709,6 @@ let with_local_level_iter env f ~post =
   result
 let with_local_level_iter_if cond env f ~post =
   if cond then with_local_level_iter env f ~post else fst (f env)
-let with_local_level_if_principal env f ~post =
-  with_local_level_if !Clflags.principal env f ~post
-let with_local_level_iter_if_principal env f ~post =
-  with_local_level_iter_if !Clflags.principal env f ~post
 let with_level ~level env f =
   f (set_level env level)
 let with_level_if cond ~level env f =
@@ -733,15 +729,7 @@ let empty_variable_scope env =
     global_level = env.current_level;
     type_variables = ref Btype.TyVarMap.empty }
 
-(* Re-export generic type creators *)
-let newty env desc               = newty2 ~level:env.current_level desc
-let new_scoped_ty env scope desc = newty3 ~level:env.current_level ~scope desc
-
-let newvar ?name ?level env =
- let level = match level with None -> env.current_level | Some l -> l in
- newty2 ~level (Tvar name)
 let new_global_var ?name env = newty2 ~level:env.global_level (Tvar name)
-let newstub ~scope env = newty3 ~level:env.current_level ~scope (Tvar None)
 
 let quick_same_types e1 e2 =
   e1.types == e2.types &&

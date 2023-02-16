@@ -33,59 +33,52 @@ exception Matches_failure of Env.t * Errortrace.unification_error
 exception Incompatible
   (* Raised from [mcomp] *)
 
-(* All the following wrapper functions revert to the original level,
-   even in case of exception. *)
+(* Functions given as parameters should only the environment they receive *)
 val with_local_level:
     Env.t -> ?post:(Env.t -> 'a -> unit) -> (Env.t -> 'a) -> 'a
         (* [with_local_level env (fun env' -> cmd) ~post] evaluates [cmd]
            with [env'] at a raised level.
            If given, [post] is applied to the result and the original [env].
            It is expected to contain only level related post-processing. *)
-val with_local_level_if: bool -> (unit -> 'a) -> post:('a -> unit) -> 'a
+val with_local_level_if:
+    bool -> Env.t -> (Env.t -> 'a) -> post:(Env.t -> 'a -> unit) -> 'a
         (* Same as [with_local_level], but only raise the level conditionally.
            [post] also is only called if the level is raised. *)
-val with_local_level_iter: (unit -> 'a * 'b list) -> post:('b -> unit) -> 'a
+val with_local_level_iter:
+    Env.t -> (Env.t -> 'a * 'b list) -> post:(Env.t -> 'b -> unit) -> 'a
         (* Variant of [with_local_level], where [post] is iterated on the
            returned list. *)
 val with_local_level_iter_if:
-    bool -> (unit -> 'a * 'b list) -> post:('b -> unit) -> 'a
+    bool -> Env.t -> (Env.t -> 'a * 'b list) -> post:(Env.t -> 'b -> unit) -> 'a
         (* Conditional variant of [with_local_level_iter] *)
-val with_level: level: int -> (unit -> 'a) -> 'a
+val with_level: level: int -> Env.t -> (Env.t -> 'a) -> 'a
         (* [with_level ~level (fun () -> cmd)] evaluates [cmd] with
            [current_level] set to [level] *)
-val with_level_if: bool -> level: int -> (unit -> 'a) -> 'a
+val with_level_if: bool -> level: int -> Env.t -> (Env.t -> 'a) -> 'a
         (* Conditional variant of [with_level] *)
-val with_local_level_if_principal: (unit -> 'a) -> post:('a -> unit) -> 'a
+val with_local_level_if_principal:
+    Env.t -> (Env.t -> 'a) -> post:(Env.t -> 'a -> unit) -> 'a
 val with_local_level_iter_if_principal:
-    (unit -> 'a * 'b list) -> post:('b -> unit) -> 'a
+    Env.t -> (Env.t -> 'a * 'b list) -> post:(Env.t -> 'b -> unit) -> 'a
         (* Applications of [with_local_level_if] and [with_local_level_iter_if]
            to [!Clflags.principal] *)
 
-val with_local_level_for_class: ?post:('a -> unit) -> (unit -> 'a) -> 'a
+val with_local_level_for_class:
+    Env.t -> ?post:(Env.t -> 'a -> unit) -> (Env.t -> 'a) -> 'a
         (* Variant of [with_local_level], where the current level is raised but
            the nongen level is not touched *)
-val with_raised_nongen_level: (unit -> 'a) -> 'a
-        (* Variant of [with_local_level],
-           raises the nongen level to the current level *)
+val raise_nongen_level: Env.t -> Env.t
+        (* Raise the nongen level to the current level inside
+           [with_local_level_for_class] *)
 
-val reset_global_level: unit -> unit
-        (* Reset the global level before typing an expression *)
-val increase_global_level: unit -> int
-val restore_global_level: int -> unit
-        (* This pair of functions is only used in Typetexp *)
-
-val create_scope : unit -> int
-
-val newty: type_desc -> type_expr
-val new_scoped_ty: int -> type_desc -> type_expr
-val newvar: ?name:string -> unit -> type_expr
+(* [type_expr] constructors *)
+val newty: Env.t -> type_desc -> type_expr
+val newvar: ?name:string -> Env.t -> type_expr
+        (* Return a fresh variable at [Env.current_level] *)
 val newvar2: ?name:string -> int -> type_expr
-        (* Return a fresh variable *)
-val new_global_var: ?name:string -> unit -> type_expr
-        (* Return a fresh variable, bound at toplevel
-           (as type variables ['a] in type constraints). *)
-val newobj: type_expr -> type_expr
-val newconstr: Path.t -> type_expr list -> type_expr
+        (* Return a fresh variable at given level *)
+val newobj: Env.t -> type_expr -> type_expr
+val newconstr: Env.t -> Path.t -> type_expr list -> type_expr
 val none: type_expr
         (* A dummy type expression *)
 
@@ -130,7 +123,7 @@ val merge_row_fields:
 val filter_row_fields:
         bool -> (label * row_field) list -> (label * row_field) list
 
-val generalize: type_expr -> unit
+val generalize: Env.t -> type_expr -> unit
         (* Generalize in-place the given type *)
 val lower_contravariant: Env.t -> type_expr -> unit
         (* Lower level of type variables inside contravariant branches;
@@ -139,21 +132,21 @@ val lower_variables_only: Env.t -> int -> type_expr -> unit
         (* Lower all variables to the given level *)
 val enforce_current_level: Env.t -> type_expr -> unit
         (* Lower whole type to !current_level *)
-val generalize_structure: type_expr -> unit
+val generalize_structure: Env.t -> type_expr -> unit
         (* Generalize the structure of a type, lowering variables
            to !current_level *)
-val generalize_class_type : class_type -> unit
+val generalize_class_type: Env.t -> class_type -> unit
         (* Generalize the components of a class type *)
-val generalize_class_type_structure : class_type -> unit
+val generalize_class_type_structure: Env.t -> class_type -> unit
        (* Generalize the structure of the components of a class type *)
-val generalize_class_signature_spine : Env.t -> class_signature -> unit
+val generalize_class_signature_spine: Env.t -> class_signature -> unit
        (* Special function to generalize methods during inference *)
 val correct_levels: type_expr -> type_expr
         (* Returns a copy with decreasing levels *)
-val limited_generalize: type_expr -> type_expr -> unit
+val limited_generalize: Env.t -> type_expr -> type_expr -> unit
         (* Only generalize some part of the type
            Make the remaining of the type non-generalizable *)
-val limited_generalize_class_type: type_expr -> class_type -> unit
+val limited_generalize_class_type: Env.t -> type_expr -> class_type -> unit
         (* Same, but for class types *)
 
 val fully_generic: type_expr -> bool
@@ -163,14 +156,14 @@ val check_scope_escape : Env.t -> int -> type_expr -> unit
            to the level [lvl] without any scope escape.
            Raises [Escape] otherwise *)
 
-val instance: ?partial:bool -> type_expr -> type_expr
+val instance: ?partial:bool -> Env.t -> type_expr -> type_expr
         (* Take an instance of a type scheme *)
         (* partial=None  -> normal
            partial=false -> newvar() for non generic subterms
            partial=true  -> newty2 ty.level Tvar for non generic subterms *)
 val generic_instance: type_expr -> type_expr
         (* Same as instance, but new nodes at generic_level *)
-val instance_list: type_expr list -> type_expr list
+val instance_list: Env.t -> type_expr list -> type_expr list
         (* Take an instance of a list of type schemes *)
 val new_local_type:
         ?loc:Location.t ->
@@ -181,24 +174,26 @@ type existential_treatment =
   | Keep_existentials_flexible
   | Make_existentials_abstract of { env: Env.t ref; scope: int }
 
-val instance_constructor: existential_treatment ->
+val instance_constructor:
+        Env.t -> existential_treatment ->
         constructor_description -> type_expr list * type_expr * type_expr list
         (* Same, for a constructor. Also returns existentials. *)
 val instance_parameterized_type:
-        ?keep_names:bool ->
+        ?keep_names:bool -> Env.t ->
         type_expr list -> type_expr -> type_expr list * type_expr
-val instance_declaration: type_declaration -> type_declaration
+val instance_declaration: Env.t -> type_declaration -> type_declaration
 val generic_instance_declaration: type_declaration -> type_declaration
         (* Same as instance_declaration, but new nodes at generic_level *)
 val instance_class:
-        type_expr list -> class_type -> type_expr list * class_type
+        Env.t -> type_expr list -> class_type -> type_expr list * class_type
 
 val instance_poly:
-        ?keep_names:bool ->
+        ?keep_names:bool -> Env.t ->
         bool -> type_expr list -> type_expr -> type_expr list * type_expr
         (* Take an instance of a type scheme containing free univars *)
 val polyfy: Env.t -> type_expr -> type_expr list -> type_expr * bool
 val instance_label:
+        Env.t ->
         bool -> label_description -> type_expr list * type_expr * type_expr
         (* Same, for a label *)
 val apply:
@@ -353,7 +348,7 @@ val subtype: Env.t -> type_expr -> type_expr -> unit -> unit
 
 (* Operations on class signatures *)
 
-val new_class_signature : unit -> class_signature
+val new_class_signature : Env.t -> class_signature
 val add_dummy_method : Env.t -> scope:int -> class_signature -> unit
 
 type add_method_failure =

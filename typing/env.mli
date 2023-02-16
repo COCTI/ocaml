@@ -70,6 +70,9 @@ val diff: t -> t -> Ident.t list
 val current_level: t -> int
 val nongen_level: t -> int
 val global_level: t -> int
+val set_level: t -> int -> t
+        (* [set_level env level] return and environment with both
+           [current_level] and [nongen_level] set to [level] *)
 val with_local_level: t -> ?post:(t -> 'a -> unit) -> (t -> 'a) -> 'a
         (* [with_local_level env (fun env' -> cmd) ~post] evaluates [cmd]
            with [env'] at a raised level.
@@ -90,12 +93,6 @@ val with_level: level: int -> t -> (t -> 'a) -> 'a
            [current_level] set to [level] *)
 val with_level_if: bool -> level: int -> t -> (t -> 'a) -> 'a
         (* Conditional variant of [with_level] *)
-val with_local_level_if_principal:
-    t -> (t -> 'a) -> post:(t -> 'a -> unit) -> 'a
-val with_local_level_iter_if_principal:
-    t -> (t -> 'a * 'b list) -> post:(t -> 'b -> unit) -> 'a
-        (* Applications of [with_local_level_if] and [with_local_level_iter_if]
-           to [!Clflags.principal] *)
 
 val with_local_level_for_class: t -> ?post:(t -> 'a -> unit) -> (t -> 'a) -> 'a
         (* Variant of [with_local_level], where the current level is raised but
@@ -113,13 +110,6 @@ val empty_variable_scope: t -> t
            [narrow_variable_scope] inherits the variables from the original
            environ, but does not update them.
            [empty_vatiable_scope] uses a fresh empty variable environment. *)
-
-(* [type_expr] constructors *)
-val newty: t -> type_desc -> type_expr
-val new_scoped_ty: t -> int -> type_desc -> type_expr
-val newstub: scope:int -> t -> type_expr
-val newvar: ?name:string -> ?level:int -> t -> type_expr
-        (* Return a fresh variable *)
 val new_global_var: ?name:string -> t -> type_expr
         (* Return a fresh variable, bound at toplevel
            (as type variables ['a] in type constraints). *)
