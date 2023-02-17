@@ -252,7 +252,10 @@ and nondep_sig_item env va ids = function
       Sig_class_type(id, Ctype.nondep_cltype_declaration env ids d, rs, vis)
 
 and nondep_sig env va ids sg =
-  let scope = Ctype.create_scope () in
+  (* Used to increase current_level globally, but it seems sufficient to
+     do it in recursive calls, since those identifiers will not be accessible
+     from outside anyway. *)
+  let (scope, env) = Env.create_scope env in
   let sg, env = Env.enter_signature ~scope sg env in
   List.map (nondep_sig_item env va ids) sg
 

@@ -110,9 +110,15 @@ val empty_variable_scope: t -> t
            [narrow_variable_scope] inherits the variables from the original
            environ, but does not update them.
            [empty_vatiable_scope] uses a fresh empty variable environment. *)
-val new_global_var: ?name:string -> t -> type_expr
+val new_type_variable: ?name:string -> t -> type_expr
         (* Return a fresh variable, bound at toplevel
            (as type variables ['a] in type constraints). *)
+val type_variables: t -> type_expr Btype.TyVarMap.t
+        (* These are the "global" type variables: they are in scope in the
+           current expression. *)
+val type_variable_in_scope: string -> t -> bool
+val lookup_type_variable: string -> t -> type_expr
+val add_type_variable: t -> string -> type_expr -> unit
 
 (* [quick_same_types] compares two environments only at [types], [modules],
    and [local_constraints] fields. *)

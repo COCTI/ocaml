@@ -21,14 +21,8 @@ module TyVarEnv : sig
   (* this is just the subset of [TyVarEnv] that is needed outside
      of [Typetexp]. See the ml file for more. *)
 
-  val reset : unit -> unit
-  (** removes all type variables from scope *)
-
-  val with_local_scope : (unit -> 'a) -> 'a
-  (** Evaluate in a narrowed type-variable scope *)
-
   type poly_univars
-  val make_poly_univars : string list -> poly_univars
+  val make_poly_univars : Env.t -> string list -> poly_univars
     (** remember that a list of strings connotes univars; this must
         always be paired with a [check_poly_univars]. *)
 

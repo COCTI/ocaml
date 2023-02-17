@@ -729,7 +729,14 @@ let empty_variable_scope env =
     global_level = env.current_level;
     type_variables = ref Btype.TyVarMap.empty }
 
-let new_global_var ?name env = newty2 ~level:env.global_level (Tvar name)
+let type_variables env = !(env.type_variables)
+let new_type_variable ?name env = newty2 ~level:env.global_level (Tvar name)
+let type_variable_in_scope name env =
+  Btype.TyVarMap.mem name !(env.type_variables)
+let lookup_type_variable name env =
+  Btype.TyVarMap.find name !(env.type_variables)
+let add_type_variable env name v =
+  env.type_variables := Btype.TyVarMap.add name v !(env.type_variables)
 
 let quick_same_types e1 e2 =
   e1.types == e2.types &&
