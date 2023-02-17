@@ -108,7 +108,7 @@ module TyVarEnv : sig
 
 end = struct
   (** Map indexed by type variable names. *)
-  module TyVarMap = Misc.Stdlib.String.Map
+  module TyVarMap = Btype.TyVarMap
 
   let not_generic v = get_level v <> Btype.generic_level
 
