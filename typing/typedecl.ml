@@ -119,7 +119,7 @@ let enter_type rec_flag env sdecl (id, uid) =
       type_private = sdecl.ptype_private;
       type_manifest =
         begin match sdecl.ptype_manifest with None -> None
-        | Some _ -> Some(Ctype.newvar ()) end;
+        | Some _ -> Some(Ctype.newvar env) end;
       type_variance = Variance.unknown_signature ~injective:false ~arity;
       type_separability = Types.Separability.default_signature ~arity;
       type_is_newtype = false;
@@ -138,8 +138,8 @@ let update_type temp_env env id loc =
   let decl = Env.find_type path temp_env in
   match decl.type_manifest with None -> ()
   | Some ty ->
-      let params = List.map (fun _ -> Ctype.newvar ()) decl.type_params in
-      try Ctype.unify env (Ctype.newconstr path params) ty
+      let params = List.map (fun _ -> Ctype.newvar env) decl.type_params in
+      try Ctype.unify env (Ctype.newconstr env path params) ty
       with Ctype.Unify err ->
         raise (Error(loc, Type_clash (env, err)))
 
@@ -275,13 +275,12 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
       (* narrow and widen are now invoked through wrap_type_variable_scope *)
       (* XXX: with_local_scope + reset = with_fresh_scope *)
       (* XXX: with_local_scope should be renamed to with_narrowed_scope *)
-      TyVarEnv.with_local_scope begin fun () ->
+      let env = Env.empty_variable_scope env in
       let closed = svars <> [] in
       let targs, tret_type, args, ret_type, _univars =
-        Ctype.with_local_level_if closed begin fun () ->
-          TyVarEnv.reset ();
+        Ctype.with_local_level_if closed env begin fun env ->
           let univar_list =
-            TyVarEnv.make_poly_univars (List.map (fun v -> v.txt) svars) in
+            TyVarEnv.make_poly_univars env (List.map (fun v -> v.txt) svars) in
           let univars = if closed then Some univar_list else None in
           let args, targs =
             transl_constructor_arguments env univars closed sargs
@@ -299,7 +298,7 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
                    expansion produces gibberish.) *)
                 [Ctype.unexpanded_diff
                    ~got:ret_type
-                   ~expected:(Ctype.newconstr type_path type_params)]
+                   ~expected:(Ctype.newconstr env type_path type_params)]
               in
               raise (Error(sret_type.ptyp_loc,
                            Constraint_failed(
@@ -307,9 +306,9 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
           end;
           (targs, tret_type, args, ret_type, univar_list)
         end
-        ~post: begin fun (_, _, args, ret_type, univars) ->
-          Btype.iter_type_expr_cstr_args Ctype.generalize args;
-          Ctype.generalize ret_type;
+        ~post: begin fun env (_, _, args, ret_type, univars) ->
+          Btype.iter_type_expr_cstr_args (Ctype.generalize env) args;
+          Ctype.generalize env ret_type;
           let _vars = TyVarEnv.instance_poly_univars env loc univars in
           let set_level t = Ctype.enforce_current_level env t in
           Btype.iter_type_expr_cstr_args set_level args;
@@ -317,12 +316,11 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
         end
       in
       targs, Some tret_type, args, Some ret_type
-      end
 
 let transl_declaration env sdecl (id, uid) =
   (* Bind type parameters *)
-  Ctype.with_local_level begin fun () ->
-  TyVarEnv.reset();
+  Ctype.with_local_level env begin fun env ->
+  let env = Env.empty_variable_scope env in
   let tparams = make_params env sdecl.ptype_params in
   let params = List.map (fun (cty, _) -> cty.ctyp_type) tparams in
   let cstrs = List.map
@@ -497,12 +495,12 @@ let transl_declaration env sdecl (id, uid) =
 
 (* Generalize a type declaration *)
 
-let generalize_decl decl =
-  List.iter Ctype.generalize decl.type_params;
-  Btype.iter_type_expr_kind Ctype.generalize decl.type_kind;
+let generalize_decl env decl =
+  List.iter (Ctype.generalize env) decl.type_params;
+  Btype.iter_type_expr_kind (Ctype.generalize env) decl.type_kind;
   begin match decl.type_manifest with
   | None    -> ()
-  | Some ty -> Ctype.generalize ty
+  | Some ty -> Ctype.generalize env ty
   end
 
 (* Check that all constraints are enforced *)
@@ -519,7 +517,8 @@ let rec check_constraints_rec env loc visited ty =
         try Env.find_type path env
         with Not_found ->
           raise (Error(loc, Unavailable_type_constructor path)) in
-      let ty' = Ctype.newconstr path (Ctype.instance_list decl.type_params) in
+      let ty' =
+        Ctype.newconstr env path (Ctype.instance_list env decl.type_params) in
       begin
         (* We don't expand the error trace because that produces types that
            *already* violate the constraints -- we need to report a problem with
@@ -531,7 +530,7 @@ let rec check_constraints_rec env loc visited ty =
       end;
       List.iter (check_constraints_rec env loc visited) args
   | Tpoly (ty, tl) ->
-      let _, ty = Ctype.instance_poly false tl ty in
+      let _, ty = Ctype.instance_poly env false tl ty in
       check_constraints_rec env loc visited ty
   | _ ->
       Btype.iter_type_expr (check_constraints_rec env loc visited) ty
@@ -848,10 +847,10 @@ let check_well_founded env loc path to_check visited ty0 =
 
 let check_well_founded_manifest env loc path decl =
   if decl.type_manifest = None then () else
-  let args = List.map (fun _ -> Ctype.newvar()) decl.type_params in
+  let args = List.map (fun _ -> Ctype.newvar env) decl.type_params in
   let visited = ref TypeMap.empty in
   check_well_founded env loc path (Path.same path) visited
-    (Ctype.newconstr path args)
+    (Ctype.newconstr env path args)
 
 (* Given a new type declaration [type t = ...] (potentially mutually-recursive),
    we check that accepting the declaration does not introduce ill-founded types.
@@ -921,7 +920,7 @@ let check_regularity ~orig_env env loc path decl to_check =
                      Non_regular {
                        definition=path;
                        used_as=ty;
-                       defined_as=Ctype.newconstr path args;
+                       defined_as=Ctype.newconstr env path args;
                        reaching_path=List.rev trace;
                      }))
           end
@@ -936,7 +935,7 @@ let check_regularity ~orig_env env loc path decl to_check =
               (* Attempt expansion *)
               let (params0, body0, _) = Env.find_type_expansion path' env in
               let (params, body) =
-                Ctype.instance_parameterized_type params0 body0 in
+                Ctype.instance_parameterized_type env params0 body0 in
               begin
                 try List.iter2 (Ctype.unify orig_env) params args'
                 with Ctype.Unify err ->
@@ -949,7 +948,7 @@ let check_regularity ~orig_env env loc path decl to_check =
           end;
           List.iter (check_subtype cpath args prev_exp trace ty) args'
       | Tpoly (ty, tl) ->
-          let (_, ty) = Ctype.instance_poly ~keep_names:true false tl ty in
+          let (_, ty) = Ctype.instance_poly ~keep_names:true env false tl ty in
           check_regular cpath args prev_exp trace ty
       | _ ->
           Btype.iter_type_expr
@@ -963,7 +962,7 @@ let check_regularity ~orig_env env loc path decl to_check =
   Option.iter
     (fun body ->
       let (args, body) =
-        Ctype.instance_parameterized_type
+        Ctype.instance_parameterized_type env
           ~keep_names:true decl.type_params body in
       List.iter (check_regular path args [] []) args;
       check_regular path args [] [] body)
@@ -1064,7 +1063,7 @@ let transl_type_decl env rec_flag sdecl_list =
   in
 
   (* Create identifiers. *)
-  let scope = Ctype.create_scope () in
+  let (scope, env) = Env.create_scope env in
   let ids_list =
     List.map (fun sdecl ->
       Ident.create_scoped ~scope sdecl.ptype_name.txt,
@@ -1072,7 +1071,7 @@ let transl_type_decl env rec_flag sdecl_list =
     ) sdecl_list
   in
   let tdecls, decls, new_env =
-    Ctype.with_local_level_iter ~post:generalize_decl begin fun () ->
+    Ctype.with_local_level_iter ~post:generalize_decl env begin fun env ->
       (* Enter types. *)
       let temp_env =
         List.fold_left2 (enter_type rec_flag) env sdecl_list ids_list in
@@ -1203,15 +1202,15 @@ let transl_extension_constructor ~scope env type_path type_params
         in
         let cdescr = Env.lookup_constructor ~loc:lid.loc usage lid.txt env in
         let (args, cstr_res, _ex) =
-          Ctype.instance_constructor Keep_existentials_flexible cdescr
+          Ctype.instance_constructor env Keep_existentials_flexible cdescr
         in
         let res, ret_type =
           if cdescr.cstr_generalized then
-            let params = Ctype.instance_list type_params in
-            let res = Ctype.newconstr type_path params in
-            let ret_type = Some (Ctype.newconstr type_path params) in
+            let params = Ctype.instance_list env type_params in
+            let res = Ctype.newconstr env type_path params in
+            let ret_type = Some (Ctype.newconstr env type_path params) in
               res, ret_type
-          else (Ctype.newconstr type_path typext_params), None
+          else (Ctype.newconstr env type_path typext_params), None
         in
         begin
           try
@@ -1270,7 +1269,7 @@ let transl_extension_constructor ~scope env type_path type_params
                 | [ Tconstr(_, tl, _) ] -> tl
                 | _ -> assert false
               in
-              let decl = Ctype.instance_declaration decl in
+              let decl = Ctype.instance_declaration env decl in
               assert (List.length decl.type_params = List.length tl);
               List.iter2 (Ctype.unify env) decl.type_params tl;
               let lbls =
@@ -1359,13 +1358,13 @@ let transl_type_extension extend env loc styext =
   let ttype_params, _type_params, constructors =
     (* Note: it would be incorrect to call [create_scope] *after*
        [TyVarEnv.reset] or after [with_local_level] (see #10010). *)
-    let scope = Ctype.create_scope () in
-    Ctype.with_local_level begin fun () ->
-      TyVarEnv.reset();
+    let (scope, env) = Env.create_scope env in
+    Ctype.with_local_level env begin fun env ->
+      let env = Env.empty_variable_scope env in
       let ttype_params = make_params env styext.ptyext_params in
       let type_params = List.map (fun (cty, _) -> cty.ctyp_type) ttype_params in
       List.iter2 (Ctype.unify_var env)
-        (Ctype.instance_list type_decl.type_params)
+        (Ctype.instance_list env type_decl.type_params)
         type_params;
       let constructors =
         List.map (transl_extension_constructor ~scope env type_path
@@ -1374,13 +1373,14 @@ let transl_type_extension extend env loc styext =
       in
       (ttype_params, type_params, constructors)
     end
-    ~post: begin fun (_, type_params, constructors) ->
+    ~post: begin fun env (_, type_params, constructors) ->
       (* Generalize types *)
-      List.iter Ctype.generalize type_params;
+      List.iter (Ctype.generalize env) type_params;
       List.iter
         (fun ext ->
-          Btype.iter_type_expr_cstr_args Ctype.generalize ext.ext_type.ext_args;
-          Option.iter Ctype.generalize ext.ext_type.ext_ret_type)
+          Btype.iter_type_expr_cstr_args (Ctype.generalize env)
+            ext.ext_type.ext_args;
+          Option.iter (Ctype.generalize env) ext.ext_type.ext_ret_type)
         constructors;
     end
   in
@@ -1429,15 +1429,16 @@ let transl_type_extension extend env loc styext =
 
 let transl_exception env sext =
   let ext =
-    let scope = Ctype.create_scope () in
-    Ctype.with_local_level
-      (fun () ->
-        TyVarEnv.reset();
+    let (scope, env) = Env.create_scope env in
+    Ctype.with_local_level env
+      (fun env ->
+        let env = Env.empty_variable_scope env in
         transl_extension_constructor ~scope env
           Predef.path_exn [] [] Asttypes.Public sext)
-      ~post: begin fun ext ->
-        Btype.iter_type_expr_cstr_args Ctype.generalize ext.ext_type.ext_args;
-        Option.iter Ctype.generalize ext.ext_type.ext_ret_type;
+      ~post: begin fun env ext ->
+        Btype.iter_type_expr_cstr_args (Ctype.generalize env)
+          ext.ext_type.ext_args;
+        Option.iter (Ctype.generalize env) ext.ext_type.ext_ret_type;
       end
   in
   (* Check that all type variables are closed *)
