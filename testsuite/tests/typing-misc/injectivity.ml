@@ -153,7 +153,7 @@ type 'a t = 'b constraint 'a = <b:'b>
 type !'b u = <b:'b> t
 [%%expect{|
 type 'a t = 'b constraint 'a = < b : 'b >
-type 'b u = < b : 'b > t
+type +'a u = 'a constraint 'a = < b : 'a > t
 |}]
 
 (* Ignore injectivity for nominal types *)
@@ -205,7 +205,7 @@ type 'a t = unit
 type !'a u = int constraint 'a = 'b t
 [%%expect{|
 type 'a t = unit
-type 'a u = int constraint 'a = 'b t
+type 'a u = int constraint 'a = unit
 |}]
 module F(X : sig type 'a t end) = struct
   type !'a u = 'b constraint 'a = <b : 'b> constraint 'b = _ X.t

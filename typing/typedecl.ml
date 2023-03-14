@@ -511,7 +511,7 @@ module TypeMap = Btype.TypeMap
 let rec check_constraints_rec env loc visited ty =
   if TypeSet.mem ty !visited then () else begin
   visited := TypeSet.add ty !visited;
-  match get_desc ty with
+  match Btype.get_constr_desc ty with
   | Tconstr (path, args, _) ->
       let decl =
         try Env.find_type path env
@@ -614,7 +614,7 @@ let check_coherence env loc dpath decl =
   match decl with
     { type_kind = (Type_variant _ | Type_record _| Type_open);
       type_manifest = Some ty } ->
-      begin match get_desc ty with
+      begin match Btype.get_constr_desc ty with
         Tconstr(path, args, _) ->
           begin try
             let decl' = Env.find_type path env in
@@ -784,7 +784,14 @@ let check_abbrev env sdecl (id, decl) =
 
 let check_well_founded env loc path to_check visited ty0 =
   let rec check parents trace ty =
-    if TypeSet.mem ty parents then begin
+    let check_parent ty' =
+      eq_type ty ty' &&
+      match get_expand ty, get_expand ty' with
+        Some (p, tl), Some (p', tl') -> p == p' && tl == tl'
+      | None, None -> true
+      | _ -> false
+    in
+    if TypeSet.exists check_parent parents then begin
       (*Format.eprintf "@[%a@]@." Printtyp.raw_type_expr ty;*)
       let err =
         let reaching_path, rec_abbrev =
@@ -792,7 +799,8 @@ let check_well_founded env loc path to_check visited ty0 =
              reverse it to get a reaching path. *)
           match trace with
           | [] -> assert false
-          | Expands_to (ty1, _) :: trace when (match get_desc ty1 with
+          | Expands_to (ty1, _) :: trace
+            when (match Btype.get_constr_desc ty1 with
               Tconstr (p,_,_) -> Path.same p path | _ -> false) ->
                 List.rev trace, true
           | trace -> List.rev trace, false
@@ -815,6 +823,17 @@ let check_well_founded env loc path to_check visited ty0 =
         (false, parents)
     in
     if fini then () else
+    let visited' = TypeMap.add ty parents !visited in
+    visited := visited';
+    iter_expand
+      (fun path args ->
+        if args <> [] && to_check path then
+        let rec_ok =
+          !Clflags.recursive_types && Ctype.is_contractive env path in
+        let parents =
+          if rec_ok then TypeSet.empty else TypeSet.add ty parents in
+        List.iter (check parents trace) args)
+      ty;
     let rec_ok =
       match get_desc ty with
       | Tconstr(p,_,_) ->
@@ -908,10 +927,10 @@ let check_regularity ~orig_env env loc path decl to_check =
 
   let visited = ref TypeSet.empty in
 
-  let rec check_regular cpath args prev_exp trace ty =
+  let rec check_regular args prev_exp trace ty =
     if not (TypeSet.mem ty !visited) then begin
       visited := TypeSet.add ty !visited;
-      match get_desc ty with
+      match Btype.get_constr_desc ty with
       | Tconstr(path', args', _) ->
           if Path.same path path' then begin
             if not (Ctype.is_equal orig_env false args args') then
@@ -940,22 +959,22 @@ let check_regularity ~orig_env env loc path decl to_check =
                 with Ctype.Unify err ->
                   raise (Error(loc, Constraint_failed (orig_env, err)));
               end;
-              check_regular path' args
+              check_regular args
                 (path' :: prev_exp) (Expands_to (ty,body) :: trace)
                 body
             with Not_found -> ()
           end;
-          List.iter (check_subtype cpath args prev_exp trace ty) args'
+          List.iter (check_subtype args prev_exp trace ty) args'
       | Tpoly (ty, tl) ->
           let (_, ty) = Ctype.instance_poly ~keep_names:true false tl ty in
-          check_regular cpath args prev_exp trace ty
+          check_regular args prev_exp trace ty
       | _ ->
           Btype.iter_type_expr
-            (check_subtype cpath args prev_exp trace ty) ty
+            (check_subtype args prev_exp trace ty) ty
     end
-    and check_subtype cpath args prev_exp trace outer_ty inner_ty =
+    and check_subtype args prev_exp trace outer_ty inner_ty =
       let trace = Contains (outer_ty, inner_ty) :: trace in
-      check_regular cpath args prev_exp trace inner_ty
+      check_regular args prev_exp trace inner_ty
   in
 
   Option.iter
@@ -963,8 +982,8 @@ let check_regularity ~orig_env env loc path decl to_check =
       let (args, body) =
         Ctype.instance_parameterized_type
           ~keep_names:true decl.type_params body in
-      List.iter (check_regular path args [] []) args;
-      check_regular path args [] [] body)
+      List.iter (check_regular args [] []) args;
+      check_regular args [] [] body)
     decl.type_manifest
 
 let check_abbrev_regularity ~orig_env env id_loc_list to_check tdecl =
@@ -1010,7 +1029,7 @@ let name_recursion sdecl id decl =
       type_manifest = Some ty;
       type_private = Private; } when is_fixed_type sdecl ->
     let ty' = newty2 ~level:(get_level ty) (get_desc ty) in
-    if Ctype.deep_occur ty ty' then
+    if Btype.deep_occur ty ty' then
       let td = Tconstr(Path.Pident id, decl.type_params, ref Mnil) in
       link_type ty (newty2 ~level:(get_level ty) td);
       {decl with type_manifest = Some ty'}
@@ -1176,7 +1195,8 @@ let transl_type_decl env rec_flag sdecl_list =
   let final_decls =
     List.map2
       (fun tdecl (_id2, decl) ->
-        { tdecl with typ_type = decl }
+        (* Using [Subst] reverts expansions *)
+        { tdecl with typ_type = Subst.type_declaration Subst.identity decl }
       ) tdecls decls
   in
   (* Done *)
@@ -1831,7 +1851,7 @@ open Format
 
 let explain_unbound_gen ppf tv tl typ kwd pr =
   try
-    let ti = List.find (fun ti -> Ctype.deep_occur tv (typ ti)) tl in
+    let ti = List.find (fun ti -> Btype.deep_occur tv (typ ti)) tl in
     let ty0 = (* Hack to force aliasing when needed *)
       Btype.newgenty (Tobject(tv, ref None)) in
     Printtyp.prepare_for_printing [typ ti; ty0];

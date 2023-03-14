@@ -631,7 +631,7 @@ type 'a foo = 'a foo bar
 ;;
 [%%expect {|
 class ['a] bar : 'a -> object  end
-type 'a foo = 'a foo bar
+type 'a foo = <  >
 |}];;
 
 fun x -> (x : < m : 'a. 'a * 'b > as 'b)#m;;
@@ -924,7 +924,7 @@ class ['t] a = object constraint 't = [> `A of 't a] end
 type t = [ `A of t a ];;
 [%%expect {|
 class ['a] a : object constraint 'a = [> `A of 'a a ] end
-type t = [ `A of t a ]
+type t = [ `A of 'a a ] as 'a
 |}];;
 
 (* Wrong in 3.06 *)
@@ -950,11 +950,10 @@ type 'a u = 'a and 'a v = 'a u t;;
 type 'a u = 'a and 'a v = 'a u t constraint 'a = int;;
 [%%expect {|
 type 'a t constraint 'a = int
-Line 2, characters 26-32:
-2 | type 'a u = 'a and 'a v = 'a u t;;
-                              ^^^^^^
-Error: Constraints are not satisfied in this type.
-       Type 'a u t should be an instance of int t
+type 'a u = 'a constraint 'a = int
+and 'a v = 'a u t
+type 'a u = 'a constraint 'a = int
+and 'a v = 'a u t constraint 'a = int
 |}];;
 
 (* Behaviour is unstable *)
@@ -965,11 +964,10 @@ type 'a u = 'a and 'a v = 'a u t constraint 'a = int;;
 [%%expect {|
 type g = int
 type 'a t = unit constraint 'a = g
-Line 3, characters 26-32:
-3 | type 'a u = 'a and 'a v = 'a u t;;
-                              ^^^^^^
-Error: Constraints are not satisfied in this type.
-       Type 'a u t should be an instance of g t
+type 'a u = 'a constraint 'a = g
+and +'a v = 'a u t constraint 'a = int
+type 'a u = 'a constraint 'a = g
+and 'a v = 'a u t constraint 'a = int
 |}];;
 
 (* Full unification trace reported for "Constraints are not satisfied in this type" *)
@@ -993,12 +991,12 @@ Line 1, characters 0-24:
     ^^^^^^^^^^^^^^^^^^^^^^^^
 Error: This recursive type is not regular.
        The type constructor u is defined as
-         type 'a u
+         type 'a list u
        but it is used as
-         'a list u
+         'a list list u
        after the following expansion(s):
-         < m : 'a v > contains 'a v,
-         'a v = 'a list u
+         < m : 'a list v > contains 'a list v,
+         'a list v = 'a list list u
        All uses need to match the definition for the recursive type to be regular.
 |}];;
 
@@ -1016,12 +1014,12 @@ fun (x : 'a t as 'a) -> (x : 'b t);;
 type u = 'a t as 'a;;
 [%%expect {|
 type 'a t = < a : 'a >
-- : ('a t as 'a) -> 'a t = <fun>
-type u = 'a t as 'a
+- : (< a : 'a > as 'a) -> 'a t = <fun>
+type u = < a : 'a > as 'a
 |}, Principal{|
 type 'a t = < a : 'a >
-- : ('a t as 'a) -> ('b t as 'b) t = <fun>
-type u = 'a t as 'a
+- : (< a : 'a > as 'a) -> (< a : 'b > as 'b) t = <fun>
+type u = < a : 'a > as 'a
 |}];;
 
 
@@ -1032,8 +1030,10 @@ and  ('a2, 'b2) ty2 = 'b2 -> unit constraint 'b2 = [> `V2 of ('a2, 'b2) ty1 as '
 Line 1, characters 0-83:
 1 | type ('a1, 'b1) ty1 = 'a1 -> unit constraint 'a1 = [> `V1 of ('a1, 'b1) ty2 as 'b1]
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: The definition of ty1 contains a cycle:
-         ([> `V1 of 'a ] as 'b, 'a) ty2 as 'a contains 'a
+Error: Constraints are not satisfied in this type.
+       Type [> `V1 of [> `V2 of 'a ] -> unit ] -> unit as 'a
+       should be an instance of
+         [> `V1 of [> `V2 of 'b -> unit ] -> unit ] as 'b
 |}];;
 
 (* PR#8359: expanding may change original in Ctype.unify2 *)
@@ -1083,7 +1083,7 @@ class type ['a] cb =
 type bt = 'b ca cb as 'b
 ;;
 [%%expect {|
-type bt = 'a ca cb as 'a
+type bt = < a : 'a ca; as_b : ('a ca, 'a) b > as 'a
 |}];;
 
 (* final classes, etc... *)
@@ -1349,6 +1349,15 @@ let f x = let l = [Some x; (None : _ u)] in (just(List.hd l))#id;;
 type 'a u = c option
 val just : 'a option -> 'a = <fun>
 val f : c -> 'a -> 'a = <fun>
+|}, Principal{|
+type 'a u = c option
+val just : 'a option -> 'a = <fun>
+Line 3, characters 44-64:
+3 | let f x = let l = [Some x; (None : _ u)] in (just(List.hd l))#id;;
+                                                ^^^^^^^^^^^^^^^^^^^^
+Warning 18 [not-principal]: this use of a polymorphic method is not principal.
+
+val f : c -> 'a -> 'a = <fun>
 |}];;
 
 (* polymorphic recursion *)
@@ -1586,7 +1595,7 @@ let f (n : < m : 'a. [< `Foo of 'a & int | `Bar] >) =
 Line 1:
 Error: Values do not match:
          val f :
-           < m : 'a. [< `Bar | `Foo of 'a & int ] as 'c > -> < m : 'b. 'c >
+           < m : 'a. [< `Bar | `Foo of 'b & int ] as 'c > -> < m : 'b. 'c >
        is not included in
          val f :
            < m : 'a. [< `Bar | `Foo of 'b & int ] as 'c > -> < m : 'b. 'c >
@@ -1840,7 +1849,7 @@ val x : [ `Foo of 'a s ] = `Foo []
 |}]
 let x : [ `Foo of 'a t | `Foo of _ s ] = id (`Foo []);;
 [%%expect{|
-val x : [ `Foo of 'a list t ] = `Foo []
+val x : [ `Foo of 'a list ] = `Foo []
 |}]
 
 (* generalize spine of inherited methods too *)
@@ -1900,9 +1909,13 @@ let f (x : u) = (x : v)
 Line 1, characters 17-18:
 1 | let f (x : u) = (x : v)
                      ^
-Error: This expression has type u but an expression was expected of type v
-       The method m has type 'a s list * < m : 'b > as 'b,
-       but the expected method type was 'a. 'a s list * < m : 'a. 'c > as 'c
+Error: This expression has type
+         u = < m : 'a. 'a s list * (< m : 'a s list * 'b > as 'b) >
+       but an expression was expected of type v = < m : 'a. 'a s list * v >
+       Type < m : 'a s list * 'b > as 'b is not compatible with type
+         v = < m : 'a. 'a s list * v >
+       The method m has type 'a s list * < m : 'c > as 'c,
+       but the expected method type was 'a. 'a s list * v
        The universal variable 'a would escape its scope
 |}]
 
