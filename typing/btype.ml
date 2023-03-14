@@ -174,6 +174,11 @@ let type_origin decl =
 
 let dummy_method = "*dummy method*"
 
+let get_constr_desc ty =
+  match get_expand ty with
+    Some (path, tyl) -> Tconstr (path, tyl, ref Mnil)
+  | None -> get_desc ty
+
 (**** Representative of a type ****)
 
 let merge_fixed_explanation fixed1 fixed2 =
@@ -304,8 +309,7 @@ let fold_row f init row =
 let iter_row f row =
   fold_row (fun () v -> f v) () row
 
-let fold_type_expr f init ty =
-  match get_desc ty with
+let fold_type_desc f init = function
     Tvar _              -> init
   | Tarrow (_, ty1, ty2, _) ->
       let result = f init ty1 in
@@ -323,14 +327,18 @@ let fold_type_expr f init ty =
       let result = f init ty1 in
       f result ty2
   | Tnil                -> init
-  | Tlink _
-  | Tsubst _            -> assert false
   | Tunivar _           -> init
   | Tpoly (ty, tyl)     ->
     let result = f init ty in
     List.fold_left f result tyl
-  | Tpackage (_, fl)  ->
+  | Tpackage (_, fl)    ->
     List.fold_left (fun result (_n, ty) -> f result ty) init fl
+  | Tlink _
+  | Texpand _           -> assert false
+  | Tsubst _            -> init
+
+let fold_type_expr f init ty =
+  fold_type_desc f init (get_desc ty)
 
 let iter_type_expr f ty =
   fold_type_expr (fun () v -> f v) () ty
@@ -511,7 +519,7 @@ let copy_row f fixed row keep more =
 
 let copy_commu c = if is_commu_ok c then commu_ok else commu_var ()
 
-let rec copy_type_desc ?(keep_names=false) f = function
+let copy_type_desc ?(keep_names=false) f = function
     Tvar _ as ty        -> if keep_names then ty else Tvar None
   | Tarrow (p, ty1, ty2, c)-> Tarrow (p, f ty1, f ty2, copy_commu c)
   | Ttuple l            -> Ttuple (List.map (fun (label, t) -> label, f t) l)
@@ -524,13 +532,14 @@ let rec copy_type_desc ?(keep_names=false) f = function
       Tfield (p, field_kind_internal_repr k, f ty1, f ty2)
       (* the kind is kept shared, with indirections removed for performance *)
   | Tnil                -> Tnil
-  | Tlink ty            -> copy_type_desc f (get_desc ty)
-  | Tsubst _            -> assert false
   | Tunivar _ as ty     -> ty (* always keep the name *)
   | Tpoly (ty, tyl)     ->
       let tyl = List.map f tyl in
       Tpoly (f ty, tyl)
-  | Tpackage (p, fl)  -> Tpackage (p, List.map (fun (n, ty) -> (n, f ty)) fl)
+  | Tpackage (p, fl)    -> Tpackage (p, List.map (fun (n, ty) -> (n, f ty)) fl)
+  | Tlink _
+  | Tsubst _
+  | Texpand _           -> assert false
 
 (* TODO: rename to [module Copy_scope] *)
 module For_copy : sig
@@ -773,3 +782,35 @@ let instance_variable_type label sign =
   match Vars.find label sign.csig_vars with
   | (_, _, ty) -> ty
   | exception Not_found -> assert false
+
+(* Deep occurences and folded description *)
+
+(* Return whether [t0] occurs in [ty]. Objects are also traversed. *)
+exception Occur
+
+let rec deep_occur_rec mark t0 ty =
+  if get_level ty >= get_level t0 && try_mark_node mark ty then begin
+    if eq_type ty t0 then raise Occur;
+    iter_type_expr (deep_occur_rec mark t0) ty
+  end
+
+let deep_occur t0 ty =
+  try
+    with_type_mark (fun mark -> deep_occur_rec mark t0 ty);
+    false
+  with
+  | Occur -> true
+
+let deep_occur_list t0 tyl =
+  try
+    with_type_mark (fun mark -> List.iter (deep_occur_rec mark t0) tyl);
+    false
+  with
+  | Occur -> true
+
+let get_folded_desc ~keep_Tvar ty =
+  match get_expand ty with
+    Some (path, args) when
+    not (keep_Tvar && is_Tvar ty || List.exists (deep_occur ty) args) ->
+      Tconstr (path, args, ref Mnil)
+  | _ -> get_desc ty
