@@ -239,14 +239,14 @@ let case lhs rhs =
 
 (* Typing of constants *)
 
-let type_constant = function
-    Const_int _ -> instance Predef.type_int
-  | Const_char _ -> instance Predef.type_char
-  | Const_string _ -> instance Predef.type_string
-  | Const_float _ -> instance Predef.type_float
-  | Const_int32 _ -> instance Predef.type_int32
-  | Const_int64 _ -> instance Predef.type_int64
-  | Const_nativeint _ -> instance Predef.type_nativeint
+let type_constant env = function
+    Const_int _ -> instance env Predef.type_int
+  | Const_char _ -> instance env Predef.type_char
+  | Const_string _ -> instance env Predef.type_string
+  | Const_float _ -> instance env Predef.type_float
+  | Const_int32 _ -> instance env Predef.type_int32
+  | Const_int64 _ -> instance env Predef.type_int64
+  | Const_nativeint _ -> instance env Predef.type_nativeint
 
 let constant : Parsetree.constant -> (Asttypes.constant, error) result =
   function
@@ -283,8 +283,8 @@ let constant_or_raise env loc cst =
 
 (* Specific version of type_option, using newty rather than newgenty *)
 
-let type_option ty =
-  newty (Tconstr(Predef.path_option,[ty], ref Mnil))
+let type_option env ty =
+  newty env (Tconstr(Predef.path_option,[ty], ref Mnil))
 
 let mkexp exp_desc exp_type exp_loc exp_env =
   { exp_desc; exp_type; exp_loc; exp_env; exp_extra = []; exp_attributes = [] }
@@ -298,7 +298,7 @@ let option_some env texp =
   let lid = Longident.Lident "Some" in
   let csome = Env.find_ident_constructor Predef.ident_some env in
   mkexp ( Texp_construct(mknoloc lid , csome, [texp]) )
-    (type_option texp.exp_type) texp.exp_loc texp.exp_env
+    (type_option env texp.exp_type) texp.exp_loc texp.exp_env
 
 let extract_option_type env ty =
   match get_desc (expand_head env ty) with
@@ -405,7 +405,7 @@ let unify_pat ?sdesc_for_hint env pat expected_ty =
 let unify_head_only ~refine loc env ty constr =
   let path = cstr_type_path constr in
   let decl = Env.find_type path !env in
-  let ty' = Ctype.newconstr path (Ctype.instance_list decl.type_params) in
+  let ty' = Ctype.newconstr !env path (Ctype.instance_list decl.type_params) in
   unify_pat_types_refine ~refine loc env ty' ty
 
 (* Creating new conjunctive types is not allowed when typing patterns *)
