@@ -73,6 +73,9 @@ val global_level: t -> int
 val set_level: t -> int -> t
         (* [set_level env level] return and environment with both
            [current_level] and [nongen_level] set to [level] *)
+val copy_levels: from:t -> t -> t
+        (* a hack to restore the levels from another environment;
+           used eg in Typecore.solve_Ppat_construct *)
 val with_local_level: t -> ?post:(t -> 'a -> unit) -> (t -> 'a) -> 'a
         (* [with_local_level env (fun env' -> cmd) ~post] evaluates [cmd]
            with [env'] at a raised level.
@@ -109,7 +112,7 @@ val empty_variable_scope: t -> t
         (* Both functions raise the global variable level to current_level.
            [narrow_variable_scope] inherits the variables from the original
            environ, but does not update them.
-           [empty_vatiable_scope] uses a fresh empty variable environment. *)
+           [empty_variable_scope] uses a fresh empty variable environment. *)
 val new_type_variable: ?name:string -> t -> type_expr
         (* Return a fresh variable, bound at toplevel
            (as type variables ['a] in type constraints). *)

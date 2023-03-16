@@ -172,7 +172,7 @@ val existential_name: constructor_description -> type_expr -> string
 
 type existential_treatment =
   | Keep_existentials_flexible
-  | Make_existentials_abstract of { env: Env.t ref; scope: int }
+  | Make_existentials_abstract of { renv: Env.t ref; scope: int }
 
 val instance_constructor:
         Env.t -> existential_treatment ->

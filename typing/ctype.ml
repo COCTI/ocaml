@@ -1233,23 +1233,24 @@ let existential_name cstr ty =
 
 type existential_treatment =
   | Keep_existentials_flexible
-  | Make_existentials_abstract of { env: Env.t ref; scope: int }
+  | Make_existentials_abstract of { renv: Env.t ref; scope: int }
 
+(* the parameter [env] is just for specifying the level *)
 let instance_constructor env existential_treatment cstr =
   For_copy.with_scope (fun copy_scope ->
     let copy_existential =
       match existential_treatment with
       | Keep_existentials_flexible -> copy env copy_scope
-      | Make_existentials_abstract {env; scope = fresh_constr_scope} ->
+      | Make_existentials_abstract {renv; scope = fresh_constr_scope} ->
           fun existential ->
             let decl = new_local_type () in
             let name = existential_name cstr existential in
             let (id, new_env) =
-              Env.enter_type (get_new_abstract_name !env name) decl !env
+              Env.enter_type (get_new_abstract_name !renv name) decl !renv
                 ~scope:fresh_constr_scope in
-            env := new_env;
-            let to_unify = newty !env (Tconstr (Path.Pident id,[],ref Mnil)) in
-            let tv = copy !env copy_scope existential in
+            renv := new_env;
+            let to_unify = newty env (Tconstr (Path.Pident id,[],ref Mnil)) in
+            let tv = copy env copy_scope existential in
             assert (is_Tvar tv);
             link_type tv to_unify;
             tv

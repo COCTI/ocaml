@@ -686,6 +686,11 @@ let nongen_level env = env.nongen_level
 let global_level env = env.global_level
 let set_level env level =
   {env with current_level = level; nongen_level = level}
+let copy_levels ~from env =
+  {env with
+   current_level = from.current_level;
+   nongen_level = from.nongen_level;
+   global_level = from.global_level; }
 let raise_level env =
   let current_level = env.current_level + 1 in
   set_level env current_level
