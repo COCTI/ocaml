@@ -1130,16 +1130,17 @@ module Functor_app_diff = struct
     | Change ((Named arg, _mty), Named (param_name, _param), _) ->
         begin match param_name with
         | Some param ->
-            let res =
-              Option.map (fun res ->
-                  let scope = Ctype.create_scope () in
+            let st =
+              match st.res with
+              | None -> st
+              | Some res ->
+                  let (scope, env) = Env.create_scope st.env in
                   let subst = Subst.add_module param arg Subst.identity in
-                  Subst.modtype (Rescope scope) subst res
-                )
-                st.res
+                  let res = Subst.modtype (Rescope scope) subst res in
+                  { st with env; res = Some res }
             in
             let subst = Subst.add_module param arg st.subst in
-            I.expand_params { st with subst; res }
+            I.expand_params { st with subst }
         | None ->
             st, [||]
         end

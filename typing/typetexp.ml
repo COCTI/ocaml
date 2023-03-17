@@ -52,22 +52,11 @@ exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
 
 module TyVarEnv : sig
-  val reset : unit -> unit
-  (* see mli file *)
-
-  val is_in_scope : string -> bool
-
-  val add : string -> type_expr -> unit
-  (* add a global type variable to the environment *)
-
-  val with_local_scope : (unit -> 'a) -> 'a
-  (* see mli file *)
-
   type poly_univars
   val with_univars : poly_univars -> (unit -> 'a) -> 'a
   (* evaluate with a locally extended set of univars *)
 
-  val make_poly_univars : string list -> poly_univars
+  val make_poly_univars : Env.t -> string list -> poly_univars
   (* see mli file *)
 
   val check_poly_univars : Env.t -> Location.t -> poly_univars -> type_expr list
@@ -83,7 +72,7 @@ module TyVarEnv : sig
   val univars_policy : policy (* fresh variables are univars (in methods) *)
   val new_any_var : Location.t -> Env.t -> policy -> type_expr
     (* create a new variable to represent a _; fails for fixed_policy *)
-  val new_var : ?name:string -> policy -> type_expr
+  val new_var : ?name:string -> Env.t -> policy -> type_expr
     (* create a new variable according to the given policy *)
 
   val add_pre_univar : type_expr -> policy -> unit
@@ -100,7 +89,7 @@ module TyVarEnv : sig
        a new e.g. type signature. Optionally pass some univars that
        are in scope. *)
 
-  val lookup_local : string -> type_expr
+  val lookup_local : Env.t -> string -> type_expr
     (* look up a local type variable; throws Not_found if it isn't in scope *)
 
   val remember_used : string -> type_expr -> Location.t -> unit
@@ -119,14 +108,9 @@ module TyVarEnv : sig
 
 end = struct
   (** Map indexed by type variable names. *)
-  module TyVarMap = Misc.Stdlib.String.Map
+  module TyVarMap = Btype.TyVarMap
 
   let not_generic v = get_level v <> Btype.generic_level
-
-  (* These are the "global" type variables: they were in scope before
-     we started processing the current type.
-  *)
-  let type_variables = ref (TyVarMap.empty : type_expr TyVarMap.t)
 
   (* These are variables that have been used in the currently-being-checked
      type.
@@ -150,37 +134,10 @@ end = struct
   *)
   let pre_univars = ref ([] : type_expr list)
 
-  let reset () =
-    reset_global_level ();
-    type_variables := TyVarMap.empty
-
-  let is_in_scope name =
-    TyVarMap.mem name !type_variables
-
-  let add name v =
-    assert (not_generic v);
-    type_variables := TyVarMap.add name v !type_variables
-
-  let narrow () =
-    (increase_global_level (), !type_variables)
-
-  let widen (gl, tv) =
-    restore_global_level gl;
-    type_variables := tv
-
-  let with_local_scope f =
-   let context = narrow () in
-   Fun.protect
-     f
-     ~finally:(fun () -> widen context)
-
-  (* throws Not_found if the variable is not in scope *)
-  let lookup_global_type_variable name =
-    TyVarMap.find name !type_variables
-
-  let get_in_scope_names () =
+  let get_in_scope_names env =
+    let type_variables = Env.type_variables env in
     let add_name name _ l = if name = "_" then l else ("'" ^ name) :: l in
-    TyVarMap.fold add_name !type_variables []
+    TyVarMap.fold add_name type_variables []
 
   (*****)
   type poly_univars = (string * type_expr) list
@@ -193,11 +150,11 @@ end = struct
       f
       ~finally:(fun () -> univars := old_univars)
 
-  let make_poly_univars vars =
-    List.map (fun name -> name, newvar ~name ()) vars
+  let make_poly_univars env vars =
+    List.map (fun name -> name, newvar ~name env) vars
 
   let check_poly_univars env loc vars =
-    vars |> List.iter (fun (_, v) -> generalize v);
+    vars |> List.iter (fun (_, v) -> generalize env v);
     vars |> List.map (fun (name, ty1) ->
       let v = Btype.proxy ty1 in
       begin match get_desc v with
@@ -224,11 +181,11 @@ end = struct
     used_variables := TyVarMap.empty
 
   (* throws Not_found if the variable is not in scope *)
-  let lookup_local name =
+  let lookup_local env name =
     try
       List.assoc name !univars
     with Not_found ->
-      instance (fst (TyVarMap.find name !used_variables))
+      instance env (fst (TyVarMap.find name !used_variables))
       (* This call to instance might be redundant; all variables
          inserted into [used_variables] are non-generic, but some
          might get generalized. *)
@@ -266,33 +223,33 @@ end = struct
         [] !pre_univars in
     result, univs
 
-  let new_var ?name policy =
-    let tv = Ctype.newvar ?name () in
+  let new_var ?name env policy =
+    let tv = Ctype.newvar ?name env in
     add_pre_univar tv policy;
     tv
 
   let new_any_var loc env = function
     | { extensibility = Fixed } -> raise(Error(loc, env, No_type_wildcards))
-    | policy -> new_var policy
+    | policy -> new_var env policy
 
   let globalize_used_variables { flavor; extensibility } env =
     let r = ref [] in
     TyVarMap.iter
       (fun name (ty, loc) ->
-        if flavor = Unification || is_in_scope name then
-          let v = new_global_var () in
+        if flavor = Unification || Env.type_variable_in_scope name env then
+          let v = Env.new_type_variable env in
           let snap = Btype.snapshot () in
           if try unify env v ty; true with _ -> Btype.backtrack snap; false
           then try
-            r := (loc, v, lookup_global_type_variable name) :: !r
+            r := (loc, v, Env.lookup_type_variable name env) :: !r
           with Not_found ->
             if extensibility = Fixed && Btype.is_Tvar ty then
               raise(Error(loc, env,
                           Unbound_type_variable ("'"^name,
-                                                 get_in_scope_names ())));
-            let v2 = new_global_var () in
+                                                 get_in_scope_names env)));
+            let v2 = Env.new_type_variable env in
             r := (loc, v, v2) :: !r;
-            add name v2)
+            Env.add_type_variable env name v2)
       !used_variables;
     used_variables := TyVarMap.empty;
     fun () ->
@@ -335,7 +292,7 @@ let create_package_mty loc p l =
 
 (* Translation of type expressions *)
 
-let generalize_ctyp typ = generalize typ.ctyp_type
+let generalize_ctyp env typ = generalize env typ.ctyp_type
 
 let strict_ident c = (c = '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z')
 
@@ -344,10 +301,10 @@ let validate_name = function
   | Some name as s ->
       if name <> "" && strict_ident name.[0] then s else None
 
-let new_global_var ?name () =
-  new_global_var ?name:(validate_name name) ()
-let newvar ?name () =
-  newvar ?name:(validate_name name) ()
+let new_global_var ?name env =
+  Env.new_type_variable ?name:(validate_name name) env
+let newvar ?name env =
+  newvar ?name:(validate_name name) env
 
 let valid_tyvar_name name =
   name <> "" && name.[0] <> '_'
@@ -356,17 +313,17 @@ let transl_type_param env styp =
   let loc = styp.ptyp_loc in
   match styp.ptyp_desc with
     Ptyp_any ->
-      let ty = new_global_var ~name:"_" () in
+      let ty = new_global_var ~name:"_" env in
         { ctyp_desc = Ttyp_any; ctyp_type = ty; ctyp_env = env;
           ctyp_loc = loc; ctyp_attributes = styp.ptyp_attributes; }
   | Ptyp_var name ->
       let ty =
           if not (valid_tyvar_name name) then
             raise (Error (loc, Env.empty, Invalid_variable_name ("'" ^ name)));
-          if TyVarEnv.is_in_scope name then
+          if Env.type_variable_in_scope name env then
             raise Already_bound;
-          let v = new_global_var ~name () in
-          TyVarEnv.add name v;
+          let v = new_global_var ~name env in
+          Env.add_type_variable env name v;
           v
       in
         { ctyp_desc = Ttyp_var name; ctyp_type = ty; ctyp_env = env;
@@ -398,9 +355,9 @@ and transl_type_aux env policy styp =
       if not (valid_tyvar_name name) then
         raise (Error (styp.ptyp_loc, env, Invalid_variable_name ("'" ^ name)));
       begin try
-        TyVarEnv.lookup_local name
+        TyVarEnv.lookup_local env name
       with Not_found ->
-        let v = TyVarEnv.new_var ~name policy in
+        let v = TyVarEnv.new_var ~name env policy in
         TyVarEnv.remember_used name v styp.ptyp_loc;
         v
       end
@@ -412,14 +369,14 @@ and transl_type_aux env policy styp =
     let ty1 = cty1.ctyp_type in
     let ty1 =
       if Btype.is_optional l
-      then newty (Tconstr(Predef.path_option,[ty1], ref Mnil))
+      then newty env (Tconstr(Predef.path_option,[ty1], ref Mnil))
       else ty1 in
-    let ty = newty (Tarrow(l, ty1, cty2.ctyp_type, commu_ok)) in
+    let ty = newty env (Tarrow(l, ty1, cty2.ctyp_type, commu_ok)) in
     ctyp (Ttyp_arrow (l, cty1, cty2)) ty
   | Ptyp_tuple stl ->
     assert (List.length stl >= 2);
     let ctys = List.map (transl_type env policy) stl in
-    let ty = newty (Ttuple (List.map (fun ctyp -> ctyp.ctyp_type) ctys)) in
+    let ty = newty env (Ttuple (List.map (fun ctyp -> ctyp.ctyp_type) ctys)) in
     ctyp (Ttyp_tuple ctys) ty
   | Ptyp_constr(lid, stl) ->
       let (path, decl) = Env.lookup_type ~loc:lid.loc lid.txt env in
@@ -434,7 +391,7 @@ and transl_type_aux env policy styp =
                     Type_arity_mismatch(lid.txt, decl.type_arity,
                                         List.length stl)));
       let args = List.map (transl_type env policy) stl in
-      let params = instance_list decl.type_params in
+      let params = instance_list env decl.type_params in
       let unify_param =
         match decl.type_manifest with
           None -> unify_var
@@ -449,11 +406,11 @@ and transl_type_aux env policy styp =
         )
         (List.combine stl args) params;
       let constr =
-        newconstr path (List.map (fun ctyp -> ctyp.ctyp_type) args) in
+        newconstr env path (List.map (fun ctyp -> ctyp.ctyp_type) args) in
       ctyp (Ttyp_constr (path, lid, args)) constr
   | Ptyp_object (fields, o) ->
       let ty, fields = transl_fields env policy o fields in
-      ctyp (Ttyp_object (fields, o)) (newobj ty)
+      ctyp (Ttyp_object (fields, o)) (newobj env ty)
   | Ptyp_class(lid, stl) ->
       let (path, decl) =
         let path, decl = Env.lookup_cltype ~loc:lid.loc lid.txt env in
@@ -465,7 +422,8 @@ and transl_type_aux env policy styp =
                                         List.length stl)));
       let args = List.map (transl_type env policy) stl in
       let body = Option.get decl.type_manifest in
-      let (params, body) = instance_parameterized_type decl.type_params body in
+      let (params, body) =
+        instance_parameterized_type env decl.type_params body in
       List.iter2
         (fun (sty, cty) ty' ->
            try unify_var env ty' cty.ctyp_type with Unify err ->
@@ -487,7 +445,7 @@ and transl_type_aux env policy styp =
   | Ptyp_alias(st, alias) ->
       let cty =
         try
-          let t = TyVarEnv.lookup_local alias in
+          let t = TyVarEnv.lookup_local env alias in
           let ty = transl_type env policy st in
           begin try unify_var env t ty.ctyp_type with Unify err ->
             let err = Errortrace.swap_unification_error err in
@@ -496,8 +454,8 @@ and transl_type_aux env policy styp =
           ty
         with Not_found ->
           let t, ty =
-            with_local_level_if_principal begin fun () ->
-              let t = newvar () in
+            with_local_level_if_principal env begin fun env ->
+              let t = newvar env in
               TyVarEnv.remember_used alias t styp.ptyp_loc;
               let ty = transl_type env policy st in
               begin try unify_var env t ty.ctyp_type with Unify err ->
@@ -506,9 +464,9 @@ and transl_type_aux env policy styp =
               end;
               (t, ty)
             end
-            ~post: (fun (t, _) -> generalize_structure t)
+            ~post: (fun env (t, _) -> generalize_structure env t)
           in
-          let t = instance t in
+          let t = instance env t in
           let px = Btype.proxy t in
           begin match get_desc px with
           | Tvar None -> set_type_desc px (Tvar (Some alias))
@@ -521,8 +479,8 @@ and transl_type_aux env policy styp =
   | Ptyp_variant(fields, closed, present) ->
       let name = ref None in
       let mkfield l f =
-        newty (Tvariant (create_row ~fields:[l,f] ~more:(newvar())
-                           ~closed:true ~fixed:None ~name:None)) in
+        newty env (Tvariant (create_row ~fields:[l,f] ~more:(newvar env)
+                               ~closed:true ~fixed:None ~name:None)) in
       let hfields = Hashtbl.create 17 in
       let add_typed_field loc l f =
         let h = Btype.hash_variant l in
@@ -608,41 +566,44 @@ and transl_type_aux env policy styp =
         create_row ~fields ~more ~closed:(closed = Closed) ~fixed:None ~name
       in
       let more =
-        if Btype.static_row (make_row (newvar ())) then newty Tnil else
-           TyVarEnv.new_var policy
+        if Btype.static_row (make_row (newvar env)) then newty env Tnil else
+           TyVarEnv.new_var env policy
       in
-      let ty = newty (Tvariant (make_row more)) in
+      let ty = newty env (Tvariant (make_row more)) in
       ctyp (Ttyp_variant (tfields, closed, present)) ty
   | Ptyp_poly(vars, st) ->
       let vars = List.map (fun v -> v.txt) vars in
       let new_univars, cty =
-        with_local_level begin fun () ->
-          let new_univars = TyVarEnv.make_poly_univars vars in
+        with_local_level env begin fun env ->
+          let new_univars = TyVarEnv.make_poly_univars env vars in
           let cty = TyVarEnv.with_univars new_univars begin fun () ->
             transl_type env policy st
           end in
           (new_univars, cty)
         end
-        ~post:(fun (_,cty) -> generalize_ctyp cty)
+        ~post:(fun env (_,cty) -> generalize_ctyp env cty)
       in
       let ty = cty.ctyp_type in
       let ty_list = TyVarEnv.check_poly_univars env styp.ptyp_loc new_univars in
       let ty_list = List.filter (fun v -> deep_occur v ty) ty_list in
       let ty' = Btype.newgenty (Tpoly(ty, ty_list)) in
-      unify_var env (newvar()) ty';
+      unify_var env (newvar env) ty';
       ctyp (Ttyp_poly (vars, cty)) ty'
   | Ptyp_package (p, l) ->
       let loc = styp.ptyp_loc in
       let l = sort_constraints_no_duplicates loc env l in
       let mty = create_package_mty loc p l in
       let mty =
-        TyVarEnv.with_local_scope (fun () -> !transl_modtype env mty) in
+        let env = Env.narrow_variable_scope env in
+        !transl_modtype env mty
+      in
       let ptys = List.map (fun (s, pty) ->
                              s, transl_type env policy pty
                           ) l in
       let path = !transl_modtype_longident loc env p.txt in
-      let ty = newty (Tpackage (path,
-                       List.map (fun (s, cty) -> (s.txt, cty.ctyp_type)) ptys))
+      let ty =
+        newty env (Tpackage (path, List.map
+                               (fun (s, cty) -> (s.txt, cty.ctyp_type)) ptys))
       in
       ctyp (Ttyp_package {
             pack_path = path;
@@ -711,11 +672,11 @@ and transl_fields env policy o fields =
   let fields = Hashtbl.fold (fun s ty l -> (s, ty) :: l) hfields [] in
   let ty_init =
      match o with
-     | Closed -> newty Tnil
-     | Open -> TyVarEnv.new_var policy
+     | Closed -> newty env Tnil
+     | Open -> TyVarEnv.new_var env policy
   in
   let ty = List.fold_left (fun ty (s, ty') ->
-      newty (Tfield (s, field_public, ty', ty))) ty_init fields in
+      newty env (Tfield (s, field_public, ty', ty))) ty_init fields in
   ty, object_fields
 
 
@@ -759,7 +720,7 @@ let transl_simple_type_univars env styp =
   TyVarEnv.reset_locals ();
   let typ, univs =
     TyVarEnv.collect_univars begin fun () ->
-      with_local_level ~post:generalize_ctyp begin fun () ->
+      with_local_level ~post:generalize_ctyp env begin fun env ->
         let policy = TyVarEnv.univars_policy in
         let typ = transl_type env policy styp in
         TyVarEnv.globalize_used_variables policy env ();
@@ -768,12 +729,12 @@ let transl_simple_type_univars env styp =
   end in
   make_fixed_univars typ.ctyp_type;
     { typ with ctyp_type =
-        instance (Btype.newgenty (Tpoly (typ.ctyp_type, univs))) }
+        instance env (Btype.newgenty (Tpoly (typ.ctyp_type, univs))) }
 
 let transl_simple_type_delayed env styp =
   TyVarEnv.reset_locals ();
   let typ, force =
-    with_local_level begin fun () ->
+    with_local_level env begin fun env ->
       let policy = TyVarEnv.extensible_policy in
       let typ = transl_type env policy styp in
       make_fixed_univars typ.ctyp_type;
@@ -784,22 +745,22 @@ let transl_simple_type_delayed env styp =
       (typ, force)
     end
     (* Generalize everything except the variables that were just globalized. *)
-    ~post:(fun (typ,_) -> generalize_ctyp typ)
+    ~post:(fun env (typ,_) -> generalize_ctyp env typ)
   in
-  (typ, instance typ.ctyp_type, force)
+  (typ, instance env typ.ctyp_type, force)
 
 let transl_type_scheme env styp =
   match styp.ptyp_desc with
   | Ptyp_poly (vars, st) ->
      let vars = List.map (fun v -> v.txt) vars in
      let univars, typ =
-       with_local_level begin fun () ->
-         TyVarEnv.reset ();
-         let univars = TyVarEnv.make_poly_univars vars in
+       with_local_level env begin fun env ->
+         let env = Env.empty_variable_scope env in
+         let univars = TyVarEnv.make_poly_univars env vars in
          let typ = transl_simple_type env ~univars ~closed:true st in
          (univars, typ)
        end
-       ~post:(fun (_,typ) -> generalize_ctyp typ)
+       ~post:(fun env (_,typ) -> generalize_ctyp env typ)
      in
      let _ = TyVarEnv.instance_poly_univars env styp.ptyp_loc univars in
      { ctyp_desc = Ttyp_poly (vars, typ);
@@ -808,9 +769,10 @@ let transl_type_scheme env styp =
        ctyp_loc = styp.ptyp_loc;
        ctyp_attributes = styp.ptyp_attributes }
   | _ ->
-      with_local_level
-        (fun () -> TyVarEnv.reset (); transl_simple_type env ~closed:false styp)
-        ~post:generalize_ctyp
+      with_local_level ~post:generalize_ctyp env begin fun env ->
+        let env = Env.empty_variable_scope env in
+        transl_simple_type env ~closed:false styp
+      end
 
 
 (* Error report *)

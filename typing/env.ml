@@ -526,6 +526,12 @@ type t = {
   summary: summary;
   local_constraints: type_declaration Path.Map.t;
   flags: int;
+  (* levels for generalization *)
+  current_level: int;
+  nongen_level: int;
+  (* data for type variables *)
+  global_level: int;
+  type_variables: type_expr Btype.TyVarMap.t ref
 }
 
 and module_components =
@@ -626,6 +632,11 @@ and cltype_data =
   { cltda_declaration : class_type_declaration;
     cltda_shape : Shape.t }
 
+let print_env ppf env =
+  Format.fprintf ppf
+    "@[{current_level = %d; nongen_level = %d; global_level = %d}@]"
+    env.current_level env.nongen_level env.global_level
+
 let empty_structure =
   Structure_comps {
     comp_values = NameMap.empty;
@@ -674,6 +685,76 @@ let error err = raise (Error err)
 let lookup_error loc env err =
   error (Lookup_error(loc, env, err))
 
+(* Level handling *)
+let current_level env = env.current_level
+let nongen_level env = env.nongen_level
+let global_level env = env.global_level
+let set_level env level =
+  {env with current_level = level; nongen_level = level}
+let copy_levels ~from env =
+  {env with
+   current_level = from.current_level;
+   nongen_level = from.nongen_level;
+   global_level = from.global_level;
+   type_variables = from.type_variables; }
+let raise_level env =
+  let current_level = env.current_level + 1 in
+  set_level env current_level
+let raise_current_level env =
+  let current_level = env.current_level + 1 in
+  {env with current_level}
+let raise_nongen_level env =
+  {env with nongen_level = env.current_level}
+let create_scope env =
+  (env.current_level, raise_level env)
+
+let with_local_level env ?post f =
+  let result = f (raise_level env) in
+  Option.iter (fun g -> g env result) post;
+  result
+let with_local_level_if cond env f ~post =
+  if cond then with_local_level env f ~post else f env
+let with_local_level_iter env f ~post =
+  let result, l = f (raise_level env) in
+  List.iter (post env) l;
+  result
+let with_local_level_iter_if cond env f ~post =
+  if cond then with_local_level_iter env f ~post else fst (f env)
+let with_level ~level env f =
+  f (set_level env level)
+let with_level_if cond ~level env f =
+  if cond then with_level ~level env f else f env
+
+let with_local_level_for_class env ?post f =
+  let result = f (raise_current_level env) in
+  Option.iter (fun g -> g env result) post;
+  result
+
+let narrow_variable_scope env =
+  { env with
+    global_level = env.current_level;
+    type_variables = ref !(env.type_variables) }
+
+let empty_variable_scope env =
+  { env with
+    global_level = env.current_level;
+    type_variables = ref Btype.TyVarMap.empty }
+
+let type_variables env = !(env.type_variables)
+let new_type_variable ?name env = newty2 ~level:env.global_level (Tvar name)
+let type_variable_in_scope name env =
+  Btype.TyVarMap.mem name !(env.type_variables)
+let lookup_type_variable name env =
+  Btype.TyVarMap.find name !(env.type_variables)
+let add_type_variable env name v =
+  env.type_variables := Btype.TyVarMap.add name v !(env.type_variables)
+
+let quick_same_types e1 e2 =
+  e1.types == e2.types &&
+  e1.modules == e2.modules &&
+  e1.local_constraints == e2.local_constraints
+
+(* Forward declarations *)
 let same_constr = ref (fun _ _ _ -> assert false)
 
 let check_well_formed_module = ref (fun _ -> assert false)
@@ -713,6 +794,10 @@ let empty = {
   summary = Env_empty; local_constraints = Path.Map.empty;
   flags = 0;
   functor_args = Ident.empty;
+  current_level = Btype.lowest_level;
+  nongen_level = Btype.lowest_level;
+  global_level = Btype.lowest_level;
+  type_variables = ref (Btype.TyVarMap.empty : type_expr Btype.TyVarMap.t)
  }
 
 let in_signature b env =

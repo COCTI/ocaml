@@ -60,6 +60,75 @@ val empty: t
 val initial: t
 val diff: t -> t -> Ident.t list
 
+val print_env: Format.formatter -> t -> unit
+
+(* Level handling:
+   An environment has two kinds of levels: [current_level] and [nongen_level].
+   [raise_current_level] increases [current_level] by one.
+   [reset_nongen_level] sets [nongen_level] to be [current_level].
+   [raise_level] = [raise_nongen_level] \o [raise_class_level]. *)
+(* All the following wrapper functions revert to the original level,
+   even in case of exception. *)
+val current_level: t -> int
+val nongen_level: t -> int
+val global_level: t -> int
+val set_level: t -> int -> t
+        (* [set_level env level] return and environment with both
+           [current_level] and [nongen_level] set to [level] *)
+val copy_levels: from:t -> t -> t
+        (* a hack to restore the levels and the names of type variables
+           from another environment; used eg in Typecore.solve_Ppat_construct *)
+val with_local_level: t -> ?post:(t -> 'a -> unit) -> (t -> 'a) -> 'a
+        (* [with_local_level env (fun env' -> cmd) ~post] evaluates [cmd]
+           with [env'] at a raised level.
+           If given, [post] is applied to the result and the original [env].
+           It is expected to contain only level related post-processing. *)
+val with_local_level_if: bool -> t -> (t -> 'a) -> post:(t -> 'a -> unit) -> 'a
+        (* Same as [with_local_level], but only raise the level conditionally.
+           [post] also is only called if the level is raised. *)
+val with_local_level_iter:
+    t -> (t -> 'a * 'b list) -> post:(t -> 'b -> unit) -> 'a
+        (* Variant of [with_local_level], where [post] is iterated on the
+           returned list. *)
+val with_local_level_iter_if:
+    bool -> t -> (t -> 'a * 'b list) -> post:(t -> 'b -> unit) -> 'a
+        (* Conditional variant of [with_local_level_iter] *)
+val with_level: level: int -> t -> (t -> 'a) -> 'a
+        (* [with_level ~level (fun () -> cmd)] evaluates [cmd] with
+           [current_level] set to [level] *)
+val with_level_if: bool -> level: int -> t -> (t -> 'a) -> 'a
+        (* Conditional variant of [with_level] *)
+
+val with_local_level_for_class: t -> ?post:(t -> 'a -> unit) -> (t -> 'a) -> 'a
+        (* Variant of [with_local_level], where the current level is raised but
+           the nongen level is not touched *)
+val raise_nongen_level: t -> t
+        (* Raise the nongen level to the current level inside
+           [with_local_level_for_class] *)
+
+val create_scope: t -> int * t
+        (* Create a new scope for type constructors *)
+
+val narrow_variable_scope: t -> t
+val empty_variable_scope: t -> t
+        (* Both functions raise the global variable level to current_level.
+           [narrow_variable_scope] inherits the variables from the original
+           environ, but does not update them.
+           [empty_variable_scope] uses a fresh empty variable environment. *)
+val new_type_variable: ?name:string -> t -> type_expr
+        (* Return a fresh variable, bound at toplevel
+           (as type variables ['a] in type constraints). *)
+val type_variables: t -> type_expr Btype.TyVarMap.t
+        (* These are the "global" type variables: they are in scope in the
+           current expression. *)
+val type_variable_in_scope: string -> t -> bool
+val lookup_type_variable: string -> t -> type_expr
+val add_type_variable: t -> string -> type_expr -> unit
+
+(* [quick_same_types] compares two environments only at [types], [modules],
+   and [local_constraints] fields. *)
+val quick_same_types: t -> t -> bool
+
 type type_descr_kind =
   (label_description, constructor_description) type_kind
 

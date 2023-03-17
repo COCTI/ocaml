@@ -92,6 +92,9 @@ module TypePairs = struct
         f (type_expr t1, type_expr t2))
 end
 
+(** Map indexed by type variable names. *)
+module TyVarMap = Misc.Stdlib.String.Map
+
 (**** Forward declarations ****)
 
 let print_raw =
@@ -110,6 +113,7 @@ let pivot_level = 2 * lowest_level - 1
 
 let newgenty desc      = newty2 ~level:generic_level desc
 let newgenvar ?name () = newgenty (Tvar name)
+let newgenconstr path tyl = newgenty (Tconstr (path, tyl, ref Mnil))
 let newgenstub ~scope  = newty3 ~level:generic_level ~scope (Tvar None)
 
 (*
