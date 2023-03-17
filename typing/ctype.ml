@@ -1237,6 +1237,7 @@ type existential_treatment =
 
 (* the parameter [env] is just for specifying the level *)
 let instance_constructor env existential_treatment cstr =
+  let _lev = Env.current_level env in
   For_copy.with_scope (fun copy_scope ->
     let copy_existential =
       match existential_treatment with

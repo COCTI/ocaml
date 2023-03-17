@@ -706,7 +706,7 @@ let solve_Ppat_construct ~refine renv loc constr no_existentials
     unify_head_only ~refine loc renv (instance !renv expected_ty) constr;
 
   (* PR#7214: do not use gadt unification for toplevel lets *)
-  let unify_res ty_res expected_ty =
+  let unify_res renv ty_res expected_ty =
     let refine =
       match refine, no_existentials with
       | None, None when constr.cstr_generalized -> Some false
@@ -729,7 +729,7 @@ let solve_Ppat_construct ~refine renv loc constr no_existentials
                 (Make_existentials_abstract { renv; scope = expansion_scope })
                 constr
             in
-            ty_args, ty_res, unify_res ty_res expected_ty, None
+            ty_args, ty_res, unify_res renv ty_res expected_ty, None
         | Some (name_list, sty) ->
             let existential_treatment =
               if name_list = [] then
@@ -742,7 +742,7 @@ let solve_Ppat_construct ~refine renv loc constr no_existentials
             let ty_args, ty_res, ty_ex =
               instance_constructor env existential_treatment constr
             in
-            let equated_types = unify_res ty_res expected_ty in
+            let equated_types = unify_res renv ty_res expected_ty in
             let ty_args, existential_ctyp =
               solve_constructor_annotation renv name_list sty ty_args ty_ex in
             ty_args, ty_res, equated_types, existential_ctyp
@@ -3659,6 +3659,7 @@ and type_expect_
   | Pexp_letmodule(name, smodl, sbody) ->
       let lv = Env.current_level env in
       let (id, pres, modl, _, body) =
+        let outer_env = env in
         with_local_level env begin fun env ->
           let modl, md_shape =
             !type_module (Env.narrow_variable_scope env) smodl in
@@ -3690,6 +3691,7 @@ and type_expect_
              Scoping_let_module errors
            *)
           let body = type_expect new_env sbody ty_expected_explained in
+          let new_env = Env.copy_levels ~from:outer_env new_env in
           (id, pres, modl, new_env, body)
         end
         ~post: begin fun env (_id, _pres, _modl, new_env, body) ->
@@ -3707,8 +3709,8 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_letexception(cd, sbody) ->
-      let (cd, newenv) = Typedecl.transl_exception env cd in
-      let body = type_expect newenv sbody ty_expected_explained in
+      let (cd, new_env) = Typedecl.transl_exception env cd in
+      let body = type_expect new_env sbody ty_expected_explained in
       re {
         exp_desc = Texp_letexception(cd, body);
         exp_loc = loc; exp_extra = [];
@@ -3871,11 +3873,11 @@ and type_expect_
         exp_env = env }
   | Pexp_open (od, e) ->
       let tv = newvar env in
-      let (od, _, newenv) = !type_open_decl env od in
-      let exp = type_expect newenv e ty_expected_explained in
+      let (od, _, new_env) = !type_open_decl env od in
+      let exp = type_expect new_env e ty_expected_explained in
       (* Force the return type to be well-formed in the original
          environment. *)
-      unify_var newenv tv exp.exp_type;
+      unify_var new_env tv exp.exp_type;
       re {
         exp_desc = Texp_open (od, exp);
         exp_type = exp.exp_type;
@@ -4549,7 +4551,7 @@ and type_application env funct sargs =
   in
   let eliminated_optional_arguments = ref [] in
   let omitted_parameters = ref [] in
-  let type_unknown_arg (ty_fun, typed_args) (lbl, sarg) =
+  let type_unknown_arg env (ty_fun, typed_args) (lbl, sarg) =
     let (ty_arg, ty_res) =
       let ty_fun = expand_head env ty_fun in
       match get_desc ty_fun with
@@ -4621,12 +4623,12 @@ and type_application env funct sargs =
   in
   let warned = ref false in
   (* [args] remember the location of each argument in sources. *)
-  let rec type_args args ty_fun ty_fun0 sargs =
-    let type_unknown_args () =
+  let rec type_args env args ty_fun ty_fun0 sargs =
+    let type_unknown_args env =
       (* We're not looking at a *known* function type anymore, or there are no
          arguments left. *)
       let ty_fun, typed_args =
-        List.fold_left type_unknown_arg (ty_fun0, args) sargs
+        List.fold_left (type_unknown_arg env) (ty_fun0, args) sargs
       in
       let args =
         (* Force typing of arguments.
@@ -4641,7 +4643,7 @@ and type_application env funct sargs =
       let result_ty = instance env (result_type !omitted_parameters ty_fun) in
       args, result_ty
     in
-    if sargs = [] then type_unknown_args () else
+    if sargs = [] then type_unknown_args env else
     let ty_fun' = expand_head env ty_fun in
     match get_desc ty_fun', get_desc (expand_head env ty_fun0) with
     | Tarrow (l, ty, ty_fun, com), Tarrow (_, ty0, ty_fun0, _)
@@ -4719,11 +4721,11 @@ and type_application env funct sargs =
                   None
                 end
         in
-        type_args ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
+        type_args env ((l,arg)::args) ty_fun ty_fun0 remaining_sargs
     | _ ->
-        type_unknown_args ()
+        type_unknown_args env
   in
-  let is_ignore funct =
+  let is_ignore env funct =
     is_prim ~name:"%ignore" funct &&
     (try ignore (filter_arrow env (instance env funct.exp_type) Nolabel); true
      with Filter_arrow_failed _ -> false)
@@ -4732,7 +4734,7 @@ and type_application env funct sargs =
   with_local_level env begin fun env ->
     match sargs with
     | (* Special case for ignore: avoid discarding warning *)
-      [Nolabel, sarg] when is_ignore funct ->
+      [Nolabel, sarg] when is_ignore env funct ->
         let ty_arg, ty_res =
           filter_arrow env (instance env funct.exp_type) Nolabel in
         let exp = type_expect env sarg (mk_expected ty_arg) in
@@ -4740,7 +4742,7 @@ and type_application env funct sargs =
         ([Nolabel, Some exp], ty_res)
     | _ ->
         let ty = funct.exp_type in
-        type_args [] ty (instance env ty) sargs
+        type_args env [] ty (instance env ty) sargs
   end
 
 and type_construct env loc lid sarg ty_expected_explained attrs =
@@ -5149,15 +5151,17 @@ and type_let ?check ?check_strict
   let is_recursive = (rec_flag = Recursive) in
 
   let (pat_list, exp_list, new_env, unpacks, _pvs) =
+    let outer_env = env in
     with_local_level env begin fun env ->
       let env =
         if existential_context = At_toplevel then Env.empty_variable_scope env
         else env
       in
       let (pat_list, new_env, force, pvs, unpacks) =
+        let outer_env = env in
         with_local_level_if_principal env begin fun env ->
           let nvs = List.map (fun _ -> newvar env) spatl in
-          let (pat_list, _new_env, _force, _pvs, _unpacks as res) =
+          let (pat_list, new_env, force, pvs, unpacks) =
             type_pattern_list Value existential_context env spatl nvs allow in
           (* If recursive, first unify with an approximation of the
              expression *)
@@ -5180,7 +5184,8 @@ and type_let ?check ?check_strict
                 finalize_variants pat
               end)
             pat_list;
-          res
+          let new_env = Env.copy_levels ~from:outer_env new_env in
+          (pat_list, new_env, force, pvs, unpacks)
         end
         ~post: begin fun env (pat_list, _, _, pvs, _) ->
           (* Generalize the structure *)
@@ -5238,6 +5243,7 @@ and type_let ?check ?check_strict
         )
         pat_list
         (List.map2 (fun (attrs, _) (e, _) -> attrs, e) spatl exp_list);
+      let new_env = Env.copy_levels ~from:outer_env new_env in
       (pat_list, exp_list, new_env, unpacks,
        List.map (fun pv -> { pv with pv_type = instance env pv.pv_type}) pvs)
     end

@@ -632,6 +632,11 @@ and cltype_data =
   { cltda_declaration : class_type_declaration;
     cltda_shape : Shape.t }
 
+let print_env ppf env =
+  Format.fprintf ppf
+    "@[{current_level = %d; nongen_level = %d; global_level = %d}@]"
+    env.current_level env.nongen_level env.global_level
+
 let empty_structure =
   Structure_comps {
     comp_values = NameMap.empty;
@@ -690,7 +695,8 @@ let copy_levels ~from env =
   {env with
    current_level = from.current_level;
    nongen_level = from.nongen_level;
-   global_level = from.global_level; }
+   global_level = from.global_level;
+   type_variables = from.type_variables; }
 let raise_level env =
   let current_level = env.current_level + 1 in
   set_level env current_level

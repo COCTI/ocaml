@@ -1071,6 +1071,7 @@ let transl_type_decl env rec_flag sdecl_list =
     ) sdecl_list
   in
   let tdecls, decls, new_env =
+    let outer_env = env in
     Ctype.with_local_level_iter ~post:generalize_decl env begin fun env ->
       (* Enter types. *)
       let temp_env =
@@ -1123,6 +1124,7 @@ let transl_type_decl env rec_flag sdecl_list =
               update_type temp_env new_env id sdecl.ptype_loc)
             ids_list sdecl_list
       end;
+      let new_env = Env.copy_levels ~from:outer_env new_env in
       ((tdecls, decls, new_env), List.map snd decls)
     end
   in
@@ -1355,10 +1357,10 @@ let transl_type_extension extend env loc styext =
   | None -> ()
   | Some err -> raise (Error(loc, Extension_mismatch (type_path, env, err)))
   end;
+  (* Note: it would be incorrect to call [create_scope] *after*
+     [Env.empty_variable_scope] or after [with_local_level] (see #10010). *)
+  let (scope, env) = Env.create_scope env in
   let ttype_params, _type_params, constructors =
-    (* Note: it would be incorrect to call [create_scope] *after*
-       [TyVarEnv.reset] or after [with_local_level] (see #10010). *)
-    let (scope, env) = Env.create_scope env in
     Ctype.with_local_level env begin fun env ->
       let env = Env.empty_variable_scope env in
       let ttype_params = make_params env styext.ptyext_params in
@@ -1405,7 +1407,7 @@ let transl_type_extension extend env loc styext =
          raise (Error (loc, Variance err)))
     constructors;
   (* Add extension constructors to the environment *)
-  let newenv =
+  let new_env =
     List.fold_left
       (fun env ext ->
          let rebind = is_rebind ext in
@@ -1421,7 +1423,7 @@ let transl_type_extension extend env loc styext =
       tyext_loc = styext.ptyext_loc;
       tyext_attributes = styext.ptyext_attributes; }
   in
-    (tyext, newenv)
+    (tyext, new_env)
 
 let transl_type_extension extend env loc styext =
   Builtin_attributes.warning_scope styext.ptyext_attributes
@@ -1448,14 +1450,14 @@ let transl_exception env sext =
   | None -> ()
   end;
   let rebind = is_rebind ext in
-  let newenv =
+  let new_env =
     Env.add_extension ~check:true ~rebind ext.ext_id ext.ext_type env
   in
-  ext, newenv
+  ext, new_env
 
 let transl_type_exception env t =
   Builtin_attributes.check_no_alert t.ptyexn_attributes;
-  let contructor, newenv =
+  let contructor, new_env =
     Builtin_attributes.warning_scope t.ptyexn_attributes
       (fun () ->
          transl_exception env t.ptyexn_constructor
@@ -1463,7 +1465,7 @@ let transl_type_exception env t =
   in
   {tyexn_constructor = contructor;
    tyexn_loc = t.ptyexn_loc;
-   tyexn_attributes = t.ptyexn_attributes}, newenv
+   tyexn_attributes = t.ptyexn_attributes}, new_env
 
 
 type native_repr_attribute =
@@ -1611,7 +1613,7 @@ let transl_value_decl env loc valdecl =
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
       }
   in
-  let (id, newenv) =
+  let (id, new_env) =
     Env.enter_value valdecl.pval_name.txt v env
       ~check:(fun s -> Warnings.Unused_value_declaration s)
   in
@@ -1625,7 +1627,7 @@ let transl_value_decl env loc valdecl =
      val_attributes = valdecl.pval_attributes;
     }
   in
-  desc, newenv
+  desc, new_env
 
 let transl_value_decl env loc valdecl =
   Builtin_attributes.warning_scope valdecl.pval_attributes
@@ -1679,6 +1681,7 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
        work in the larger signature environment [sig_env], because
        [sig_decl.type_params] and [sig_decl.type_kind] are only valid
        there. *)
+    let sig_env = Env.copy_levels ~from:env sig_env in
     Ctype.with_level ~level:(Env.current_level env) sig_env begin fun env ->
       let sig_decl = Ctype.instance_declaration env sig_decl in
       let arity_ok = arity = sig_decl.type_arity in

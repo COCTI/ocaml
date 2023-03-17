@@ -60,6 +60,8 @@ val empty: t
 val initial: t
 val diff: t -> t -> Ident.t list
 
+val print_env: Format.formatter -> t -> unit
+
 (* Level handling:
    An environment has two kinds of levels: [current_level] and [nongen_level].
    [raise_current_level] increases [current_level] by one.
@@ -74,8 +76,8 @@ val set_level: t -> int -> t
         (* [set_level env level] return and environment with both
            [current_level] and [nongen_level] set to [level] *)
 val copy_levels: from:t -> t -> t
-        (* a hack to restore the levels from another environment;
-           used eg in Typecore.solve_Ppat_construct *)
+        (* a hack to restore the levels and the names of type variables
+           from another environment; used eg in Typecore.solve_Ppat_construct *)
 val with_local_level: t -> ?post:(t -> 'a -> unit) -> (t -> 'a) -> 'a
         (* [with_local_level env (fun env' -> cmd) ~post] evaluates [cmd]
            with [env'] at a raised level.

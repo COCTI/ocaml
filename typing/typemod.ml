@@ -769,7 +769,7 @@ let rec approx_modtype env smty =
           | None -> Types.Named (None, arg), env
           | Some name ->
             let rarg = Mtype.scrape_for_functor_arg env arg in
-            let scope = Ctype.create_scope () in
+            let scope, env = Env.create_scope env in
             let (id, newenv) =
               Env.enter_module ~scope ~arg:true name Mp_present rarg env
             in
@@ -816,7 +816,7 @@ and approx_sig env ssg =
   | item :: srem ->
       match item.psig_desc with
       | Psig_type (rec_flag, sdecls) ->
-          let decls = Typedecl.approx_type_decl sdecls in
+          let decls = Typedecl.approx_type_decl env sdecls in
           let rem = approx_sig env srem in
           map_rec_type ~rec_flag
             (fun rs (id, info) -> Sig_type(id, info, rs, Exported)) decls rem
@@ -824,7 +824,7 @@ and approx_sig env ssg =
       | Psig_module { pmd_name = { txt = None; _ }; _ } ->
           approx_sig env srem
       | Psig_module pmd ->
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let md = approx_module_declaration env pmd in
           let pres =
             match md.Types.md_type with
@@ -837,7 +837,7 @@ and approx_sig env ssg =
           in
           Sig_module(id, pres, md, Trec_not, Exported) :: approx_sig newenv srem
       | Psig_modsubst pms ->
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let _, md =
             Env.lookup_module ~use:false ~loc:pms.pms_manifest.loc
                pms.pms_manifest.txt env
@@ -852,7 +852,7 @@ and approx_sig env ssg =
           in
           approx_sig newenv srem
       | Psig_recmodule sdecls ->
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let decls =
             List.filter_map
               (fun pmd ->
@@ -875,14 +875,14 @@ and approx_sig env ssg =
             (approx_sig newenv srem)
       | Psig_modtype d ->
           let info = approx_modtype_info env d in
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let (id, newenv) =
             Env.enter_modtype ~scope d.pmtd_name.txt info env
           in
           Sig_modtype(id, info, Exported) :: approx_sig newenv srem
       | Psig_modtypesubst d ->
           let info = approx_modtype_info env d in
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let (_id, newenv) =
             Env.enter_modtype ~scope d.pmtd_name.txt info env
           in
@@ -893,7 +893,7 @@ and approx_sig env ssg =
       | Psig_include sincl ->
           let smty = sincl.pincl_mod in
           let mty = approx_modtype env smty in
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let sg, newenv = Env.enter_signature ~scope
               (extract_sig env smty.pmty_loc mty) env in
           sg @ approx_sig newenv srem
@@ -1299,7 +1299,7 @@ and transl_modtype_aux env smty =
             match param.txt with
             | None -> None, env
             | Some name ->
-              let scope = Ctype.create_scope () in
+              let scope, env = Env.create_scope env in
               let id, newenv =
                 let arg_md =
                   { md_type = arg.mty_type;
@@ -1326,8 +1326,8 @@ and transl_modtype_aux env smty =
       let (rev_tcstrs, final_sg) =
         List.fold_left (transl_with ~loc:smty.pmty_loc env remove_aliases)
         ([],init_sg) constraints in
-      let scope = Ctype.create_scope () in
-      mkmty (Tmty_with ( body, List.rev rev_tcstrs))
+      let scope, env = Env.create_scope env in
+      mkmty (Tmty_with (body, List.rev rev_tcstrs))
         (Mtype.freshen ~scope (Mty_signature final_sg)) env loc
         smty.pmty_attributes
   | Pmty_typeof smod ->
@@ -1456,7 +1456,7 @@ and transl_signature env sg =
                        Exported) :: rem,
             final_env
         | Psig_module pmd ->
-            let scope = Ctype.create_scope () in
+            let scope, env = Env.create_scope env in
             let tmty =
               Builtin_attributes.warning_scope pmd.pmd_attributes
                 (fun () -> transl_modtype env pmd.pmd_type)
@@ -1495,7 +1495,7 @@ and transl_signature env sg =
              | Some id -> Sig_module(id, pres, md, Trec_not, Exported) :: rem),
             final_env
         | Psig_modsubst pms ->
-            let scope = Ctype.create_scope () in
+            let scope, env = Env.create_scope env in
             let path, md =
               Env.lookup_module ~loc:pms.pms_manifest.loc
                 pms.pms_manifest.txt env
@@ -1598,7 +1598,7 @@ and transl_signature env sg =
                 (fun () -> transl_modtype env smty)
             in
             let mty = tmty.mty_type in
-            let scope = Ctype.create_scope () in
+            let scope, env = Env.create_scope env in
             let sg, newenv = Env.enter_signature ~scope
                        (extract_sig env smty.pmty_loc mty) env in
             Signature_group.iter
@@ -1710,7 +1710,7 @@ and transl_modtype_decl_aux env
      mtd_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
     }
   in
-  let scope = Ctype.create_scope () in
+  let scope, env = Env.create_scope env in
   let (id, newenv) = Env.enter_modtype ~scope pmtd_name.txt decl env in
   let mtd =
     {
@@ -1748,7 +1748,7 @@ and transl_recmodule_modtypes env sdecls =
          Option.map (fun (id, _) -> (id, md)) id_shape)
       curr
   in
-  let scope = Ctype.create_scope () in
+  let scope, env = Env.create_scope env in
   let ids =
     List.map (fun x -> Option.map (Ident.create_scoped ~scope) x.pmd_name.txt)
       sdecls
@@ -1927,7 +1927,7 @@ let check_recmodule_inclusion env bindings =
   in
 
   let rec check_incl first_time n env s =
-    let scope = Ctype.create_scope () in
+    let scope, env = Env.create_scope env in
     if n > 0 then begin
       (* Generate fresh names Y_i for the rec. bound module idents X_i *)
       let bindings1 =
@@ -2187,7 +2187,7 @@ and type_module_aux ~alias sttn funct_body anchor env smod =
           Unit, Types.Unit, env, Shape.for_unnamed_functor_param, false
         | Named (param, smty) ->
           let mty = transl_modtype_functor_arg env smty in
-          let scope = Ctype.create_scope () in
+          let scope, env = Env.create_scope env in
           let (id, newenv, var) =
             match param.txt with
             | None -> None, env, Shape.for_unnamed_functor_param
@@ -2233,8 +2233,8 @@ and type_module_aux ~alias sttn funct_body anchor env smod =
       final_shape
   | Pmod_unpack sexp ->
       let exp =
-        Ctype.with_local_level_if_principal
-          (fun () -> Typecore.type_exp env sexp)
+        Ctype.with_local_level_if_principal env
+          (fun env -> Typecore.type_exp env sexp)
           ~post:Typecore.generalize_structure_exp
       in
       let mty =
@@ -2347,18 +2347,18 @@ and type_one_application ~ctx:(apply_loc,md_f,args)
               ~loc:arg.mod_loc ~mark:Mark_both env arg.mod_type mty_param
         with Includemod.Error _ -> apply_error ()
       in
-      let mty_appl =
+      let env, mty_appl =
         match arg_path with
         | Some path ->
-            let scope = Ctype.create_scope () in
+            let scope, env = Env.create_scope env in
             let subst =
               match param with
               | None -> Subst.identity
               | Some p -> Subst.add_module p path Subst.identity
             in
-            Subst.modtype (Rescope scope) subst mty_res
+            env, Subst.modtype (Rescope scope) subst mty_res
         | None ->
-            let env, nondep_mty =
+            let local_env, nondep_mty =
               match param with
               | None -> env, mty_res
               | Some param ->
@@ -2374,7 +2374,7 @@ and type_one_application ~ctx:(apply_loc,md_f,args)
             in
             begin match
               Includemod.modtypes
-                ~loc:app_loc ~mark:Mark_neither env mty_res nondep_mty
+                ~loc:app_loc ~mark:Mark_neither local_env mty_res nondep_mty
             with
             | Tcoerce_none -> ()
             | _ ->
@@ -2385,7 +2385,7 @@ and type_one_application ~ctx:(apply_loc,md_f,args)
                 fatal_error
                   "nondep_supertype not included in original module type"
             end;
-            nondep_mty
+            env, nondep_mty
       in
       check_well_formed_module env apply_loc
         "the signature of this functor application" mty_appl;
@@ -2434,7 +2434,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
     open_descr, [], newenv
   | _ ->
     let md, mod_shape = type_module true funct_body None env od.popen_expr in
-    let scope = Ctype.create_scope () in
+    let scope, env = Env.create_scope env in
     let sg, newenv =
       Env.enter_signature ~scope ~mod_shape
         (extract_sig_open env md.mod_loc md.mod_type) env
@@ -2573,8 +2573,8 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
     | Pstr_module {pmb_name = name; pmb_expr = smodl; pmb_attributes = attrs;
                    pmb_loc;
                   } ->
-        let outer_scope = Ctype.get_current_level () in
-        let scope = Ctype.create_scope () in
+        let outer_scope = Env.current_level env in
+        let scope, env = Env.create_scope env in
         let modl, md_shape =
           Builtin_attributes.warning_scope attrs
             (fun () ->
@@ -2787,7 +2787,7 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr =
           Builtin_attributes.warning_scope sincl.pincl_attributes
             (fun () -> type_module true funct_body None env smodl)
         in
-        let scope = Ctype.create_scope () in
+        let scope, env = Env.create_scope env in
         (* Rename all identifiers bound by this signature to avoid clashes *)
         let sg, shape, new_env =
           Env.enter_signature_and_shape ~scope ~parent_shape:shape_map
@@ -2921,15 +2921,17 @@ let lookup_type_in_sig sg =
 
 let type_package env m p fl =
   (* Same as Pexp_letmodule *)
-  let modl, scope =
-    Typetexp.TyVarEnv.with_local_scope begin fun () ->
-      (* type the module and create a scope in a raised level *)
-      Ctype.with_local_level begin fun () ->
-        let modl, _mod_shape = type_module env m in
-        let scope = Ctype.create_scope () in
-        modl, scope
-      end
+  let env, modl, scope =
+    let outer_env = env in
+    let env = Env.narrow_variable_scope env in
+    (* type the module and create a scope in a raised level *)
+    Ctype.with_local_level env begin fun env ->
+      let modl, _mod_shape = type_module env m in
+      let scope, env = Env.create_scope env in
+      let env = Env.copy_levels ~from:outer_env env in
+      env, modl, scope
     end
+
   in
   let fl', env =
     match fl with
@@ -2977,7 +2979,7 @@ let type_package env m p fl =
   in
   List.iter
     (fun (n, ty) ->
-      try Ctype.unify env ty (Ctype.newvar ())
+      try Ctype.unify env ty (Ctype.newvar env)
       with Ctype.Unify _ ->
         raise (Error(modl.mod_loc, env, Scoping_pack (n,ty))))
     fl';

@@ -90,11 +90,11 @@ let eval_value_path env path =
 (* Install, remove a printer (as in toplevel/topdirs) *)
 
 let match_printer_type desc make_printer_type =
-  Ctype.with_local_level ~post:Ctype.generalize begin fun () ->
-    let ty_arg = Ctype.newvar() in
-    Ctype.unify Env.empty
+  Ctype.with_local_level Env.empty ~post:Ctype.generalize begin fun env ->
+    let ty_arg = Ctype.newvar env in
+    Ctype.unify env
       (make_printer_type ty_arg)
-      (Ctype.instance desc.val_type);
+      (Ctype.instance env desc.val_type);
     ty_arg
   end
 

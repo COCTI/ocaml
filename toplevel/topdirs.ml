@@ -232,11 +232,11 @@ let match_simple_printer_type desc ~is_old_style =
     else Topprinters.printer_type_new
   in
   match
-    Ctype.with_local_level ~post:Ctype.generalize begin fun () ->
-      let ty_arg = Ctype.newvar() in
-      Ctype.unify !toplevel_env
+    Ctype.with_local_level !toplevel_env ~post:Ctype.generalize begin fun env ->
+      let ty_arg = Ctype.newvar env in
+      Ctype.unify env
         (make_printer_type ty_arg)
-        (Ctype.instance desc.val_type);
+        (Ctype.instance env desc.val_type);
       ty_arg
     end
   with
@@ -249,19 +249,20 @@ let match_simple_printer_type desc ~is_old_style =
 let match_generic_printer_type desc ty_path params =
   let make_printer_type = Topprinters.printer_type_new in
   match
-    Ctype.with_local_level ~post:(List.iter Ctype.generalize) begin fun () ->
-      let args = List.map (fun _ -> Ctype.newvar ()) params in
-      let ty_target = Ctype.newty (Tconstr (ty_path, args, ref Mnil)) in
-      let printer_args_ty =
-        List.map (fun ty_var -> make_printer_type ty_var) args in
-      let ty_expected =
-        List.fold_right Topprinters.type_arrow
-          printer_args_ty (make_printer_type ty_target) in
-      Ctype.unify !toplevel_env
-        ty_expected
-        (Ctype.instance desc.val_type);
-      args
-    end
+    Ctype.with_local_level_iter !toplevel_env ~post:Ctype.generalize
+      begin fun env ->
+        let args = List.map (fun _ -> Ctype.newvar env) params in
+        let ty_target = Ctype.newconstr env ty_path args in
+        let printer_args_ty =
+          List.map (fun ty_var -> make_printer_type ty_var) args in
+        let ty_expected =
+          List.fold_right Topprinters.type_arrow
+            printer_args_ty (make_printer_type ty_target) in
+        Ctype.unify env
+          ty_expected
+          (Ctype.instance env desc.val_type);
+        args, args
+      end
   with
   | exception Ctype.Unify _ -> None
   | args ->
