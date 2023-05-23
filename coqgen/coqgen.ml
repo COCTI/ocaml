@@ -97,7 +97,7 @@ let make_compare_rec vars =
             in
             let neq_cases = mk_neq_cases cases in
             CTmatch (ctpair (CTid"x") (CTid"y"), None, eq_cases @ neq_cases)
-        | None, _ -> ctapp (CTid "Fail")
+        | None, _ -> ctapp (CTid "Raise")
               [ctapp (CTid "Catchable")
                  [ctapp (CTid"Invalid_argument")
                     [CTcstr"\"compare\"%string"]]]
@@ -203,8 +203,7 @@ let transl_implementation _modname st =
 \n    right; injection; intros; contradiction.\
 \nDefined.\n\
 \nLocal Definition ml_type := ml_type.\
-\nRecord key := mkkey {key_id : int; key_type : ml_type}.\
-\nVariant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).\
+\nVariant loc : ml_type -> Set := mkloc T : nat -> loc T.\
 \n\
 \nSection with_monad.\
 \nContext [M : Type -> Type].\
@@ -226,8 +225,8 @@ let transl_implementation _modname st =
 \nExport REFmonadML.\
 \n\
 \nDefinition coq_type := @MLtypes.coq_type M.\
-\nDefinition empty_env := mkEnv 0%int63 nil.\
-\nDefinition it : W unit := (empty_env, inl tt).\
+\nDefinition empty_env := mkEnv nil.\
+\nDefinition it : W unit := inr (inr tt, empty_env).\
 \n\n(* Generated comparison function *)" ::
   make_compare_rec vars ::
   CTverbatim "Definition ml_compare := compare_rec.\

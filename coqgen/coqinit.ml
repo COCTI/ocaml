@@ -256,7 +256,7 @@ let init_term_map vars =
 
 let init_reserved =
   [ "fix"; "Definition"; "Fixpoint"; "Inductive"; "unit"; "bool"; "int63";
-    "M"; "Res"; "Fail"; "K"; "coq_type"; "S"; "Eq"; "Lt"; "Gt";
+    "M"; "Res"; "Raise"; "Fail"; "K"; "coq_type"; "S"; "Eq"; "Lt"; "Gt";
     "nil"; "cons"; "it"; "Restart"; "T1"; "T2" ]
 
 let init_vars =

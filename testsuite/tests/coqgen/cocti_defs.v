@@ -7,7 +7,7 @@ Inductive empty :=. (* for the value restriction *)
 Inductive array_t T := ArrayVal (_ : list T). (* array contents *)
 
 (* ErrorStateMonad *)
-Definition W0 Env Exn T : Type := Env * (T + Exn).
+Definition W0 Env Exn T : Type := unit + ((Exn + T) * Env).
 Definition M0 Env Exn T := Env -> W0 Env Exn T.
 
 Module Type ENV.
@@ -21,29 +21,32 @@ Import Env.
 Definition W T := W0 Env Exn T.
 Definition M T := Env -> W T.
 
-Definition Fail {A} (e : Exn) : M A := fun env => (env, inr e).
-
-Definition Ret {A} (x : A) : M A := fun env => (env, inl x).
+Definition Fail {A} : M A := fun env => inl tt.
+Definition Raise {A} (e : Exn) : M A := fun env => inr (inl e, env).
+Definition Ret {A} (x : A) : M A := fun env => inr (inr x, env).
 
 Definition Bind {A B} (x : M A) (f : A -> M B) : M B := fun env =>
   match x env with
-  | (env', inl a) => f a env'
-  | (env', inr e) => (env', inr e)
+  | inr (inr a, env') => f a env'
+  | inr (inl e, env') => inr (inl e, env')
+  | inl tt => inl tt
   end.
 
 Definition BindW {A B} (x : W A) (f : A -> M B) : W B :=
-  Bind (fun _ => x) f (fst x).  (* (fst x) could be anything *)
+  if x is inr (_,env) then Bind (fun _ => x) f env else inl tt.
 
 (* Strict version
 Definition Restart {A B} (x : W A) (f : M B) : W B := BindW x (fun _ => f).
 *)
 
 (* Allow to restart after exception *)
-Definition Restart {A B} (x : W A) (f : M B) : W B := f (fst x).
+Definition Restart {A B} (x : W A) (f : M B) : W B :=
+  if x is inr (_,env) then f env else inl tt.
 
-Definition RunW {A} (x : W A) : A + Exn := snd x.
+(* Definition RunW {A} (x : W A) : A + Exn := snd x. *)
 
-Definition FromW {A} (x : W A) : M A := fun env => (env, RunW x).
+Definition FromW {A} (x : W A) : M A :=
+  fun env => if x is inr (y,_) then inr (y,env) else inl tt.
 
 Declare Scope do_notation.
 Declare Scope monae_scope.
@@ -68,9 +71,7 @@ Module Type MLTY.
 Parameter ml_type : Set.
 Parameter ml_type_eq_dec : forall x y : ml_type, {x=y}+{x<>y}.
 Parameter ml_exn : ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
-Variant loc : ml_type -> Type :=
-  mkloc : forall k : key, loc (key_type k).
+Variant loc : ml_type -> Set := mkloc T : nat -> loc T.
 Parameter coq_type : forall M : Type -> Type, ml_type -> Type.
 End MLTY.
 
@@ -86,14 +87,13 @@ Inductive Exn :=
 *)
 
 Record binding (M : Type -> Type) :=
-  mkbind { bind_key : key; bind_val : coq_type M (key_type bind_key) }.
+  mkbind { bind_type : ml_type; bind_val : coq_type M bind_type }.
 Arguments mkbind {M}.
 
 #[bypass_check(positivity)]
-Inductive Env := mkEnv : int -> seq (binding (M0 Env Exn)) -> Env
+Inductive Env := mkEnv : seq (binding (M0 Env Exn)) -> Env
 with Exn :=
   | GasExhausted
-  | RefLookup
   | BoundedNat
   | Catchable of coq_type (M0 Env Exn) ml_exn.
 
@@ -105,71 +105,50 @@ Section monadic_operations.
 Let coq_type := coq_type M.
 Let binding := binding M.
 
-Definition newref (T : ml_type) (val : coq_type T) : M (loc T) :=
-  fun env =>
-    let: mkEnv c refs := env in
-    let key := mkkey c T in
-    Ret (mkloc key) (mkEnv (PrimInt63.add c 1) (mkbind key val :: refs)).
+Definition newref T (v : coq_type T) : M (loc T) :=
+  fun st =>
+    let: mkEnv st := st in
+    let n := size st in
+    inr (inr (mkloc T n), mkEnv (rcons st (mkbind T (v : coq_type T)))).
 
-Definition coerce (T1 T2 : ml_type) (v : coq_type T1) : option (coq_type T2) :=
+Definition coerce T1 T2 (v : coq_type T1) : option (coq_type T2) :=
   match ml_type_eq_dec T1 T2 with
   | left H => Some (eq_rect _ _ v _ H)
   | right _ => None
   end.
 
-Fixpoint lookup key env :=
-  match env with
-  | nil => None
-  | mkbind k v :: rest =>
-    if PrimInt63.eqb (key_id key) (key_id k) then
-      coerce (key_type k) (key_type key) v
-    else lookup key rest
-  end.
+Local Notation nth_error := List.nth_error.
+Definition loc_id {T} (l : loc T) := let: mkloc _ n := l in n.
 
-Definition getref T (l : loc T) : M (coq_type T) := fun env =>
-  let: mkloc key := l in
-  let: mkEnv _ refs := env in
-  match lookup key refs with
-  | None => Fail RefLookup env
-  | Some x => Ret x env
-  end.
+Definition getref T (r : loc T) : M (coq_type T) :=
+  fun st =>
+    let: mkEnv bs := st in
+    if nth_error bs (loc_id r) is Some (mkbind T' v) then
+      if coerce _ T v is Some u then inr (inr u, st) else inl tt
+    else inl tt.
 
-Fixpoint update b (env : seq binding) :=
-  match env with
-  | nil => None
-  | mkbind k v :: rest =>
-    let: mkbind k' _ := b in
-    if PrimInt63.eqb (key_id k') (key_id k) then
-      if ml_type_eq_dec (key_type k') (key_type k)
-      then Some (b :: rest)
-      else None
-    else
-      Option.map (cons (mkbind k v)) (update b rest)
-  end.
+Definition setref T (r : loc T) (v : coq_type T) : M unit :=
+  fun st =>
+    let: mkEnv st := st in
+    let n := loc_id r in
+    if nth_error st n is Some (mkbind T' _) then
+      if coerce _ T' v is Some u then
+        let b := mkbind T' (u : coq_type _) in
+        inr (inr tt, mkEnv (set_nth b st n b))
+      else inl tt
+    else inl tt.
 
-Definition setref T (l : loc T) (val : coq_type T) : M unit := fun env =>
-  let: mkEnv c refs := env in
-  let b :=
-      match l in loc T return coq_type T -> binding with
-        mkloc key => mkbind key
-      end val
-  in
-  match update b refs with
-  | None => Fail RefLookup env
-  | Some refs' => Ret tt (mkEnv c refs')
-  end.
-
-Definition FailGas {A} : M A := Fail GasExhausted.
+Definition FailGas {A} : M A := Raise GasExhausted.
 
 Definition raise T (e : coq_type ml_exn) : M (coq_type T) :=
-  Fail (Catchable e).
+  Raise (Catchable e).
 
 Definition handle T (c : M (coq_type T))
            (h : coq_type ml_exn -> M (coq_type T)) : M (coq_type T) :=
   fun env =>
     match c env with
-    | (env', inr (Catchable e)) => h e env'
-    | (env', r) => (env', r)
+    | inr (inl (Catchable e), env') => h e env'
+    | r => r
     end.
 
 Section Comparison.
@@ -197,12 +176,12 @@ Definition nat_of_int (n : int) : M nat :=
   match Sint63.to_Z n with
   | Z0 => Ret 0
   | Zpos pos => Ret (Pos.to_nat pos)
-  | Zneg _ => Fail BoundedNat
+  | Zneg _ => Raise BoundedNat
   end.
 
 Definition bounded_nat_of_int (m : nat) (n : int) : M nat :=
   do n <- nat_of_int n;
-  if n < m then Ret n else Fail BoundedNat.
+  if n < m then Ret n else Raise BoundedNat.
 
 Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
   if h is h.+1 then

@@ -37,8 +37,7 @@ revert T2; induction T1; destruct T2;
 Defined.
 
 Local Definition ml_type := ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
-Variant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).
+Variant loc : ml_type -> Set := mkloc T : nat -> loc T.
 
 Section with_monad.
 Context [M : Type -> Type].
@@ -93,8 +92,8 @@ Module REFmonadML := REFmonad (MLtypes).
 Export REFmonadML.
 
 Definition coq_type := @MLtypes.coq_type M.
-Definition empty_env := mkEnv 0%int63 nil.
-Definition it : W unit := (empty_env, inl tt).
+Definition empty_env := mkEnv nil.
+Definition it : W unit := inr (inr tt, empty_env).
 
 (* Generated comparison function *)
 Fixpoint compare_rec (h : nat) (T : ml_type)
@@ -125,7 +124,7 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
     | ml_lazy T1 =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     | ml_string => fun x y => Ret (compare_string x y)
     | ml_empty => fun x y => match x with end
     | ml_array_t T1 =>
@@ -150,10 +149,10 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
       fun x y =>
         match x, y with | T0 x1, T0 y1 => compare_rec ml_t0 x1 y1 end
     | ml_lazy_val T1 =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
     | ml_arrow T1 T2 =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     end
   else fun _ _ => FailGas.
 
