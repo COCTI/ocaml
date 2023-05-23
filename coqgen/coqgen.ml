@@ -97,7 +97,7 @@ let make_compare_rec vars =
             in
             let neq_cases = mk_neq_cases cases in
             CTmatch (ctpair (CTid"x") (CTid"y"), None, eq_cases @ neq_cases)
-        | None, _ -> ctapp (CTid "Fail")
+        | None, _ -> ctapp (CTid "Raise")
               [ctapp (CTid "Catchable")
                  [ctapp (CTid"Invalid_argument")
                     [CTcstr"\"compare\"%string"]]]
@@ -186,8 +186,8 @@ let transl_implementation _modname st =
   let inductives = topo_sort deps_inductive inductives in
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in
 
-  CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
-\nRequire Import PrimInt63 Ascii String Floats cocti_defs.\
+  CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+\nRequire Import PrimInt63 Ascii String Floats coqgen_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
   CTverbatim "(* Module argument for monadic functor *)\
@@ -201,10 +201,13 @@ let transl_implementation _modname st =
 \n  try (case (IHT1_2 T2_2); [|right; injection; intros; contradiction]);\
 \n  (case (IHT1 T2) || case (IHT1_1 T2_1)); try (left; now subst);\
 \n    right; injection; intros; contradiction.\
-\nDefined.\n\
-\nLocal Definition ml_type := ml_type.\
-\nRecord key := mkkey {key_id : int; key_type : ml_type}.\
-\nVariant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).\
+\nDefined.\
+\n\
+\nDefinition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).\
+\nCanonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.\
+\n\
+\nLocal Definition ml_type := ml_type_eqType.\
+\nLocal Notation loc := (@loc ml_type).\
 \n\
 \nSection with_monad.\
 \nContext [M : Type -> Type].\
@@ -226,8 +229,8 @@ let transl_implementation _modname st =
 \nExport REFmonadML.\
 \n\
 \nDefinition coq_type := @MLtypes.coq_type M.\
-\nDefinition empty_env := mkEnv 0%int63 nil.\
-\nDefinition it : W unit := (empty_env, inl tt).\
+\nDefinition empty_env := mkEnv nil.\
+\nDefinition it : W unit := inr (inr tt, empty_env).\
 \n\n(* Generated comparison function *)" ::
   make_compare_rec vars ::
   CTverbatim "Definition ml_compare := compare_rec.\
@@ -244,34 +247,34 @@ let transl_implementation _modname st =
 \n" ::
   CTverbatim "(* Array operations *)\
 \nDefinition newarray T len (x : coq_type T) :=\
-\n  do len <- nat_of_int len; newref (ml_array_t T) (ArrayVal _ (nseq len x)).\
+\n  do len <- nat_of_int len; cnew (ml_array_t T) (ArrayVal _ (nseq len x)).\
 \nDefinition getarray T (a : coq_type (ml_array T)) n : M (coq_type T) :=\
-\n  do s <- getref (ml_array_t T) a;\
+\n  do s <- cget (ml_array_t T) a;\
 \n  let: ArrayVal s := s in\
 \n  do n <- bounded_nat_of_int (seq.size s) n;\
 \n  if s is x :: _ then Ret (nth x s n) else\
 \n  raise _ (Invalid_argument \"getarray\").\
 \nDefinition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=\
-\n  do s <- getref (ml_array_t T) a;\
+\n  do s <- cget (ml_array_t T) a;\
 \n  let: ArrayVal s := s in\
 \n  do n <- bounded_nat_of_int (seq.size s) n;\
-\n  setref (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).\
+\n  cput (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).\
 \n\n(* Lazy values *)\
 \nDefinition force a (lz : coq_type (ml_lazy a)) :=\
 \n  match lz with\
 \n  | Lval x => Ret x\
 \n  | Lref r =>\
-\n    do r' <- getref (ml_lazy_val a) r;\
+\n    do r' <- cget (ml_lazy_val a) r;\
 \n    match r' with\
 \n    | LzVal x => Ret x\
 \n    | LzExn e => raise _ e\
 \n    | LzThunk f => handle _\
-\n        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)\
-\n        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)\
+\n        (do x <- f; do _ <- cput (ml_lazy_val a) r (LzVal _ x); Ret x)\
+\n        (fun e => do _ <- cput _ r (LzExn _ e); raise _ e)\
 \n    end\
 \n  end.\
 \nDefinition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=\
-\n  do x <- newref (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).\
+\n  do x <- cnew (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).\
 \nDefinition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=\
 \n  Lval _ _ b.\
 \n\n(* Default amount of gas *)\

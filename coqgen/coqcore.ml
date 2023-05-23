@@ -114,7 +114,7 @@ let find_constructor ~loc ~vars cd =
   in
   try
     let ct = Path.Map.find path vars.type_map in
-    List.assoc cd.cstr_name ct.ct_constrs, tl
+    ct, List.assoc cd.cstr_name ct.ct_constrs, tl
   with Not_found ->
     not_allowed ~loc
       ("The constructor " ^ cd.cstr_name ^ " of type " ^ Path.name path)
@@ -135,6 +135,9 @@ let add_pat_variable ~vars id ty =
       ce_vars = []; ce_rec = Nonrecursive; ce_purary = 1 } in
   let vars = add_term (Path.Pident id) desc vars in
   (name, vars)
+
+let is_primitive s =
+  String.length s >= 2 && s.[0] = '@'
 
 let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
   fun ~vars pat ->
@@ -161,7 +164,8 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
             (ct :: ctl, vars))
           ([],vars) patl
       in
-      let name, tl = find_constructor ~loc ~vars cd in
+      let _ct, name, tl = find_constructor ~loc ~vars cd in
+      let tl = if is_primitive name then tl else [] in
       let args = List.map (fun _ -> CTid "_") tl @ List.rev ctl in
       (ctapp (CTcstr name) args, vars)
   | Tpat_value pat ->
@@ -169,17 +173,20 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
   | _ ->
       not_allowed ~loc "transl_pat : This pattern"
 
-let is_primitive s =
-  String.length s >= 2 && (s.[0] >= '@' && s.[0] <= 'Z')
-
-let transl_ident ~loc ~vars env desc ty =
+let transl_ident ~loc ~vars env desc ct ty =
   let f = CTid desc.ce_name in
   if desc.ce_purary = 0 then (* toplevel value; need to rebind it outside *)
     {pterm = f; prec = Nonrecursive; pary = 1}
   else
     let args = find_instantiation ~loc ~env ~vars desc ty in
     let args =
-      if is_primitive desc.ce_name then List.map mkcoqty args else args in
+      match ct with
+      | Some ct ->
+          let extract_ty = List.map (fun (i,_) -> List.nth args i) in
+          List.map mkcoqty (extract_ty ct.ct_args) @ extract_ty ct.ct_mlargs
+      | None ->
+          if is_primitive desc.ce_name then List.map mkcoqty args else args
+    in
     let args =
       if desc.ce_rec = Recursive then CTid"h" :: args else args in
     {pterm = ctapp f args; prec = desc.ce_rec; pary = desc.ce_purary}
@@ -209,7 +216,7 @@ let rec transl_exp ~vars e =
         with Not_found ->
           not_allowed ~loc ("Identifier " ^ Path.name path)
       in
-      transl_ident ~loc ~vars e.exp_env desc e.exp_type
+      transl_ident ~loc ~vars e.exp_env desc None e.exp_type
   | Texp_constant cst ->
       {pterm = CTcstr (string_of_constant ~loc cst); prec = Nonrecursive;
        pary = 1 }
@@ -366,7 +373,7 @@ let rec transl_exp ~vars e =
           {ct with pterm = ctBind arg (CTabs (v,None,ct.pterm))})
         (nullary ~vars ct) binds
   | Texp_construct (_, cd, []) ->
-      let name, tl = find_constructor ~loc ~vars cd in
+      let ct, name, tl = find_constructor ~loc ~vars cd in
       let ce =
         {ce_name = name;
          ce_type = List.fold_right newgenarrow cd.cstr_args cd.cstr_res;
@@ -374,7 +381,7 @@ let rec transl_exp ~vars e =
          ce_rec = Nonrecursive;
          ce_purary = cd.cstr_arity + 1}
       in
-      transl_ident ~loc ~vars e.exp_env ce e.exp_type
+      transl_ident ~loc ~vars e.exp_env ce (Some ct) e.exp_type
   | Texp_construct (lid, cd, args) ->
       let ty =
         List.fold_right (fun arg -> newgenarrow arg.exp_type) args e.exp_type
@@ -434,9 +441,9 @@ let rec transl_exp ~vars e =
       {pterm =
         ctBind ct.pterm (CTabs (u, None,
         ctBind ct1.pterm (CTabs (v, None,
-          ctapp (CTid x) [CTid "h"; CTid u; CTid v;
+          ctapp (CTid x) [CTid u; CTid v;
                           CTabs (name, None, ct2.pterm)]))));
-        prec = Recursive; pary = 0}
+        prec = ct2.prec; pary = 0}
   | Texp_lazy e ->
     let ct = transl_exp ~vars e in
     let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in

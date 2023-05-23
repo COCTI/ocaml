@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Ascii String Int63 cocti_defs.
+Require Import Ascii String PrimInt63 coqgen_defs.
 
 Axiom abstr : Set.
 Inductive ml_type : Set :=
@@ -47,8 +47,7 @@ Local Definition ml_exns := ml_exns.
 
 Record key := mkkey {key_id : int; key_type : ml_type}.
 
-Variant loc : ml_type -> Type :=
-  mkloc : forall k : key, loc (key_type k).
+Variant loc : ml_type -> Set := mkloc T : nat -> loc T.
 
 Section with_monad.
 Variable M : Type -> Type.
@@ -82,7 +81,7 @@ Local Fixpoint coq_type_rec (p : nat) (T : ml_type) : Type :=
   | ml_ref T1 => loc T1
   | ml_eqw T1 T2 => eqw T1 T2
   | ml_expr T1 => expr T1
-  | ml_int => Int63.int
+  | ml_int => PrimInt63.int
   | ml_bool => bool
   | ml_empty => empty
   end.
@@ -102,7 +101,7 @@ Definition coq_type_purary p T :=
 
 (* Test *)
 Definition ml_succ : coq_type (ml_arrow ml_int ml_int) :=
-  fun n => Ret (Int63.succ n).
+  fun n => Ret (Uint63.succ n).
 
 Section comparisons.
 
@@ -113,7 +112,7 @@ Fixpoint compare_rec (T : ml_type) (h : nat)
   : coq_type T -> coq_type T -> M comparison:=
   if h is h.+1 then
     match T as T return coq_type T -> coq_type T -> M comparison with
-    | ml_int => fun x y => Ret (Int63.compare x y)
+    | ml_int => fun x y => Ret (Sint63.compare x y)
     | ml_bool => fun x y => Ret (Bool.compare x y)
     | ml_pair T1 T2 =>
       fun x y =>
@@ -154,7 +153,7 @@ Fixpoint compare_rec (T : ml_type) (h : nat)
         end
     | ml_ref T1 =>
       fun l1 l2 =>
-        do x <- getref T1 l1; do y <- getref T1 l2; compare_rec T1 h x y
+        do x <- cget T1 l1; do y <- cget T1 l2; compare_rec T1 h x y
     | ml_arrow _ _ => fun _ _ => FailGas
     | ml_empty => fun _ _ => FailGas
     | ml_exn =>
@@ -188,9 +187,9 @@ End comparisons.
 
 Eval compute[ml_eq wrap_compare Bind] in ml_eq.
 
-Definition empty_env := mkEnv 0%int63 nil.
+Definition empty_env := mkEnv nil.
 
-Definition it0 : W unit := (empty_env, inl tt).
+Definition it0 : W unit := inr (inr tt, empty_env).
 
 (*
 #[bypass_check(positivity)]
@@ -209,10 +208,10 @@ Eval cbv in Omega.
 *)
 Definition Omega : M empty :=
   do r : loc (ml_arrow ml_int ml_empty)
-     <- newref (ml_arrow ml_int ml_empty)
-               (fun x => raise ml_empty (Failure M "omega"));
-  let Delta i := do f <- getref _ r; f i in
-  do _ <- setref _ r Delta; Delta 1%int63.
+     <- cnew (ml_arrow ml_int ml_empty)
+             (fun x => raise ml_empty (Failure M "omega"));
+  let Delta i := do f <- cget _ r; f i in
+  do _ <- cput _ r Delta; Delta 1%int63.
 
 Definition Omega_False : M False :=
   do empty <- Omega ;
@@ -222,14 +221,14 @@ Check Omega_False empty_env.
 
 (* Proof of inconsistency *)
 Definition extract [T] def (r : W T) : T :=
-  if snd r is inl x then x else def.
+  if r is inr (inr x, _) then x else def.
 
 Definition trues : M (list bool) :=
-  do r_1 <- newref (ml_arrow ml_bool (ml_list ml_bool)) (fun x => Ret nil);
+  do r_1 <- cnew (ml_arrow ml_bool (ml_list ml_bool)) (fun x => Ret nil);
   let delta _ : M (list bool) :=
     (* produce an infinite stream by breaking the monad *)
-    do f <- getref _ r_1; fun e => Ret (true :: extract nil (f true e)) e in
-  do _ <- setref _ r_1 delta; delta true.
+    do f <- cget _ r_1; fun e => Ret (true :: extract nil (f true e)) e in
+  do _ <- cput _ r_1 delta; delta true.
 
 Lemma infinity : let x := extract nil (trues empty_env) in x = true :: x.
 Proof. done. Qed.
@@ -245,14 +244,14 @@ Fail Transparent andb_prop.
 
 Definition Fix T1 T2 (F : coq_type (ml_arrow (ml_arrow T1 T2) (ml_arrow T1 T2)))
   : M (coq_type (ml_arrow T1 T2)) :=
-  do r <- newref (ml_arrow T1 T2) (fun x => raise T2 (Failure M "Fix"));
-  let f x :=  do f <- getref _ r; f x in
-  do _ <- setref _ r f; Ret f.
+  do r <- cnew (ml_arrow T1 T2) (fun x => raise T2 (Failure M "Fix"));
+  let f x :=  do f <- cget _ r; f x in
+  do _ <- cput _ r f; Ret f.
 
 Definition incr (l : loc ml_int) : M int :=
-  do x <- getref _ l; do _ <- setref _ l (succ x); Ret (succ x).
+  do x <- cget _ l; do _ <- cput _ l (Uint63.succ x); Ret (Uint63.succ x).
 
-Eval compute in (do l <- newref ml_int 3; incr l)%int63 empty_env.
+Eval compute in (do l <- cnew ml_int 3; incr l)%int63 empty_env.
 
 Module Test.
 Set Printing Coercions.
@@ -266,8 +265,8 @@ Section examples.
 Definition nil_1 := Eval vm_compute in
   Restart it0
           ((fun T : ml_type =>
-             do x <- newref (ml_list T) (@nil (coq_type T));
-             getref (ml_list T) x)
+             do x <- cnew (ml_list T) (@nil (coq_type T));
+             cget (ml_list T) x)
              ml_empty).
 Print nil_1.
 
@@ -281,7 +280,8 @@ Print onel.
 Fixpoint fib (h : nat) (n : int) : M int :=
   if h is h.+1 then
     if leb n 1%int63 then Ret 1%int63 else
-    (do x <- fib h (n-1); do y <- fib h (n-2); Ret (x + y))%int63
+    (do x <- fib h (Uint63.pred n); do y <- fib h (Uint63.sub n 2);
+                                    Ret (Uint63.add x y))%int63
   else FailGas.
 
 (* GADTs *)
@@ -299,7 +299,7 @@ Fixpoint eval (T : ml_type) h (e : coq_type (ml_expr T)) : M (coq_type T) :=
     | Int H n => Ret (eq_rect _ _ n _ (esym H))
     | Add H =>
       Ret (eq_rect (ml_arrow ml_int (ml_arrow ml_int ml_int)) coq_type
-                   (fun x => Ret (fun y => Ret (Int63.add x y))) _ (esym H))
+                   (fun x => Ret (fun y => Ret (Uint63.add x y))) _ (esym H))
     | MLtypes.App T2 f x => App (eval _ h f) (eval _ h x)
     end
   else FailGas.
@@ -343,9 +343,10 @@ let rec ack m n =
 Fixpoint ack (h : nat) (m : int) : M (int -> M int) :=
   if h is h.+1 then
     Ret (fun n =>
-           if leb m 0 then Ret (succ n) else
-           if leb n 0 then do f <- ack h (m-1); f 1 else
-           do x <- AppM (ack h m) (n-1); AppM (ack h (m-1)) x)%int63
+           if leb m 0 then Ret (Uint63.succ n) else
+           if leb n 0 then do f <- ack h (Uint63.pred m); f 1 else
+           do x <- AppM (ack h m) (Uint63.pred n);
+           AppM (ack h (Uint63.pred m)) x)%int63
   else FailGas.
 
 Eval native_compute in fib 100 20%int63 empty_env.
@@ -354,16 +355,16 @@ Eval native_compute in (AppM (ack 100000 3%int63) 7%int63) empty_env.
 
 Fixpoint iter_int {T} (h : nat) (n : int) (f : T -> M T) (x : T) :=
   if h is h.+1 then
-    (if leb n 0 then Ret x else do y <- f x; iter_int h (n-1) f y)%int63
+    (if leb n 0 then Ret x else do y <- f x; iter_int h (Uint63.pred n) f y)
   else FailGas.
 
 Definition fib2 h n : M int :=
-  (do l1 : loc ml_int <- newref ml_int 1; do l2 : loc ml_int <- newref ml_int 1;
+  (do l1 : loc ml_int <- cnew ml_int 1; do l2 : loc ml_int <- cnew ml_int 1;
    do _ <- iter_int h n
-     (fun _ => do x <- getref _ l1; do y <- getref _ l2;
-               do _ <- setref _ l1 y; setref _ l2 (x+y))
+     (fun _ => do x <- cget _ l1; do y <- cget _ l2;
+               do _ <- cput _ l1 y; cput _ l2 (Uint63.add x y))
      tt;
-   getref _ l1)%int63.
+   cget _ l1)%int63.
 
 Eval vm_compute in fib2 1001 1000%int63 empty_env.
 

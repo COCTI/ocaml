@@ -1,5 +1,5 @@
-From mathcomp Require Import ssreflect ssrnat seq.
-Require Import PrimInt63 Ascii String Floats cocti_defs.
+From mathcomp Require Import ssreflect ssrnat eqtype seq.
+Require Import PrimInt63 Ascii String Floats coqgen_defs.
 
 (* Generated representation of all ML types *)
 Inductive ml_type :=
@@ -21,6 +21,7 @@ Inductive ml_type :=
   | ml_ref_vals (_ : ml_type)
   | ml_endo (_ : ml_type)
   | ml_option (_ : ml_type)
+  | ml_lazy_val (_ : ml_type)
   | ml_ref (_ : ml_type)
   | ml_arrow (_ : ml_type) (_ : ml_type).
 
@@ -37,9 +38,11 @@ revert T2; induction T1; destruct T2;
     right; injection; intros; contradiction.
 Defined.
 
-Local Definition ml_type := ml_type.
-Record key := mkkey {key_id : int; key_type : ml_type}.
-Variant loc : ml_type -> Type := mkloc : forall k : key, loc (key_type k).
+Definition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).
+Canonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.
+
+Local Definition ml_type := ml_type_eqType.
+Local Notation loc := (@loc ml_type).
 
 Section with_monad.
 Context [M : Type -> Type].
@@ -66,6 +69,11 @@ Inductive ml_exns :=
   | Failure (_ : string)
   | Not_found.
 
+
+Inductive lazy_val (a : Type) :=
+  LzVal of a | LzThunk of M a | LzExn of ml_exns.
+Inductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).
+
 Local (* Generated type translation function *)
 Fixpoint coq_type (T : ml_type) : Type :=
   match T with
@@ -77,7 +85,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_exn => ml_exns
   | ml_array T1 => loc (ml_array_t T1)
   | ml_list T1 => list (coq_type T1)
-  | ml_lazy T1 => lazy_t T1
+  | ml_lazy T1 => lazy_t (coq_type T1) T1
   | ml_string => String.string
   | ml_empty => empty
   | ml_array_t T1 => array_t (coq_type T1)
@@ -87,6 +95,7 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_ref_vals T1 => ref_vals (coq_type T1) T1
   | ml_endo T1 => endo (coq_type T1)
   | ml_option T1 => option (coq_type T1)
+  | ml_lazy_val T1 => lazy_val (coq_type T1)
   | ml_ref T1 => loc T1
   | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
   end.
@@ -100,8 +109,8 @@ Module REFmonadML := REFmonad (MLtypes).
 Export REFmonadML.
 
 Definition coq_type := @MLtypes.coq_type M.
-Definition empty_env := mkEnv 0%int63 nil.
-Definition it : W unit := (empty_env, inl tt).
+Definition empty_env := mkEnv nil.
+Definition it : W unit := inr (inr tt, empty_env).
 
 (* Generated comparison function *)
 Fixpoint compare_rec (h : nat) (T : ml_type)
@@ -133,7 +142,7 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
     | ml_lazy T1 =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     | ml_string => fun x y => Ret (compare_string x y)
     | ml_empty => fun x y => match x with end
     | ml_array_t T1 =>
@@ -191,9 +200,11 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
         | None, _ => Ret Lt
         | _, None => Ret Gt
         end
+    | ml_lazy_val T1 =>
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
     | ml_arrow T1 T2 =>
-      fun x y => Fail (Catchable (Invalid_argument "compare"%string))
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     end
   else fun _ _ => FailGas.
 
@@ -211,35 +222,35 @@ Definition ml_le := wrap_compare (fun c => if c is Gt then false else true).
 
 (* Array operations *)
 Definition newarray T len (x : coq_type T) :=
-  do len <- nat_of_int len; newref (ml_array_t T) (ArrayVal _ (nseq len x)).
+  do len <- nat_of_int len; cnew (ml_array_t T) (ArrayVal _ (nseq len x)).
 Definition getarray T (a : coq_type (ml_array T)) n : M (coq_type T) :=
-  do s <- getref (ml_array_t T) a;
+  do s <- cget (ml_array_t T) a;
   let: ArrayVal s := s in
   do n <- bounded_nat_of_int (seq.size s) n;
   if s is x :: _ then Ret (nth x s n) else
   raise _ (Invalid_argument "getarray").
 Definition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=
-  do s <- getref (ml_array_t T) a;
+  do s <- cget (ml_array_t T) a;
   let: ArrayVal s := s in
   do n <- bounded_nat_of_int (seq.size s) n;
-  setref (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).
+  cput (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).
 
 (* Lazy values *)
 Definition force a (lz : coq_type (ml_lazy a)) :=
   match lz with
   | Lval x => Ret x
   | Lref r =>
-    do r' <- getref (ml_lazy_val a) r;
+    do r' <- cget (ml_lazy_val a) r;
     match r' with
     | LzVal x => Ret x
     | LzExn e => raise _ e
     | LzThunk f => handle _
-        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)
-        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)
+        (do x <- f; do _ <- cput (ml_lazy_val a) r (LzVal _ x); Ret x)
+        (fun e => do _ <- cput _ r (LzExn _ e); raise _ e)
     end
   end.
 Definition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=
-  do x <- newref (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).
+  do x <- cnew (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).
 Definition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=
   Lval _ _ b.
 
@@ -264,7 +275,7 @@ Fixpoint float_sum (h : nat) (l : coq_type (ml_list ml_float))
     end
   else FailGas.
 
-Definition newton's_method (h : nat) (e : coq_type ml_float)
+Definition newton's_method (e : coq_type ml_float)
   (f : coq_type (ml_arrow ml_float ml_float)) : M (coq_type ml_float) :=
   let diff (e_1 : coq_type ml_float)
   (f_1 : coq_type (ml_arrow ml_float ml_float)) (x : coq_type ml_float)
@@ -272,35 +283,35 @@ Definition newton's_method (h : nat) (e : coq_type ml_float)
     do v <-
     (do v <- f_1 x; do v_1 <- f_1 (add%float x e_1); Ret (sub%float v_1 v));
     Ret (div%float v e_1) in
-  do r <- newref ml_float (1.0%float);
+  do r <- cnew ml_float (1.0%float);
   do _ <-
   (do u <- Ret 1%int63;
    do v <- Ret 10%int63;
-   forloop h u v
+   forloop u v
      (fun i =>
         do v <-
         (do v <-
-         (do v <- (do v <- getref ml_float r; diff e f v);
-          do v_1 <- (do v <- getref ml_float r; f v); Ret (div%float v_1 v));
-         do v_1 <- getref ml_float r; Ret (sub%float v_1 v));
-        setref ml_float r v));
-  getref ml_float r.
+         (do v <- (do v <- cget ml_float r; diff e f v);
+          do v_1 <- (do v <- cget ml_float r; f v); Ret (div%float v_1 v));
+         do v_1 <- cget ml_float r; Ret (sub%float v_1 v));
+        cput ml_float r v));
+  cget ml_float r.
 
 Definition fact (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
-  do i <- newref ml_int n;
-  do v <- newref ml_int 1%int63;
+  do i <- cnew ml_int n;
+  do v <- cnew ml_int 1%int63;
   do _ <-
-  whileloop h (do v_1 <- getref ml_int i; ml_gt h ml_int v_1 0%int63)
+  whileloop h (do v_1 <- cget ml_int i; ml_gt h ml_int v_1 0%int63)
     (do _ <-
      (do v_1 <-
-      (do v_1 <- getref ml_int i;
-       do v_2 <- getref ml_int v; Ret (PrimInt63.mul v_2 v_1));
-      setref ml_int v v_1);
-     do v_1 <- (do v_1 <- getref ml_int i; Ret (PrimInt63.sub v_1 1%int63));
-     setref ml_int i v_1);
-  getref ml_int v.
+      (do v_1 <- cget ml_int i;
+       do v_2 <- cget ml_int v; Ret (PrimInt63.mul v_2 v_1));
+      cput ml_int v v_1);
+     do v_1 <- (do v_1 <- cget ml_int i; Ret (PrimInt63.sub v_1 1%int63));
+     cput ml_int i v_1);
+  cget ml_int v.
 
-Definition ref' (T : ml_type) := newref T.
+Definition ref' (T : ml_type) := cnew T.
 
 Definition foo1 (T : ml_type) (x : coq_type T) : M (coq_type T) :=
   let id (T_1 : ml_type) (y : coq_type T_1) : coq_type T_1 := y in
@@ -318,18 +329,18 @@ Definition foo3 (x : coq_type ml_int)
   id (ml_arrow ml_int (ml_arrow ml_int ml_int)) (fun x_1 => Ret (foo2 x_1)) x.
 
 Definition incr (r : coq_type (ml_ref ml_int)) : M (coq_type ml_unit) :=
-  do x <- getref ml_int r; setref ml_int r (PrimInt63.add x 1%int63).
+  do x <- cget ml_int r; cput ml_int r (PrimInt63.add x 1%int63).
 
 Definition it_1 := Eval compute in
-  Restart it (do r <- newref ml_int 1%int63; incr r).
+  Restart it (do r <- cnew ml_int 1%int63; incr r).
 Print it_1.
 Definition lazy_counter (c : coq_type (ml_ref ml_int))
   : M (coq_type (ml_lazy ml_int)) :=
-  make_lazy ml_int (do _ <- incr c; getref ml_int c).
+  make_lazy ml_int (do _ <- incr c; cget ml_int c).
 
 Definition it_2 := Eval compute in
   Restart it_1
-    (do c <- newref ml_int 0%int63;
+    (do c <- cnew ml_int 0%int63;
      do m <- lazy_counter c;
      do n <- lazy_counter c;
      do n_1 <- force ml_int n;
@@ -337,13 +348,13 @@ Definition it_2 := Eval compute in
 Print it_2.
 Definition it_3 := Eval compute in
   Restart it_2
-    (do x <- newref (ml_list ml_empty) (@nil (coq_type ml_empty));
-     getref (ml_list ml_empty) x).
+    (do x <- cnew (ml_list ml_empty) (@nil (coq_type ml_empty));
+     cget (ml_list ml_empty) x).
 Print it_3.
 Definition nil_1 :=
   Restart it_3
     ((fun T : ml_type =>
-        do x <- newref (ml_list T) (@nil (coq_type T)); getref (ml_list T) x)
+        do x <- cnew (ml_list T) (@nil (coq_type T)); cget (ml_list T) x)
        ml_empty).
 
 Fixpoint loop (h : nat) (T T_1 : ml_type) (h_1 : coq_type T_1)
@@ -404,8 +415,7 @@ Definition it_7 := Eval compute in
           Ret (PrimInt63.add x 1%int63 : coq_type ml_int))
        (3%int63 :: 2%int63 :: 1%int63 :: @nil (coq_type ml_int))).
 Print it_7.
-Definition one :=
-  Restart it_7 (do r <- newref ml_int 1%int63; getref ml_int r).
+Definition one := Restart it_7 (do r <- cnew ml_int 1%int63; cget ml_int r).
 
 Fixpoint map3 (h : nat) (T : ml_type) (f : coq_type (ml_arrow T ml_int))
   (param : coq_type (ml_list T)) : M (coq_type (ml_list ml_int)) :=
@@ -469,16 +479,16 @@ Fixpoint iter_int (h : nat) (T : ml_type) (n : coq_type ml_int)
   else FailGas.
 
 Definition fib2 (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
-  do l1 <- newref ml_int 1%int63;
-  do l2 <- newref ml_int 1%int63;
+  do l1 <- cnew ml_int 1%int63;
+  do l2 <- cnew ml_int 1%int63;
   do _ <-
   iter_int h ml_unit n
     (fun _ =>
-       do x <- getref ml_int l1;
-       do y <- getref ml_int l2;
-       do _ <- setref ml_int l1 y; setref ml_int l2 (PrimInt63.add x y))
+       do x <- cget ml_int l1;
+       do y <- cget ml_int l2;
+       do _ <- cput ml_int l1 y; cput ml_int l2 (PrimInt63.add x y))
     tt;
-  getref ml_int l1.
+  cget ml_int l1.
 
 Definition it_12 := Eval compute in Restart it_11 (fib2 h 1000%int63).
 Print it_12.
@@ -494,20 +504,20 @@ Fixpoint iota (h : nat) (m n : coq_type ml_int)
 Definition it_13 := Eval compute in Restart it_12 (iota h 1%int63 10%int63).
 Print it_13.
 Definition r :=
-  Restart it_13 (newref (ml_list ml_int) (3%int63 :: @nil (coq_type ml_int))).
+  Restart it_13 (cnew (ml_list ml_int) (3%int63 :: @nil (coq_type ml_int))).
 
 Definition z :=
   Restart r
     (do r <- FromW r;
      do _ <-
      (do v <-
-      (do v <- getref (ml_list ml_int) r;
+      (do v <- cget (ml_list ml_int) r;
        Ret (@cons (coq_type ml_int) 1%int63 v));
-      setref (ml_list ml_int) r v);
-     getref (ml_list ml_int) r).
+      cput (ml_list ml_int) r v);
+     cget (ml_list ml_int) r).
 
 Definition it_14 := Eval compute in
-  Restart z (do r <- FromW r; getref (ml_list ml_int) r).
+  Restart z (do r <- FromW r; cget (ml_list ml_int) r).
 Print it_14.
 Definition z' := Restart it_14 (do z <- FromW z; Ret z).
 
@@ -517,10 +527,10 @@ Definition it_15 := Eval compute in
      let r_1 := r in
      do _ <-
      (do v <-
-      (do v <- getref (ml_list ml_int) r_1;
+      (do v <- cget (ml_list ml_int) r_1;
        Ret (@cons (coq_type ml_int) 1%int63 v));
-      setref (ml_list ml_int) r_1 v);
-     getref (ml_list ml_int) r_1).
+      cput (ml_list ml_int) r_1 v);
+     cget (ml_list ml_int) r_1).
 Print it_15.
 Definition f (v : coq_type ml_unit) :=
   do z' <- FromW z';
@@ -543,14 +553,14 @@ Definition double_r (v : coq_type ml_unit) : M (coq_type ml_unit) :=
   match v with
   | tt =>
     do v_1 <-
-    (do v_1 <- getref (ml_list ml_int) r;
+    (do v_1 <- cget (ml_list ml_int) r;
      Ret (@cons (coq_type ml_int) 4%int63 v_1));
-    setref (ml_list ml_int) r v_1
+    cput (ml_list ml_int) r v_1
   end.
 
 Definition it_16 := Eval compute in
   Restart it_15
-    (do r <- FromW r; do _ <- double_r tt; getref (ml_list ml_int) r).
+    (do r <- FromW r; do _ <- double_r tt; cget (ml_list ml_int) r).
 Print it_16.
 Fixpoint mccarthy_m (h : nat) (n : coq_type ml_int) : M (coq_type ml_int) :=
   if h is h.+1 then
@@ -601,19 +611,18 @@ Definition it_22 := Eval compute in
        (fun v => if v is Restart_1 f_1 then f_1 tt else raise ml_int v)).
 Print it_22.
 Definition omega (T : ml_type) (n : coq_type T) : M (coq_type T) :=
-  do r_1 <-
-  newref (ml_arrow T T) (fun x : coq_type T => Ret (x : coq_type T));
+  do r_1 <- cnew (ml_arrow T T) (fun x : coq_type T => Ret (x : coq_type T));
   let delta (i : coq_type T) : M (coq_type T) :=
-    AppM (getref (ml_arrow T T) r_1) i in
-  do _ <- setref (ml_arrow T T) r_1 delta; delta n.
+    AppM (cget (ml_arrow T T) r_1) i in
+  do _ <- cput (ml_arrow T T) r_1 delta; delta n.
 
 Definition fixpt (h : nat) (T T_1 : ml_type)
   (f_1 : coq_type (ml_arrow (ml_arrow T_1 T) (ml_arrow T_1 T)))
   : M (coq_type (ml_arrow T_1 T)) :=
-  do r_1 <- newref (ml_arrow T_1 T) (fun x : coq_type T_1 => loop h T T_1 x);
+  do r_1 <- cnew (ml_arrow T_1 T) (fun x : coq_type T_1 => loop h T T_1 x);
   let delta (i : coq_type T_1) : M (coq_type T) :=
-    do v <- getref (ml_arrow T_1 T) r_1; AppM (f_1 v) i in
-  do _ <- setref (ml_arrow T_1 T) r_1 delta; Ret delta.
+    do v <- cget (ml_arrow T_1 T) r_1; AppM (f_1 v) i in
+  do _ <- cput (ml_arrow T_1 T) r_1 delta; Ret delta.
 
 Definition fib_1 :=
   Restart it_22

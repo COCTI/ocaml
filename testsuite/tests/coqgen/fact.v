@@ -15,10 +15,6 @@ Inductive ml_type :=
   | ml_string
   | ml_empty
   | ml_array_t (_ : ml_type)
-  | ml_t
-  | ml_t0
-  | ml_t1
-  | ml_t2
   | ml_lazy_val (_ : ml_type)
   | ml_ref (_ : ml_type)
   | ml_arrow (_ : ml_type) (_ : ml_type).
@@ -47,15 +43,9 @@ Context [M : Type -> Type].
 
 (* Generated type definitions *)
 Inductive ml_exns :=
-  | T (_ : t)
   | Invalid_argument (_ : string)
   | Failure (_ : string)
-  | Not_found
-with t := E (_ : ml_exns).
-
-Inductive t2 := T0 (_ : t0)
-with t0 := | O | T1_1 (_ : t1)
-with t1 := T2_1 (_ : t2).
+  | Not_found.
 
 
 Inductive lazy_val (a : Type) :=
@@ -77,10 +67,6 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_string => String.string
   | ml_empty => empty
   | ml_array_t T1 => array_t (coq_type T1)
-  | ml_t => t
-  | ml_t0 => t0
-  | ml_t1 => t1
-  | ml_t2 => t2
   | ml_lazy_val T1 => lazy_val (coq_type T1)
   | ml_ref T1 => loc T1
   | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
@@ -113,14 +99,11 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
       fun x y =>
         match x, y with
         | Not_found, Not_found => Ret Eq
-        | T x1, T y1 => compare_rec ml_t x1 y1
         | Invalid_argument x1, Invalid_argument y1 =>
           compare_rec ml_string x1 y1
         | Failure x1, Failure y1 => compare_rec ml_string x1 y1
         | Not_found, _ => Ret Lt
         | _, Not_found => Ret Gt
-        | T _, _ => Ret Lt
-        | _, T _ => Ret Gt
         | Invalid_argument _, _ => Ret Lt
         | _, Invalid_argument _ => Ret Gt
         end
@@ -135,22 +118,6 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
         match x, y with
         | ArrayVal x1, ArrayVal y1 => compare_rec (ml_list T1) x1 y1
         end
-    | ml_t =>
-      fun x y => match x, y with | E x1, E y1 => compare_rec ml_exn x1 y1 end
-    | ml_t0 =>
-      fun x y =>
-        match x, y with
-        | O, O => Ret Eq
-        | T1_1 x1, T1_1 y1 => compare_rec ml_t1 x1 y1
-        | O, _ => Ret Lt
-        | _, O => Ret Gt
-        end
-    | ml_t1 =>
-      fun x y =>
-        match x, y with | T2_1 x1, T2_1 y1 => compare_rec ml_t2 x1 y1 end
-    | ml_t2 =>
-      fun x y =>
-        match x, y with | T0 x1, T0 y1 => compare_rec ml_t0 x1 y1 end
     | ml_lazy_val T1 =>
       fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
@@ -210,63 +177,6 @@ Definition h := 100000.
 
 (* Translated code *)
 
-Definition x := T0 O.
-
-Eval compute in T2_1 x.
-
-Definition failwith (T_1 : ml_type) (s : coq_type ml_string)
-  : M (coq_type T_1) := raise T_1 (Failure s).
-
-Fixpoint length_aux (h : nat) (T_1 : ml_type) (len : coq_type ml_int)
-  (param : coq_type (ml_list T_1)) : M (coq_type ml_int) :=
-  if h is h.+1 then
-    match param with
-    | @nil _ => Ret len
-    | _ :: l => length_aux h T_1 (PrimInt63.add len 1%int63) l
-    end
-  else FailGas.
-
-Definition length (h : nat) (T_1 : ml_type) (l : coq_type (ml_list T_1))
-  : M (coq_type ml_int) := length_aux h T_1 0%int63 l.
-
-Definition cons_1 (T_1 : ml_type) (a : coq_type T_1)
-  (l : coq_type (ml_list T_1)) : coq_type (ml_list T_1) := a :: l.
-
-Definition hd (T_1 : ml_type) (param : coq_type (ml_list T_1))
-  : M (coq_type T_1) :=
-  match param with | @nil _ => failwith T_1 "hd"%string | a :: _ => Ret a end.
-
-Fixpoint insert (h : nat) (T_1 : ml_type) (a : coq_type T_1)
-  (l : coq_type (ml_list T_1)) : M (coq_type (ml_list T_1)) :=
-  if h is h.+1 then
-    match l with
-    | @nil _ => Ret (a :: @nil (coq_type T_1))
-    | b :: l' =>
-      do v <- ml_le h T_1 a b;
-      if v then Ret (a :: l) else
-        do v <- insert h T_1 a l'; Ret (@cons (coq_type T_1) b v)
-    end
-  else FailGas.
-
-Definition l :=
-  Restart it
-    (insert h ml_int 3%int63
-       (1%int63 :: 2%int63 :: 4%int63 :: @nil (coq_type ml_int))).
-
-Fixpoint isort (h : nat) (T_1 : ml_type) (l_1 : coq_type (ml_list T_1))
-  : M (coq_type (ml_list T_1)) :=
-  if h is h.+1 then
-    match l_1 with
-    | @nil _ => Ret (@nil (coq_type T_1))
-    | a :: l' => do v <- isort h T_1 l'; insert h T_1 a v
-    end
-  else FailGas.
-
-Fixpoint gcd (h : nat) (m n : coq_type ml_int) : M (coq_type ml_int) :=
-  if h is h.+1 then
-    do v <- ml_eq h ml_int m 0%int63; if v then Ret n else gcd h (mods n m) m
-  else FailGas.
-
 Definition fact_for63 (n : coq_type ml_int) : M (coq_type ml_int) :=
   do v <- cnew ml_int 1%int63;
   do _ <-
@@ -278,3 +188,5 @@ Definition fact_for63 (n : coq_type ml_int) : M (coq_type ml_int) :=
         cput ml_int v v_1));
   cget ml_int v.
 
+Definition it_1 := Eval compute in Restart it (fact_for63 10%int63).
+Print it_1.
