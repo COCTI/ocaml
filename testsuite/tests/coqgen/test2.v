@@ -250,3 +250,29 @@ Definition l :=
     (insert h ml_int 3%int63
        (1%int63 :: 2%int63 :: 4%int63 :: @nil (coq_type ml_int))).
 
+Fixpoint isort (h : nat) (T_1 : ml_type) (l_1 : coq_type (ml_list T_1))
+  : M (coq_type (ml_list T_1)) :=
+  if h is h.+1 then
+    match l_1 with
+    | @nil _ => Ret (@nil (coq_type T_1))
+    | a :: l' => do v <- isort h T_1 l'; insert h T_1 a v
+    end
+  else FailGas.
+
+Fixpoint gcd (h : nat) (m n : coq_type ml_int) : M (coq_type ml_int) :=
+  if h is h.+1 then
+    do v <- ml_eq h ml_int m 0%int63; if v then Ret n else gcd h (mods n m) m
+  else FailGas.
+
+Definition fact_for63 (h : nat) (n : coq_type ml_int)
+  : M (coq_type ml_int) :=
+  do v <- cnew ml_int 1%int63;
+  do _ <-
+  (do u <- Ret 1%int63;
+   do v_1 <- Ret n;
+   forloop h u v_1
+     (fun i =>
+        do v_1 <- (do v_1 <- cget ml_int v; Ret (PrimInt63.mul v_1 i));
+        cput ml_int v v_1));
+  cget ml_int v.
+

@@ -34,6 +34,23 @@ let rec insert a l =
 
 let l = insert 3 [1;2;4]
 
+let rec isort l =
+  match l with
+  | [] -> []
+  | a :: l' -> insert a (isort l')
+;;
+
+let rec gcd m n =
+  if m = 0 then n else gcd (n mod m) m;;
+
+(* fact by forloop *)
+let fact_for63 n =
+  let v = ref 1 in
+  for i = 1 to n do
+    v := !v * i
+  done;
+  !v;;
+
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.
