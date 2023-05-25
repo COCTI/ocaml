@@ -170,35 +170,35 @@ Definition ml_le := wrap_compare (fun c => if c is Gt then false else true).
 
 (* Array operations *)
 Definition newarray T len (x : coq_type T) :=
-  do len <- nat_of_int len; newref (ml_array_t T) (ArrayVal _ (nseq len x)).
+  do len <- nat_of_int len; cnew (ml_array_t T) (ArrayVal _ (nseq len x)).
 Definition getarray T (a : coq_type (ml_array T)) n : M (coq_type T) :=
-  do s <- getref (ml_array_t T) a;
+  do s <- cget (ml_array_t T) a;
   let: ArrayVal s := s in
   do n <- bounded_nat_of_int (seq.size s) n;
   if s is x :: _ then Ret (nth x s n) else
   raise _ (Invalid_argument "getarray").
 Definition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=
-  do s <- getref (ml_array_t T) a;
+  do s <- cget (ml_array_t T) a;
   let: ArrayVal s := s in
   do n <- bounded_nat_of_int (seq.size s) n;
-  setref (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).
+  cput (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).
 
 (* Lazy values *)
 Definition force a (lz : coq_type (ml_lazy a)) :=
   match lz with
   | Lval x => Ret x
   | Lref r =>
-    do r' <- getref (ml_lazy_val a) r;
+    do r' <- cget (ml_lazy_val a) r;
     match r' with
     | LzVal x => Ret x
     | LzExn e => raise _ e
     | LzThunk f => handle _
-        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)
-        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)
+        (do x <- f; do _ <- cput (ml_lazy_val a) r (LzVal _ x); Ret x)
+        (fun e => do _ <- cput _ r (LzExn _ e); raise _ e)
     end
   end.
 Definition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=
-  do x <- newref (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).
+  do x <- cnew (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).
 Definition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=
   Lval _ _ b.
 

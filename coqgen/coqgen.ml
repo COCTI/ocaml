@@ -243,34 +243,34 @@ let transl_implementation _modname st =
 \n" ::
   CTverbatim "(* Array operations *)\
 \nDefinition newarray T len (x : coq_type T) :=\
-\n  do len <- nat_of_int len; newref (ml_array_t T) (ArrayVal _ (nseq len x)).\
+\n  do len <- nat_of_int len; cnew (ml_array_t T) (ArrayVal _ (nseq len x)).\
 \nDefinition getarray T (a : coq_type (ml_array T)) n : M (coq_type T) :=\
-\n  do s <- getref (ml_array_t T) a;\
+\n  do s <- cget (ml_array_t T) a;\
 \n  let: ArrayVal s := s in\
 \n  do n <- bounded_nat_of_int (seq.size s) n;\
 \n  if s is x :: _ then Ret (nth x s n) else\
 \n  raise _ (Invalid_argument \"getarray\").\
 \nDefinition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=\
-\n  do s <- getref (ml_array_t T) a;\
+\n  do s <- cget (ml_array_t T) a;\
 \n  let: ArrayVal s := s in\
 \n  do n <- bounded_nat_of_int (seq.size s) n;\
-\n  setref (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).\
+\n  cput (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).\
 \n\n(* Lazy values *)\
 \nDefinition force a (lz : coq_type (ml_lazy a)) :=\
 \n  match lz with\
 \n  | Lval x => Ret x\
 \n  | Lref r =>\
-\n    do r' <- getref (ml_lazy_val a) r;\
+\n    do r' <- cget (ml_lazy_val a) r;\
 \n    match r' with\
 \n    | LzVal x => Ret x\
 \n    | LzExn e => raise _ e\
 \n    | LzThunk f => handle _\
-\n        (do x <- f; do _ <- setref (ml_lazy_val a) r (LzVal _ x); Ret x)\
-\n        (fun e => do _ <- setref _ r (LzExn _ e); raise _ e)\
+\n        (do x <- f; do _ <- cput (ml_lazy_val a) r (LzVal _ x); Ret x)\
+\n        (fun e => do _ <- cput _ r (LzExn _ e); raise _ e)\
 \n    end\
 \n  end.\
 \nDefinition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=\
-\n  do x <- newref (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).\
+\n  do x <- cnew (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).\
 \nDefinition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=\
 \n  Lval _ _ b.\
 \n\n(* Default amount of gas *)\

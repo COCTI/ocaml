@@ -145,21 +145,21 @@ let init_term_map vars =
      ce_purary = 1});
    (["ref"],
     let tv = newgenvar () in
-    {ce_name = "newref";
+    {ce_name = "cnew";
      ce_type = newgenarrow tv (newgenconstr stdlib_ref [tv]);
      ce_vars = [tv];
      ce_rec = Nonrecursive;
      ce_purary = 1});
    (["!"],
     let tv = newgenvar () in
-    {ce_name = "getref";
+    {ce_name = "cget";
      ce_type = newgenarrow (newgenconstr stdlib_ref [tv]) tv;
      ce_vars = [tv];
      ce_rec = Nonrecursive;
      ce_purary = 1});
    ([":="],
     let tv = newgenvar () in
-    {ce_name = "setref";
+    {ce_name = "cput";
      ce_type = newgenarrow (newgenconstr stdlib_ref [tv])
        (newgenarrow tv Predef.type_unit);
      ce_vars = [tv];

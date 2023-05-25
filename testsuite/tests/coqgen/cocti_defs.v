@@ -105,7 +105,7 @@ Section monadic_operations.
 Let coq_type := coq_type M.
 Let binding := binding M.
 
-Definition newref T (v : coq_type T) : M (loc T) :=
+Definition cnew T (v : coq_type T) : M (loc T) :=
   fun st =>
     let: mkEnv st := st in
     let n := size st in
@@ -120,14 +120,14 @@ Definition coerce T1 T2 (v : coq_type T1) : option (coq_type T2) :=
 Local Notation nth_error := List.nth_error.
 Definition loc_id {T} (l : loc T) := let: mkloc _ n := l in n.
 
-Definition getref T (r : loc T) : M (coq_type T) :=
+Definition cget T (r : loc T) : M (coq_type T) :=
   fun st =>
     let: mkEnv bs := st in
     if nth_error bs (loc_id r) is Some (mkbind T' v) then
       if coerce _ T v is Some u then inr (inr u, st) else inl tt
     else inl tt.
 
-Definition setref T (r : loc T) (v : coq_type T) : M unit :=
+Definition cput T (r : loc T) (v : coq_type T) : M unit :=
   fun st =>
     let: mkEnv st := st in
     let n := loc_id r in
@@ -169,7 +169,7 @@ Fixpoint compare_list T (l1 l2 : list (coq_type T)) : M comparison :=
 Variable T : ml_type.
 
 Definition compare_ref T (r1 r2 : loc T) :=
-  do x <- getref T r1; do y <- getref T r2; compare_rec T x y.
+  do x <- cget T r1; do y <- cget T r2; compare_rec T x y.
 End Comparison.
 
 Definition nat_of_int (n : int) : M nat :=
