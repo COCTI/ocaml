@@ -183,17 +183,20 @@ Definition bounded_nat_of_int (m : nat) (n : int) : M nat :=
   do n <- nat_of_int n;
   if n < m then Ret n else Raise BoundedNat.
 
-Fixpoint forloop (h : nat) (n_1 n_2 : int) (b : int -> M unit) : M unit :=
-  if h is h.+1 then
-    if Sint63.compare n_1 n_2 is Gt then Ret tt
-    else (do _ <- b n_1; forloop h (PrimInt63.add n_1 1) n_2 b)
-  else FailGas.
+Definition uint2N (n : int) : nat :=
+  if Uint63.to_Z n is Zpos pos then Pos.to_nat pos else 0.
+
+Definition forloop (n_1 n_2 : int) (b : int -> M unit) : M unit :=
+  if Sint63.ltb n_2 n_1 then Ret tt else
+  ssrnat.iter (uint2N (PrimInt63.sub n_2 n_1)).+1
+    (fun (m : M int) => do i <- m; do _ <- b i; Ret (Uint63.succ i))
+    (Ret n_1) >> Ret tt.
 
 Fixpoint downforloop (h : nat) (n_1 n_2 : int ) (b : int -> M unit) : M unit :=
-  if h is h.+1 then
-    if Sint63.compare n_1 n_2 is Lt then Ret tt
-    else (do _ <- b n_1; downforloop h (PrimInt63.sub n_1 1) n_2 b)
-  else FailGas.
+  if Sint63.ltb n_1 n_2 then Ret tt else
+  ssrnat.iter (uint2N (PrimInt63.sub n_1 n_2)).+1
+    (fun (m : M int) => do i <- m; do _ <- b i; Ret (Uint63.pred i))
+    (Ret n_1) >> Ret tt.
 
 Fixpoint whileloop (h : nat) (f : M bool) (b : M unit) : M unit :=
   if h is h.+1 then

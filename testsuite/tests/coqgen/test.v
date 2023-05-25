@@ -272,7 +272,7 @@ Fixpoint float_sum (h : nat) (l : coq_type (ml_list ml_float))
     end
   else FailGas.
 
-Definition newton's_method (h : nat) (e : coq_type ml_float)
+Definition newton's_method (e : coq_type ml_float)
   (f : coq_type (ml_arrow ml_float ml_float)) : M (coq_type ml_float) :=
   let diff (e_1 : coq_type ml_float)
   (f_1 : coq_type (ml_arrow ml_float ml_float)) (x : coq_type ml_float)
@@ -284,7 +284,7 @@ Definition newton's_method (h : nat) (e : coq_type ml_float)
   do _ <-
   (do u <- Ret 1%int63;
    do v <- Ret 10%int63;
-   forloop h u v
+   forloop u v
      (fun i =>
         do v <-
         (do v <-
