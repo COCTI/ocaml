@@ -418,3 +418,20 @@ Error: The type abbreviation cycle is cyclic:
          cycle = cycle id,
          cycle id = cycle
 |}]
+
+(* Check vanishing constraints *)
+type 'a t = [`Foo]
+type 'a cstr constraint 'a = float
+[%%expect{|
+type 'a t = [ `Foo ]
+type 'a cstr constraint 'a = float
+|}]
+
+type s = int
+and r = [s cstr t | `Bar]
+[%%expect{|
+Line 2, characters 9-10:
+2 | and r = [s cstr t | `Bar]
+             ^
+Error: This type s = int should be an instance of type float
+|}]

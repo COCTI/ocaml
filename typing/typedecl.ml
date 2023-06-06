@@ -1153,6 +1153,17 @@ let transl_type_decl env rec_flag sdecl_list =
   let final_env = add_types_to_env decls env in
   (* Check re-exportation *)
   List.iter2 (check_abbrev final_env) sdecl_list decls;
+  (* Check syntactic definitions again using final_env *)
+  if rec_flag = Asttypes.Recursive then
+    Warnings.without_warnings begin fun () ->
+      (* Avoid interfering with "type not used" warnings *)
+      let nouid_decls =
+        List.map (fun (id, decl) ->
+          id, {decl with type_uid = Uid.internal_not_actually_unique})
+          decls in
+      let nochk_env = add_types_to_env nouid_decls env in
+      ignore (List.map2 (transl_declaration nochk_env) sdecl_list ids_list)
+    end;
   (* Keep original declaration *)
   let final_decls =
     List.map2
