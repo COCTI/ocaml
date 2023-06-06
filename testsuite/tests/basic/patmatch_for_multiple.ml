@@ -223,14 +223,14 @@ let _ =fun a b -> match a, b with
 | (_, _) as p -> p
 (* outside, tuplist *)
 [%%expect {|
-(function a/351[int] b/352
+(function a/353[int] b/354
   (catch
-    (if a/351 (if b/352 (let (p/353 =a (field_imm 0 b/352)) p/353) (exit 12))
+    (if a/353 (if b/354 (let (p/355 =a (field_imm 0 b/354)) p/355) (exit 12))
       (exit 12))
-   with (12) (let (p/354 =a (makeblock 0 a/351 b/352)) p/354)))
-(function a/351[int] b/352
-  (catch (if a/351 (if b/352 (field_imm 0 b/352) (exit 12)) (exit 12))
-   with (12) (makeblock 0 a/351 b/352)))
+   with (12) (let (p/356 =a (makeblock 0 a/353 b/354)) p/356)))
+(function a/353[int] b/354
+  (catch (if a/353 (if b/354 (field_imm 0 b/354) (exit 12)) (exit 12))
+   with (12) (makeblock 0 a/353 b/354)))
 - : bool -> bool tuplist -> bool * bool tuplist = <fun>
 |}]
 
@@ -239,20 +239,20 @@ let _ = fun a b -> match a, b with
 | ((_, _) as p) -> p
 (* inside, tuplist *)
 [%%expect{|
-(function a/355[int] b/356
+(function a/357[int] b/358
   (catch
     (catch
-      (if a/355
-        (if b/356 (let (p/360 =a (field_imm 0 b/356)) (exit 13 p/360))
+      (if a/357
+        (if b/358 (let (p/362 =a (field_imm 0 b/358)) (exit 13 p/362))
           (exit 14))
         (exit 14))
-     with (14) (let (p/359 =a (makeblock 0 a/355 b/356)) (exit 13 p/359)))
-   with (13 p/357) p/357))
-(function a/355[int] b/356
+     with (14) (let (p/361 =a (makeblock 0 a/357 b/358)) (exit 13 p/361)))
+   with (13 p/359) p/359))
+(function a/357[int] b/358
   (catch
     (catch
-      (if a/355 (if b/356 (exit 13 (field_imm 0 b/356)) (exit 14)) (exit 14))
-     with (14) (exit 13 (makeblock 0 a/355 b/356)))
-   with (13 p/357) p/357))
+      (if a/357 (if b/358 (exit 13 (field_imm 0 b/358)) (exit 14)) (exit 14))
+     with (14) (exit 13 (makeblock 0 a/357 b/358)))
+   with (13 p/359) p/359))
 - : bool -> bool tuplist -> bool * bool tuplist = <fun>
 |}]
