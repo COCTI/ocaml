@@ -2439,9 +2439,16 @@ let warn_on_missing_def env ppf t =
       try
         ignore(Env.find_type p env : Types.type_declaration)
       with Not_found ->
-        fprintf ppf
-          "@,@[%a is abstract because no corresponding cmi file was found \
-           in path.@]" (Style.as_inline_code path) p
+        match p with
+        | Path.Pident _ ->
+            fprintf ppf
+              "@,@[Type %a was considered abstract when checking constraints@ \
+               in this recursive type definition.@]"
+              (Style.as_inline_code path) p
+        | _ ->
+            fprintf ppf
+              "@,@[Type %a is abstract because no corresponding cmi file@ \
+               was found in path.@]" (Style.as_inline_code path) p
     end
   | _ -> ()
 
