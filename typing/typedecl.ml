@@ -43,7 +43,8 @@ type error =
   | Recursive_abbrev of string * Env.t * reaching_type_path
   | Cycle_in_def of string * Env.t * reaching_type_path
   | Definition_mismatch of type_expr * Env.t * Includecore.type_mismatch option
-  | Constraint_failed of Env.t * Errortrace.unification_error
+  | Constraint_failed of
+      Env.t * Printtyp.env_kind * Errortrace.unification_error
   | Inconsistent_constraint of Env.t * Errortrace.unification_error
   | Type_clash of Env.t * Errortrace.unification_error
   | Non_regular of {
@@ -291,7 +292,8 @@ let make_constructor env loc type_path type_params svars sargs sret_type =
               in
               raise (Error(sret_type.ptyp_loc,
                            Constraint_failed(
-                           env, Errortrace.unification_error ~trace)))
+                           env, Normal_env,
+                           Errortrace.unification_error ~trace)))
           end;
           (targs, tret_type, args, ret_type, univar_list)
         end
@@ -515,7 +517,7 @@ let rec check_constraints_rec env loc visited ty =
            twice.  This is generally true for constraint errors. *)
         try Ctype.matches ~expand_error_trace:false env ty ty'
         with Ctype.Matches_failure (env, err) ->
-          raise (Error(loc, Constraint_failed (env, err)))
+          raise (Error(loc, Constraint_failed (env, Normal_env, err)))
       end;
       List.iter (check_constraints_rec env loc visited) args
   | Tpoly (ty, tl) ->
@@ -928,7 +930,12 @@ let check_regularity ~orig_env env loc path decl to_check =
               begin
                 try List.iter2 (Ctype.unify orig_env) args' params
                 with Ctype.Unify err ->
-                  raise (Error(loc, Constraint_failed (orig_env, err)));
+                  raise (Error(loc, Constraint_failed
+                                 (orig_env,
+                                  Abstract_env
+                                    "checking constraints in this \
+                                     recursive type definition",
+                                  err)));
               end;
               check_regular path' args
                 (path' :: prev_exp) (Expands_to (ty,body) :: trace)
@@ -1937,9 +1944,9 @@ let report_error ppf = function
         (Includecore.report_type_mismatch
            "the original" "this" "definition" env)
         err
-  | Constraint_failed (env, err) ->
+  | Constraint_failed (env, env_kind, err) ->
       fprintf ppf "@[<v>Constraints are not satisfied in this type.@ ";
-      Printtyp.report_unification_error ppf env err
+      Printtyp.report_unification_error ppf env ~env_kind err
         (fun ppf -> fprintf ppf "Type")
         (fun ppf -> fprintf ppf "should be an instance of");
       fprintf ppf "@]"

@@ -2432,19 +2432,20 @@ let explain mis ppf =
   | None -> ()
   | Some explain -> explain ppf
 
-let warn_on_missing_def env ppf t =
+type env_kind = Normal_env | Abstract_env of string
+
+let warn_on_missing_def env ~env_kind ppf t =
   match get_desc t with
   | Tconstr (p,_,_) ->
     begin
       try
         ignore(Env.find_type p env : Types.type_declaration)
       with Not_found ->
-        match p with
-        | Path.Pident _ ->
+        match p, env_kind with
+        | Path.Pident _, Abstract_env where ->
             fprintf ppf
-              "@,@[Type %a was considered abstract when checking constraints@ \
-               in this recursive type definition.@]"
-              (Style.as_inline_code path) p
+              "@,@[Type %a was considered abstract when@ %s.@]"
+              (Style.as_inline_code path) p where
         | _ ->
             fprintf ppf
               "@,@[Type %a is abstract because no corresponding cmi file@ \
@@ -2465,15 +2466,16 @@ let head_error_printer mode txt_got txt_but = function
         txt_got type_expansion d.Errortrace.got
         txt_but type_expansion d.Errortrace.expected
 
-let warn_on_missing_defs env ppf = function
+let warn_on_missing_defs env ~env_kind ppf = function
   | None -> ()
   | Some Errortrace.{got      = {ty=te1; expanded=_};
                      expected = {ty=te2; expanded=_} } ->
-      warn_on_missing_def env ppf te1;
-      warn_on_missing_def env ppf te2
+      warn_on_missing_def env ~env_kind ppf te1;
+      warn_on_missing_def env ~env_kind ppf te2
 
 (* [subst] comes out of equality, and is [[]] otherwise *)
-let error trace_format mode subst env tr txt1 ppf txt2 ty_expect_explanation =
+let error trace_format mode subst env ~env_kind tr txt1 ppf txt2
+    ty_expect_explanation =
   reset ();
   (* We want to substitute in the opposite order from [Eqtype] *)
   Names.add_subst (List.map (fun (ty1,ty2) -> ty2,ty1) subst);
@@ -2503,7 +2505,7 @@ let error trace_format mode subst env tr txt1 ppf txt2 ty_expect_explanation =
         (trace false (incompatibility_phrase trace_format)) tr
         (explain mis);
       if env <> Env.empty
-      then warn_on_missing_defs env ppf head;
+      then warn_on_missing_defs env ~env_kind ppf head;
       Conflicts.print_explanations ppf;
       print_labels := true
     with exn ->
@@ -2511,11 +2513,12 @@ let error trace_format mode subst env tr txt1 ppf txt2 ty_expect_explanation =
       raise exn
 
 let report_error trace_format ppf mode env tr
+      ?(env_kind = Normal_env)
       ?(subst = [])
       ?(type_expected_explanation = fun _ -> ())
       txt1 txt2 =
   wrap_printing_env ~error:true env (fun () ->
-    error trace_format mode subst env tr txt1 ppf txt2
+    error trace_format mode subst env ~env_kind tr txt1 ppf txt2
       type_expected_explanation)
 
 let report_unification_error
@@ -2526,12 +2529,12 @@ let report_unification_error
 let report_equality_error
       ppf mode env ({subst; trace} : Errortrace.equality_error) =
   report_error Equality ppf mode env
-    ~subst ?type_expected_explanation:None trace
+    ~subst ?env_kind:None ?type_expected_explanation:None trace
 
 let report_moregen_error
       ppf mode env ({trace} : Errortrace.moregen_error) =
   report_error Moregen ppf mode env
-    ?subst:None ?type_expected_explanation:None trace
+    ?subst:None ?env_kind:None ?type_expected_explanation:None trace
 
 let report_comparison_error ppf mode env = function
   | Errortrace.Equality_error error -> report_equality_error ppf mode env error

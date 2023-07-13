@@ -73,7 +73,8 @@ type error =
   | Recursive_abbrev of string * Env.t * reaching_type_path
   | Cycle_in_def of string * Env.t * reaching_type_path
   | Definition_mismatch of type_expr * Env.t * Includecore.type_mismatch option
-  | Constraint_failed of Env.t * Errortrace.unification_error
+  | Constraint_failed of
+      Env.t * Printtyp.env_kind * Errortrace.unification_error
   | Inconsistent_constraint of Env.t * Errortrace.unification_error
   | Type_clash of Env.t * Errortrace.unification_error
   | Non_regular of {

@@ -199,9 +199,12 @@ val report_ambiguous_type_error:
     formatter -> Env.t -> (Path.t * Path.t) -> (Path.t * Path.t) list ->
     (formatter -> unit) -> (formatter -> unit) -> (formatter -> unit) -> unit
 
+type env_kind = Normal_env | Abstract_env of string
+
 val report_unification_error :
   formatter ->
   Env.t -> Errortrace.unification_error ->
+  ?env_kind:env_kind ->
   ?type_expected_explanation:(formatter -> unit) ->
   (formatter -> unit) -> (formatter -> unit) ->
   unit
