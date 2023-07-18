@@ -895,6 +895,8 @@ let check_well_founded_decl env loc path decl to_check =
 let check_regularity ~orig_env env loc path decl to_check =
   (* to_check is true for potentially mutually recursive paths.
      (path, decl) is the type declaration to be checked. *)
+  (* orig_env is a safe environment used for equality check and unification;
+     it does not contain the definitions we are adding *)
 
   if decl.type_params = [] then () else
 
@@ -930,12 +932,11 @@ let check_regularity ~orig_env env loc path decl to_check =
               begin
                 try List.iter2 (Ctype.unify orig_env) args' params
                 with Ctype.Unify err ->
+                  (* This failure may have been caused by the absence of
+                     the new definitions from orig_env, so we indicate
+                     it in the error. *)
                   raise (Error(loc, Constraint_failed
-                                 (orig_env,
-                                  Abstract_env
-                                    "checking constraints in this \
-                                     recursive type definition",
-                                  err)));
+                                 (orig_env, Partial_env_check_regularity, err)))
               end;
               check_regular path' args
                 (path' :: prev_exp) (Expands_to (ty,body) :: trace)

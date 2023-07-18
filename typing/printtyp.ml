@@ -2432,7 +2432,7 @@ let explain mis ppf =
   | None -> ()
   | Some explain -> explain ppf
 
-type env_kind = Normal_env | Abstract_env of string
+type env_kind = Normal_env | Partial_env_check_regularity
 
 let warn_on_missing_def env ~env_kind ppf t =
   match get_desc t with
@@ -2442,14 +2442,15 @@ let warn_on_missing_def env ~env_kind ppf t =
         ignore(Env.find_type p env : Types.type_declaration)
       with Not_found ->
         match p, env_kind with
-        | Path.Pident _, Abstract_env where ->
+        | Path.Pident _, Partial_env_check_regularity ->
             fprintf ppf
-              "@,@[Type %a was considered abstract when@ %s.@]"
-              (Style.as_inline_code path) p where
+              "@,@[<hov>Type %a was considered abstract@ when checking\
+               @ constraints@ in this@ recursive type definition.@]"
+              (Style.as_inline_code path) p
         | _ ->
             fprintf ppf
-              "@,@[Type %a is abstract because no corresponding cmi file@ \
-               was found in path.@]" (Style.as_inline_code path) p
+              "@,@[<hov>Type %a is abstract because@ no corresponding\
+               @ cmi file@ was found@ in path.@]" (Style.as_inline_code path) p
     end
   | _ -> ()
 
