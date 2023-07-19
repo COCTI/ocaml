@@ -1539,6 +1539,7 @@ typing/typedecl.cmi : \
     typing/typedecl_variance.cmi \
     typing/typedecl_separability.cmi \
     typing/typedecl_immediacy.cmi \
+    typing/printtyp.cmi \
     typing/path.cmi \
     parsing/parsetree.cmi \
     parsing/longident.cmi \
