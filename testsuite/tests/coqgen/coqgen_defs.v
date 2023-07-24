@@ -14,7 +14,7 @@ Definition compareP' x y :=
   | right b => ReflectF (x = y) b
   end.
 Definition eqP' (E : eqType) : Equality.axiom (@eq_op E) :=
-  match E with EqType sort m => match m with EqMixin op a => a end end.
+  match E with EqType sort (EqMixin op a) => a end.
 End eqtype.
 
 (* Extra predefined types *)
