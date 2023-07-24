@@ -186,7 +186,7 @@ let transl_implementation _modname st =
   let inductives = topo_sort deps_inductive inductives in
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in
 
-  CTverbatim "From mathcomp Require Import ssreflect ssrnat seq.\
+  CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
 \nRequire Import PrimInt63 Ascii String Floats coqgen_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
@@ -201,9 +201,13 @@ let transl_implementation _modname st =
 \n  try (case (IHT1_2 T2_2); [|right; injection; intros; contradiction]);\
 \n  (case (IHT1 T2) || case (IHT1_1 T2_1)); try (left; now subst);\
 \n    right; injection; intros; contradiction.\
-\nDefined.\n\
-\nLocal Definition ml_type := ml_type.\
-\nVariant loc : ml_type -> Set := mkloc T : nat -> loc T.\
+\nDefined.\
+\n\
+\nDefinition ml_type_eq_mixin := EqMixin (compareP' _ ml_type_eq_dec).\
+\nCanonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.\
+\n\
+\nLocal Definition ml_type := ml_type_eqType.\
+\nLocal Notation loc := (@loc ml_type).\
 \n\
 \nSection with_monad.\
 \nContext [M : Type -> Type].\

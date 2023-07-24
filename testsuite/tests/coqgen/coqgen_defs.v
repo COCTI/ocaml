@@ -1,6 +1,21 @@
 From mathcomp Require Import all_ssreflect.
 Require Sint63.
 Require Import PrimInt63 BinNums Ascii String ZArith Floats.
+#[global] Arguments eqVneq {T} x y.
+
+(* Equality *)
+Section eqtype.
+Variable T : Type.
+Variable eq_dec : comparable T.
+Definition compareb x y : bool := eq_dec x y.
+Definition compareP' x y :=
+  match eq_dec x y as s return reflect (x = y) s with
+  | left a => ReflectT (x = y) a
+  | right b => ReflectF (x = y) b
+  end.
+Definition eqP' (E : eqType) : Equality.axiom (@eq_op E) :=
+  match E with EqType sort m => match m with EqMixin op a => a end end.
+End eqtype.
 
 (* Extra predefined types *)
 Inductive empty :=. (* for the value restriction *)
@@ -67,24 +82,16 @@ Definition AppM2 {A B C} (f : M (A -> M (B -> M C))) (x : A) (y : B) :=
   do f <- f; do f <- f x; f y.
 End EFmonad.
 
+Variant loc ml_type : ml_type -> Type := mkloc T : nat -> loc ml_type T.
+
 Module Type MLTY.
-Parameter ml_type : Set.
-Parameter ml_type_eq_dec : forall x y : ml_type, {x=y}+{x<>y}.
+Parameter ml_type : eqType.
 Parameter ml_exn : ml_type.
-Variant loc : ml_type -> Set := mkloc T : nat -> loc T.
 Parameter coq_type : forall M : Type -> Type, ml_type -> Type.
 End MLTY.
 
 Module REFmonad(MLtypes : MLTY).
 Import MLtypes.
-
-(*
-Inductive Exn :=
-  | GasExhausted
-  | RefLookup
-  | BoundedNat
-  | Catchable of ml_exns.
-*)
 
 Record binding (M : Type -> Type) :=
   mkbind { bind_type : ml_type; bind_val : coq_type M bind_type }.
@@ -104,6 +111,9 @@ Export EFmonadEnv.
 Section monadic_operations.
 Let coq_type := coq_type M.
 Let binding := binding M.
+Let loc := @loc ml_type.
+Definition loc_id {T} (l : loc T) := let: mkloc _ n := l in n.
+Let mkloc := @mkloc ml_type.
 
 Definition cnew T (v : coq_type T) : M (loc T) :=
   fun st =>
@@ -112,13 +122,12 @@ Definition cnew T (v : coq_type T) : M (loc T) :=
     inr (inr (mkloc T n), mkEnv (rcons st (mkbind T (v : coq_type T)))).
 
 Definition coerce T1 T2 (v : coq_type T1) : option (coq_type T2) :=
-  match ml_type_eq_dec T1 T2 with
-  | left H => Some (eq_rect _ _ v _ H)
-  | right _ => None
+  match eqP' _ T1 T2 with
+  | ReflectT H => Some (eq_rect _ _ v _ H)
+  |  _ => None
   end.
 
 Local Notation nth_error := List.nth_error.
-Definition loc_id {T} (l : loc T) := let: mkloc _ n := l in n.
 
 Definition cget T (r : loc T) : M (coq_type T) :=
   fun st =>
