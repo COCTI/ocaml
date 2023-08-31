@@ -108,9 +108,34 @@ let lowest_level = Ident.lowest_scope
 let pivot_level = 2 * lowest_level - 1
     (* pivot_level - lowest_level < lowest_level *)
 
+(**** leveled type pool ****)
+
+module IntMap = Map.Make(Int)
+let leveled_type_pool =
+  s_ref (IntMap.add 0 (ref ([] : transient_expr list)) IntMap.empty)
+
+let with_new_pool ~level f =
+  let pool = ref [] in
+  leveled_type_pool := IntMap.add level pool !leveled_type_pool;
+  f (), !pool
+
+let add_to_pool ~level ty =
+  if level <> generic_level then begin
+    let pool = IntMap.find level !leveled_type_pool in
+    pool := ty :: !pool
+  end
+
 (**** Some type creators ****)
 
-let newgenty desc      = newty3 ~level:generic_level ~scope:Ident.lowest_scope desc
+let newty3 ~level ~scope desc =
+  let ty = proto_newty3 ~level ~scope desc in
+  add_to_pool ~level ty;
+  Transient_expr.type_expr ty
+
+let newty2 ~level desc =
+  newty3 ~level ~scope:Ident.lowest_scope desc
+
+let newgenty desc      = newty2 ~level:generic_level desc
 let newgenvar ?name () = newgenty (Tvar name)
 let newgenstub ~scope  = newty3 ~level:generic_level ~scope (Tvar None)
 
@@ -121,31 +146,6 @@ let newmarkedgenvar () =
   incr new_id;
   { desc = Tvar; level = pivot_level - generic_level; id = !new_id }
 *)
-
-(**** leveled type pool ****)
-
-module IntMap = Map.Make(Int)
-let leveled_type_pool =
-  s_ref (IntMap.add 0 (ref ([] : transient_expr list)) IntMap.empty)
-
-let with_new_pool ~level f =
-  let pool = ref [] in
-  leveled_type_pool := IntMap.add level pool !leveled_type_pool;
-
-let add_to_pool ~level ty =
-  if level <> generic_level then begin
-    let pool = IntMap.find level !leveled_type_pool in
-    pool := ty :: !pool
-  end
-
-let newty3 ~level ~scope desc =
-  let ty = proto_newty3 ~level ~scope desc in
-  add_to_pool ~level ty;
-  ty
-
-let newty2 ~level desc =
-  newty3 ~level ~scope:Ident.lowest_scope desc
-
 
 (**** Check some types ****)
 

@@ -177,7 +177,7 @@ let wrap_end_def f = Misc.try_finally f ~always:end_def
 let with_local_level_generalize ~structure ?post f =
   begin_def ();
   let level = !current_level in
-  let result, pool = wrap_end_def (with_new_pool ~level f) in
+  let result, pool = wrap_end_def (fun _ -> with_new_pool ~level f) in
   Option.iter (fun g -> g result) post;
   List.iter begin fun ty ->
     match ty.desc with
@@ -194,7 +194,7 @@ let with_local_level_generalize ~structure ?post f =
   end pool;
   result
 let with_local_level_generalize_structure f =
-  with_local_level_generalize f ~structure:true
+  with_local_level_generalize ~structure:true f
 let with_local_level_generalize ?post f =
   with_local_level_generalize ~structure:false ?post f
 

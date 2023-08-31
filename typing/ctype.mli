@@ -35,6 +35,9 @@ exception Incompatible
 
 (* All the following wrapper functions revert to the original level,
    even in case of exception. *)
+val with_local_level_generalize_structure: (unit -> 'a) -> 'a
+val with_local_level_generalize: ?post:('a -> unit) -> (unit -> 'a) -> 'a
+
 val with_local_level: ?post:('a -> unit) -> (unit -> 'a) -> 'a
         (* [with_local_level (fun () -> cmd) ~post] evaluates [cmd] at a
            raised level.
@@ -74,9 +77,6 @@ val restore_global_level: int -> unit
         (* This pair of functions is only used in Typetexp *)
 
 val create_scope : unit -> int
-
-val newty2: level:int -> type_desc -> type_expr
-        (** Create a type with a fresh id and no scope *)
 
 val newty: type_desc -> type_expr
 val new_scoped_ty: int -> type_desc -> type_expr
