@@ -75,6 +75,9 @@ val restore_global_level: int -> unit
 
 val create_scope : unit -> int
 
+val newty2: level:int -> type_desc -> type_expr
+        (** Create a type with a fresh id and no scope *)
+
 val newty: type_desc -> type_expr
 val new_scoped_ty: int -> type_desc -> type_expr
 val newvar: ?name:string -> unit -> type_expr

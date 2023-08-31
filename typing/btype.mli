@@ -67,12 +67,13 @@ val newgenstub: scope:int -> type_expr
         (* Return a fresh generic node, to be instantiated
            by [Transient_expr.set_stub_desc] *)
 
-(* Use Tsubst instead
-val newmarkedvar: int -> type_expr
-        (* Return a fresh marked variable *)
-val newmarkedgenvar: unit -> type_expr
-        (* Return a fresh marked generic variable *)
-*)
+val with_new_pool: level:int -> (unit -> 'a) -> 'a * transient_expr list
+val add_to_pool: level:int -> transient_expr -> unit
+
+val newty3: level:int -> scope:int -> type_desc -> type_expr
+        (** Create a type with a fresh id *)
+val newty2: level:int -> type_desc -> type_expr
+        (** Create a type with a fresh id and no scope *)
 
 (**** Types ****)
 
