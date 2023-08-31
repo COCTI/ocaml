@@ -174,6 +174,30 @@ let create_scope () =
 
 let wrap_end_def f = Misc.try_finally f ~always:end_def
 
+let with_local_level_generalize ~structure ?post f =
+  begin_def ();
+  let level = !current_level in
+  let result, pool = wrap_end_def (with_new_pool ~level f) in
+  Option.iter (fun g -> g result) post;
+  List.iter begin fun ty ->
+    match ty.desc with
+    | Tvar _ when structure && ty.level >= level ->
+        let old_level = !current_level in
+        Transient_expr.set_level ty old_level;
+        add_to_pool ~level:old_level ty
+    | Tlink _ -> ()
+    | _ ->
+        if ty.level >= level then
+          Transient_expr.set_level ty generic_level
+        else
+          add_to_pool ~level:ty.level ty
+  end pool;
+  result
+let with_local_level_generalize_structure f =
+  with_local_level_generalize f ~structure:true
+let with_local_level_generalize ?post f =
+  with_local_level_generalize ~structure:false ?post f
+
 let with_local_level ?post f =
   begin_def ();
   let result = wrap_end_def f in
@@ -716,6 +740,7 @@ let generalize ty =
   generalize ty
 
 (* Generalize the structure and lower the variables *)
+(* Used in principal mode to track types that do not depend on environment *)
 
 let rec generalize_structure ty =
   let level = get_level ty in
