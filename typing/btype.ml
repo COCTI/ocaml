@@ -116,13 +116,21 @@ let leveled_type_pool =
 
 let with_new_pool ~level f =
   let pool = ref [] in
-  leveled_type_pool := IntMap.add level pool !leveled_type_pool;
-  f (), !pool
+  let old_type_pool = !leveled_type_pool in
+  leveled_type_pool := IntMap.add level pool old_type_pool;
+  let r =
+    Misc.try_finally f ~always:(fun () -> leveled_type_pool := old_type_pool)
+  in
+  let p = !pool in
+  (r, p)
 
 let add_to_pool ~level ty =
   if level <> generic_level then begin
-    let pool = IntMap.find level !leveled_type_pool in
-    pool := ty :: !pool
+    (* For now, only some levels are automatically managed *)
+    try
+      let pool = IntMap.find level !leveled_type_pool in
+      pool := ty :: !pool
+    with Not_found -> ()
   end
 
 (**** Some type creators ****)
