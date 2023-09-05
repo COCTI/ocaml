@@ -114,9 +114,19 @@ module IntMap = Map.Make(Int)
 let leveled_type_pool =
   s_ref (IntMap.add 0 (ref ([] : transient_expr list)) IntMap.empty)
 
-let with_new_pool ~level f =
-  let pool = ref [] in
+let with_new_pool ?share ~level f =
   let old_type_pool = !leveled_type_pool in
+  let pool =
+    match share with
+      None -> ref []
+    | Some from ->
+        try IntMap.find from old_type_pool
+        with Not_found ->
+          Format.eprintf "@[<2>Level %d not in pool: %a@." from
+            (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
+            (List.map fst (IntMap.bindings !leveled_type_pool));
+          assert false
+  in
   leveled_type_pool := IntMap.add level pool old_type_pool;
   let r =
     Misc.try_finally f ~always:(fun () -> leveled_type_pool := old_type_pool)
@@ -124,20 +134,33 @@ let with_new_pool ~level f =
   let p = !pool in
   (r, p)
 
-let add_to_pool ~level ty =
-  if level <> generic_level then begin
-    (* For now, only some levels are automatically managed *)
-    try
-      let pool = IntMap.find level !leveled_type_pool in
-      pool := ty :: !pool
-    with Not_found -> ()
-  end
+let with_shared_pool ~from ~level f =
+  fst (with_new_pool ~share:from ~level f)
+
+let with_new_pool ~level f = with_new_pool ~level f
+
+let add_to_pool ~warn ~level ty =
+  if level >= generic_level - 1 || level <= 0 then () else
+  try
+    let pool = IntMap.find level !leveled_type_pool in
+    pool := ty :: !pool
+  with Not_found ->
+    if false && warn then
+      Format.eprintf "@[<2>Level %d not in pool: %a@." level
+        (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
+        (List.map fst (IntMap.bindings !leveled_type_pool))
+
+let share_level_pool ~from ~level =
+  try
+    let pool = IntMap.find from !leveled_type_pool in
+    leveled_type_pool := IntMap.add level pool !leveled_type_pool
+  with Not_found -> ()
 
 (**** Some type creators ****)
 
 let newty3 ~level ~scope desc =
   let ty = proto_newty3 ~level ~scope desc in
-  add_to_pool ~level ty;
+  add_to_pool ~warn:true ~level ty;
   Transient_expr.type_expr ty
 
 let newty2 ~level desc =

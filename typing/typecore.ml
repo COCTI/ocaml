@@ -737,7 +737,7 @@ let solve_Ppat_poly_constraint tps env loc sty expected_ty =
   | _ -> assert false
 
 let solve_Ppat_alias env pat =
-  with_local_level ~post:generalize (fun () -> build_as_type env pat)
+  with_local_level_generalize (fun () -> build_as_type env pat)
 
 let solve_Ppat_tuple (type a) ~refine loc env (args : a list) expected_ty =
   let vars = List.map (fun _ -> newgenvar ()) args in
@@ -2750,7 +2750,7 @@ let list_labels env ty =
 let check_univars env kind exp ty_expected vars =
   let pty = instance ty_expected in
   let exp_ty, vars =
-    with_local_level_iter ~post:generalize begin fun () ->
+    with_local_level_generalize begin fun () ->
       match get_desc pty with
         Tpoly (body, tl) ->
           (* Enforce scoping for type_let:
@@ -2759,7 +2759,7 @@ let check_univars env kind exp ty_expected vars =
           let _, ty' = instance_poly ~fixed:true tl body in
           let vars, exp_ty = instance_parameterized_type vars exp.exp_type in
           unify_exp_types exp.exp_loc env exp_ty ty';
-          ((exp_ty, vars), exp_ty::vars)
+          (exp_ty, vars)
       | _ -> assert false
     end
   in
