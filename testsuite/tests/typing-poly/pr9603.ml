@@ -30,4 +30,12 @@ Error: This expression has type
        but an expression was expected of type
          "< m : 'left 'right. < left : 'left; right : 'right > pair >"
        Types for method "m" are incompatible
+|}, Principal{|
+Line 4, characters 6-7:
+4 | = fun x -> x
+          ^
+Error: This pattern matches values of type
+         "< m : 'left 'right. < left : 'left0; right : 'right0 > pair >"
+       but a pattern was expected which matches values of type "'a"
+       The universal variable "'right0" would escape its scope
 |}]
