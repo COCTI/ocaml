@@ -327,7 +327,9 @@ let extract_option_type env ty =
   | _ -> assert false
 
 let protect_expansion env ty =
-  if Env.has_local_constraints env then generic_instance ty else ty
+  if Env.has_local_constraints env
+  then with_local_level_generalize (fun () -> instance ty)
+  else ty
 
 type record_extraction_result =
   | Record_type of Path.t * Path.t * Types.label_declaration list
@@ -740,11 +742,13 @@ let solve_Ppat_alias env pat =
   with_local_level_generalize (fun () -> build_as_type env pat)
 
 let solve_Ppat_tuple (type a) ~refine loc env (args : a list) expected_ty =
-  let vars = List.map (fun _ -> newgenvar ()) args in
-  let ty = newgenty (Ttuple vars) in
-  let expected_ty = generic_instance expected_ty in
-  unify_pat_types_refine ~refine loc env ty expected_ty;
-  vars
+  with_local_level_generalize begin fun () ->
+    let vars = List.map (fun _ -> newvar ()) args in
+    let ty = newty (Ttuple vars) in
+    let expected_ty = instance expected_ty in
+    unify_pat_types_refine ~refine loc env ty expected_ty;
+    vars
+  end
 
 let solve_constructor_annotation
     tps (penv : Pattern_env.t) name_list sty ty_args ty_ex =
@@ -881,17 +885,21 @@ let solve_Ppat_record_field ~refine loc penv label label_lid record_ty =
   end
 
 let solve_Ppat_array ~refine loc env expected_ty =
-  let ty_elt = newgenvar() in
-  let expected_ty = generic_instance expected_ty in
-  unify_pat_types_refine ~refine
-    loc env (Predef.type_array ty_elt) expected_ty;
-  ty_elt
+  with_local_level_generalize begin fun () ->
+    let ty_elt = newvar() in
+    let expected_ty = instance expected_ty in
+    unify_pat_types_refine ~refine
+      loc env (Predef.type_array ty_elt) expected_ty;
+    ty_elt
+  end
 
 let solve_Ppat_lazy ~refine loc env expected_ty =
-  let nv = newgenvar () in
-  unify_pat_types_refine ~refine loc env (Predef.type_lazy_t nv)
-    (generic_instance expected_ty);
-  nv
+  with_local_level_generalize begin fun () ->
+    let nv = newvar () in
+    unify_pat_types_refine ~refine loc env (Predef.type_lazy_t nv)
+      (instance expected_ty);
+    nv
+  end
 
 let solve_Ppat_constraint tps loc env sty expected_ty =
   let cty, ty, force =
@@ -904,17 +912,23 @@ let solve_Ppat_constraint tps loc env sty expected_ty =
   (cty, ty, expected_ty')
 
 let solve_Ppat_variant ~refine loc env tag no_arg expected_ty =
-  let arg_type = if no_arg then [] else [newgenvar()] in
-  let fields = [tag, rf_either ~no_arg arg_type ~matched:true] in
-  let make_row more =
-    create_row ~fields ~closed:false ~more ~fixed:None ~name:None
+  let arg_type, make_row, expected_ty =
+    with_local_level_generalize begin fun () ->
+      let arg_type = if no_arg then [] else [newvar()] in
+      let fields = [tag, rf_either ~no_arg arg_type ~matched:true] in
+      let make_row more =
+        create_row ~fields ~closed:false ~more ~fixed:None ~name:None
+      in
+      let row = make_row (newvar ()) in
+      let expected_ty = instance expected_ty in
+      (* PR#7404: allow some_private_tag blindly, as it would not unify with
+         the abstract row variable *)
+      if tag <> Parmatch.some_private_tag then
+        unify_pat_types_refine ~refine loc env
+          (newty (Tvariant row)) expected_ty;
+      (arg_type, make_row, expected_ty)
+    end
   in
-  let row = make_row (newgenvar ()) in
-  let expected_ty = generic_instance expected_ty in
-  (* PR#7404: allow some_private_tag blindly, as it would not unify with
-     the abstract row variable *)
-  if tag <> Parmatch.some_private_tag then
-    unify_pat_types_refine ~refine loc env (newgenty(Tvariant row)) expected_ty;
   (arg_type, make_row (newvar ()), instance expected_ty)
 
 (* Building the or-pattern corresponding to a polymorphic variant type *)
@@ -1795,7 +1809,8 @@ and type_pat_aux
       let expected_type, record_ty =
         match extract_concrete_record !!penv expected_ty with
         | Record_type(p0, p, _) ->
-            let ty = generic_instance expected_ty in
+            let ty =
+              with_local_level_generalize (fun () -> instance expected_ty) in
             Some (p0, p, is_principal expected_ty), ty
         | Maybe_a_record_type -> None, newvar ()
         | Not_a_record_type ->
@@ -2323,10 +2338,10 @@ let rec check_counter_example_pat
         | _            -> k None
       end
   | Tpat_record(fields, closed) ->
-      let record_ty = generic_instance expected_ty in
       let type_label_pat (label_lid, label, targ) k =
         let ty_arg =
-          solve_Ppat_record_field ~refine loc penv label label_lid record_ty in
+          solve_Ppat_record_field ~refine loc penv label label_lid expected_ty
+        in
         check_rec targ ty_arg (fun arg -> k (label_lid, label, arg))
       in
       map_fold_cont type_label_pat fields
@@ -3491,10 +3506,15 @@ and type_expect_
         exp_env = env }
   | Pexp_tuple sexpl ->
       assert (List.length sexpl >= 2);
-      let subtypes = List.map (fun _ -> newgenvar ()) sexpl in
-      let to_unify = newgenty (Ttuple subtypes) in
-      with_explanation (fun () ->
-        unify_exp_types loc env to_unify (generic_instance ty_expected));
+      let subtypes =
+        with_local_level_generalize begin fun () ->
+          let subtypes = List.map (fun _ -> newvar ()) sexpl in
+          let to_unify = newty (Ttuple subtypes) in
+          with_explanation (fun () ->
+            unify_exp_types loc env to_unify (instance ty_expected));
+          subtypes
+        end
+      in
       let expl =
         List.map2 (fun body ty -> type_expect env body (mk_expected ty))
           sexpl subtypes
@@ -3721,10 +3741,15 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_array(sargl) ->
-      let ty = newgenvar() in
-      let to_unify = Predef.type_array ty in
-      with_explanation (fun () ->
-        unify_exp_types loc env to_unify (generic_instance ty_expected));
+      let ty =
+        with_local_level_generalize begin fun () ->
+          let ty = newvar () in
+          let to_unify = instance (Predef.type_array ty) in
+          with_explanation (fun () ->
+            unify_exp_types loc env to_unify (instance ty_expected));
+          ty
+        end
+      in
       let argl =
         List.map (fun sarg -> type_expect env sarg (mk_expected ty)) sargl in
       re {
@@ -4025,10 +4050,15 @@ and type_expect_
         exp_env = env;
       }
   | Pexp_lazy e ->
-      let ty = newgenvar () in
-      let to_unify = Predef.type_lazy_t ty in
-      with_explanation (fun () ->
-        unify_exp_types loc env to_unify (generic_instance ty_expected));
+      let ty =
+        with_local_level_generalize begin fun () ->
+          let ty = newvar () in
+          let to_unify = instance (Predef.type_lazy_t ty) in
+          with_explanation (fun () ->
+            unify_exp_types loc env to_unify (instance ty_expected));
+          ty
+        end
+      in
       let arg = type_expect env e (mk_expected ty) in
       re {
         exp_desc = Texp_lazy arg;
@@ -5574,7 +5604,7 @@ and map_half_typed_cases
   in
   let half_typed_cases, ty_res, do_copy_types, ty_arg' =
    (* propagation of the argument *)
-    with_local_level begin fun () ->
+    with_local_level_generalize begin fun () ->
       let pattern_force = ref [] in
       (*  Format.printf "@[%i %i@ %a@]@." lev (get_current_level())
           Printtyp.raw_type_expr ty_arg; *)
@@ -5641,16 +5671,10 @@ and map_half_typed_cases
       List.iter (fun f -> f()) !pattern_force;
       (* Post-processing and generalization *)
       if take_partial_instance <> None then unify_pats (instance ty_arg);
-      List.iter (fun { pat_vars; _ } ->
+      (*List.iter (fun { pat_vars; _ } ->
         iter_pattern_variables_type (enforce_current_level env) pat_vars
-      ) half_typed_cases;
+      ) half_typed_cases;*)
       (half_typed_cases, ty_res, do_copy_types, ty_arg')
-    end
-    ~post: begin fun (half_typed_cases, _, _, ty_arg') ->
-      generalize ty_arg';
-      List.iter (fun { pat_vars; _ } ->
-        iter_pattern_variables_type generalize pat_vars
-      ) half_typed_cases
     end
   in
   (* type bodies *)

@@ -875,6 +875,8 @@ let update_scope_for tr_exn scope ty =
 
 let rec update_level env level expand ty =
   if get_level ty > level then begin
+    (*if get_level ty = generic_level then
+      Format.eprintf "lower to %d: %a@." level !Btype.print_raw ty;*)
     if level < get_scope ty then raise_scope_escape_exn ty;
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
