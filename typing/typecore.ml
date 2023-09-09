@@ -3472,7 +3472,7 @@ and type_expect_
         exp_env = env }
   | Pexp_match(sarg, caselist) ->
       let arg =
-        with_local_level (fun () -> type_exp env sarg)
+        with_local_level_generalize (fun () -> type_exp env sarg)
           ~post:(may_lower_contravariant_then_generalize env)
       in
       let cases, partial =
@@ -6281,7 +6281,7 @@ let type_let existential_ctx env rec_flag spat_sexp_list =
 
 let type_expression env sexp =
   let exp =
-    with_local_level begin fun () ->
+    with_local_level_generalize begin fun () ->
       Typetexp.TyVarEnv.reset();
       type_exp env sexp
     end

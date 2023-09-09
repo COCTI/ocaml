@@ -194,6 +194,7 @@ let with_local_level_generalize ~structure ?post f =
         add_to_pool ~warn:false ~level:old_level ty
     | Tlink _ -> ()
     | _ ->
+        if ty.level >= generic_level then () else
         if ty.level >= level then
           Transient_expr.set_level ty generic_level
         else
@@ -204,6 +205,12 @@ let with_local_level_generalize_structure f =
   with_local_level_generalize ~structure:true f
 let with_local_level_generalize ?post f =
   with_local_level_generalize ~structure:false ?post f
+let with_local_level_generalize_if cond ?post f =
+  if cond then with_local_level_generalize ?post f else f ()
+let with_local_level_generalize_structure_if cond f =
+  if cond then with_local_level_generalize_structure f else f ()
+let with_local_level_generalize_structure_if_principal f =
+  if !Clflags.principal then with_local_level_generalize_structure f else f ()
 
 let with_local_level ?post f =
   let from = !current_level in
@@ -225,11 +232,13 @@ let with_local_level_if_principal f ~post =
   with_local_level_if !Clflags.principal f ~post
 let with_local_level_iter_if_principal f ~post =
   with_local_level_iter_if !Clflags.principal f ~post
+let with_existing_level ~level f =
+  begin_def (); init_def level;
+  wrap_end_def f
 let with_level ~level f =
   let from = !current_level in
   begin_def (); init_def level;
-  let result = wrap_end_def_share_pool ~from f in
-  result
+  wrap_end_def_share_pool ~from f
 let with_level_if cond ~level f =
   if cond then with_level ~level f else f ()
 
@@ -1819,7 +1828,7 @@ let full_expand ~may_forget_scope env ty =
     if may_forget_scope then
       try expand_head_unif env ty with Unify_trace _ ->
         (* #10277: forget scopes when printing trace *)
-        with_level ~level:(get_level ty) begin fun () ->
+        with_existing_level ~level:(get_level ty) begin fun () ->
           (* The same as [expand_head], except in the failing case we return the
            *original* type, not [correct_levels ty].*)
           try try_expand_head try_expand_safe env (correct_levels ty) with

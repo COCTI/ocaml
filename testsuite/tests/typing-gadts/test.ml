@@ -1111,7 +1111,7 @@ Line 3, characters 2-26:
       ^^^^^^^^^^^^^^^^^^^^^^^^
 Error: This expression has type "< bar : int; foo : int; .. >"
        but an expression was expected of type "'a"
-       This instance of "int" is ambiguous:
+       This instance of "$1" is ambiguous:
        it would escape the scope of its equation
 |}];;
 

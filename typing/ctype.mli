@@ -35,8 +35,12 @@ exception Incompatible
 
 (* All the following wrapper functions revert to the original level,
    even in case of exception. *)
-val with_local_level_generalize_structure: (unit -> 'a) -> 'a
 val with_local_level_generalize: ?post:('a -> unit) -> (unit -> 'a) -> 'a
+val with_local_level_generalize_if:
+        bool -> ?post:('a -> unit) -> (unit -> 'a) -> 'a
+val with_local_level_generalize_structure: (unit -> 'a) -> 'a
+val with_local_level_generalize_structure_if: bool -> (unit -> 'a) -> 'a
+val with_local_level_generalize_structure_if_principal: (unit -> 'a) -> 'a
 
 val with_local_level: ?post:('a -> unit) -> (unit -> 'a) -> 'a
         (* [with_local_level (fun () -> cmd) ~post] evaluates [cmd] at a

@@ -535,7 +535,7 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
           ty
         with Not_found ->
           let t, ty =
-            with_local_level_if_principal begin fun () ->
+            with_local_level_generalize_structure_if_principal begin fun () ->
               let t = newvar () in
               TyVarEnv.remember_used alias t styp.ptyp_loc;
               let ty = transl_type env ~policy ~row_context st in
@@ -545,7 +545,6 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
               end;
               (t, ty)
             end
-            ~post: (fun (t, _) -> generalize_structure t)
           in
           let t = instance t in
           let px = Btype.proxy t in
@@ -660,6 +659,8 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
   | Ptyp_poly(vars, st) ->
       let vars = List.map (fun v -> v.txt) vars in
       let new_univars, cty =
+        (* Cannot use automatic generalize here because we are lowering
+           the type in place later on *)
         with_local_level begin fun () ->
           let new_univars = TyVarEnv.make_poly_univars vars in
           let cty = TyVarEnv.with_univars new_univars begin fun () ->
@@ -672,9 +673,8 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
       let ty = cty.ctyp_type in
       let ty_list = TyVarEnv.check_poly_univars env styp.ptyp_loc new_univars in
       let ty_list = List.filter (fun v -> deep_occur v ty) ty_list in
-      let ty' = Btype.newgenty (Tpoly(ty, ty_list)) in
-      unify_var env (newvar()) ty';
-      ctyp (Ttyp_poly (vars, cty)) ty'
+      enforce_current_level env (Btype.newgenty (Tpoly (ty, ty_list)));
+      ctyp (Ttyp_poly (vars, cty)) (newty (Tpoly (ty, ty_list)))
   | Ptyp_package (p, l) ->
       let loc = styp.ptyp_loc in
       let l = sort_constraints_no_duplicates loc env l in

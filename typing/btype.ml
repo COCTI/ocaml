@@ -109,8 +109,7 @@ let pivot_level = 2 * lowest_level - 1
 (**** leveled type pool ****)
 
 module IntMap = Map.Make(Int)
-let leveled_type_pool =
-  s_ref (IntMap.add 0 (ref ([] : transient_expr list)) IntMap.empty)
+let leveled_type_pool = s_ref IntMap.empty
 
 let with_new_pool ?share ~level f =
   let old_type_pool = !leveled_type_pool in
@@ -118,12 +117,13 @@ let with_new_pool ?share ~level f =
     match share with
       None -> ref []
     | Some from ->
+        (* assert (from < level); *)
         try IntMap.find from old_type_pool
-        with Not_found ->
-          Format.eprintf "@[<2>Level %d not in pool: %a@." from
+        with Not_found -> ref []
+          (*Format.eprintf "@[<2>Level %d not in pool: %a@." from
             (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
             (List.map fst (IntMap.bindings !leveled_type_pool));
-          assert false
+          assert false*)
   in
   leveled_type_pool := IntMap.add level pool old_type_pool;
   let r =
@@ -144,7 +144,7 @@ let add_to_pool ~warn ~level ty =
     pool := ty :: !pool
   with Not_found ->
     if false && warn then
-      Format.eprintf "@[<2>Level %d not in pool: %a@." level
+      Format.eprintf "@[<2>Level %d not in pool: %a@]@." level
         (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
         (List.map fst (IntMap.bindings !leveled_type_pool))
 
@@ -153,6 +153,8 @@ let share_level_pool ~from ~level =
     let pool = IntMap.find from !leveled_type_pool in
     leveled_type_pool := IntMap.add level pool !leveled_type_pool
   with Not_found -> ()
+(*    Format.eprintf "Level %d not in pool, could not create level %d@."
+      from level *)
 
 (**** Some type creators ****)
 

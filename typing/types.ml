@@ -731,7 +731,7 @@ let create_expr = Transient_expr.create
 
 let proto_newty3 ~level ~scope desc  =
   incr new_id;
-  create_expr desc ~level ~scope ~id:!new_id
+  Transient_expr.create desc ~level ~scope ~id:!new_id
 
                   (**********************************)
                   (*  Utilities for backtracking    *)
