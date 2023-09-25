@@ -5619,7 +5619,7 @@ and map_half_typed_cases
               in
               pattern_force := force @ !pattern_force;
               { typed_pat = pat;
-                pat_type_for_unif = ty_arg;
+                pat_type_for_unif = instance ty_arg;
                 untyped_case;
                 case_data;
                 branch_env = ext_env;
