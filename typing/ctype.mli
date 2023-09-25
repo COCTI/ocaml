@@ -169,7 +169,7 @@ val check_scope_escape : Env.t -> int -> type_expr -> unit
            to the level [lvl] without any scope escape.
            Raises [Escape] otherwise *)
 
-val instance: ?partial:bool -> type_expr -> type_expr
+val instance: ?partial:bool -> ?keep_names:bool -> type_expr -> type_expr
         (* Take an instance of a type scheme *)
         (* partial=None  -> normal
            partial=false -> newvar() for non generic subterms

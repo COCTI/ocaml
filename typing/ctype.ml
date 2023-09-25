@@ -884,8 +884,14 @@ let update_scope_for tr_exn scope ty =
 
 let rec update_level env level expand ty =
   if get_level ty > level then begin
-    (*if get_level ty = generic_level then
-      Format.eprintf "lower to %d: %a@." level !Btype.print_raw ty;*)
+    (*if get_level ty = generic_level then assert false;*)
+(*      Format.eprintf "lower to %d: %a@." level !Btype.print_raw ty;
+      let open Printexc in
+      let cs = get_callstack 10 in
+      let sl =
+        match backtrace_slots cs with
+          None -> [] | Some arr -> Array.to_list arr
+      in *)
     if level < get_scope ty then raise_scope_escape_exn ty;
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
@@ -1284,14 +1290,14 @@ let rec copy ?partial ?keep_names copy_scope ty =
 
 (**** Variants of instantiations ****)
 
-let instance ?partial sch =
+let instance ?partial ?keep_names sch =
   let partial =
     match partial with
       None -> None
     | Some keep -> Some (compute_univars sch, keep)
   in
   For_copy.with_scope (fun copy_scope ->
-    copy ?partial copy_scope sch)
+    copy ?partial ?keep_names copy_scope sch)
 
 let generic_instance sch =
   let old = !current_level in
@@ -4080,6 +4086,8 @@ let all_distinct_vars env vars =
 
 let matches ~expand_error_trace env ty ty' =
   let snap = snapshot () in
+  let ty = instance ~keep_names:true ty
+  and ty' = instance ~keep_names:true ty' in
   let vars = rigidify ty in
   cleanup_abbrev ();
   match unify env ty ty' with
