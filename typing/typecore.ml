@@ -5619,7 +5619,7 @@ and map_half_typed_cases
               in
               pattern_force := force @ !pattern_force;
               { typed_pat = pat;
-                pat_type_for_unif = instance ty_arg;
+                pat_type_for_unif = ty_arg;
                 untyped_case;
                 case_data;
                 branch_env = ext_env;
@@ -5636,7 +5636,10 @@ and map_half_typed_cases
           check_scope_escape htc.typed_pat.pat_loc env outer_level
             htc.pat_type_for_unif;
           let pat = htc.typed_pat in
-          {htc with typed_pat = { pat with pat_type = instance pat.pat_type }}
+          { htc with
+            typed_pat = { pat with pat_type = instance pat.pat_type };
+            pat_type_for_unif = instance htc.pat_type_for_unif
+          }
         )
         caselist in
       let patl =
