@@ -2760,6 +2760,7 @@ let list_labels env ty =
 
 (* Check that all univars are safe in a type. Both exp.exp_type and
    ty_expected should already be generalized. *)
+(* => stop generalizing and rather compare with current_level *)
 let check_univars env kind exp ty_expected vars =
   let pty = instance ty_expected in
   let exp_ty, vars =

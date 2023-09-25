@@ -206,11 +206,11 @@ end = struct
     let make name = { univar=newvar ~name (); associated = [] } in
     List.map (fun name -> name, make name ) vars
 
-  let promote_generics_to_univars promoted vars =
+  let promote_generics_to_univars ~level promoted vars =
       List.fold_left
         (fun acc v ->
            match get_desc v with
-           | Tvar name when get_level v = Btype.generic_level ->
+           | Tvar name when get_level v > level ->
                set_type_desc v (Tunivar name);
                v :: acc
            | _ -> acc
@@ -218,12 +218,12 @@ end = struct
         promoted vars
 
   let check_poly_univars env loc vars =
-    vars |> List.iter (fun (_, p) -> generalize p.univar);
+    let level = get_current_level () in
     let univars =
       vars |> List.map (fun (name, {univar=ty1; _ }) ->
       let v = Btype.proxy ty1 in
       begin match get_desc v with
-      | Tvar name when get_level v = Btype.generic_level ->
+      | Tvar name when get_level v > level ->
          set_type_desc v (Tunivar name)
       | _ ->
          raise (Error (loc, env, Cannot_quantify(name, v)))
@@ -237,7 +237,7 @@ end = struct
     *)
     let promote_associated acc (_,v) =
       let enclosed_rows = List.filter_map (!) v.associated in
-      promote_generics_to_univars acc enclosed_rows
+      promote_generics_to_univars ~level acc enclosed_rows
     in
     List.fold_left promote_associated univars vars
 
@@ -294,7 +294,8 @@ end = struct
   let collect_univars f =
     pre_univars := [];
     let result = f () in
-    let univs = promote_generics_to_univars [] !pre_univars in
+    let level = get_current_level () in
+    let univs = promote_generics_to_univars ~level [] !pre_univars in
     result, univs
 
   let new_var ?name policy =
@@ -668,12 +669,11 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
           end in
           (new_univars, cty)
         end
-        ~post:(fun (_,cty) -> generalize_ctyp cty)
       in
       let ty = cty.ctyp_type in
       let ty_list = TyVarEnv.check_poly_univars env styp.ptyp_loc new_univars in
       let ty_list = List.filter (fun v -> deep_occur v ty) ty_list in
-      enforce_current_level env (Btype.newgenty (Tpoly (ty, ty_list)));
+      List.iter (enforce_current_level env) (ty :: ty_list);
       ctyp (Ttyp_poly (vars, cty)) (newty (Tpoly (ty, ty_list)))
   | Ptyp_package (p, l) ->
       let loc = styp.ptyp_loc in
