@@ -2991,6 +2991,8 @@ let type_package env m p fl =
                        fl
                      end else begin
                        let t = Btype.newgenty (Tconstr (path,[],ref Mnil)) in
+                       let t = Ctype.with_level ~level:scope
+                           (fun () -> Ctype.instance t) in
                        (lid, t) :: fl
                      end
                end)
