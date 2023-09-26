@@ -4394,7 +4394,7 @@ and type_constraint_expect
         let ty, exp_extra = type_constraint env ty_constrain in
         constraint_arg.type_with_constraint env ty, ty, exp_extra
   in
-  unify_exp_types loc env ty (instance ty_expected);
+  unify_exp_types loc env (instance ty) (instance ty_expected);
   ret, ty, exp_extra
 
 (** Typecheck the body of a newtype. The "body" of a newtype may be:
@@ -4588,7 +4588,8 @@ and type_function
             assert (is_optional arg_label);
             let ty_default = newvar () in
             begin
-              try unify env (type_option ty_default) ty_arg
+              try
+                unify env (instance (type_option ty_default)) (instance ty_arg)
               with Unify _ -> assert false;
             end;
             let default = type_expect env default (mk_expected ty_default) in
@@ -4753,7 +4754,7 @@ and type_label_access env srecord usage lid =
   let label =
     wrap_disambiguate "This expression has" (mk_expected ty_exp)
       (Label.disambiguate usage lid env expected_type) labels in
-  (record, label, expected_type)
+  ({record with exp_type = instance ty_exp}, label, expected_type)
 
 (* Typing format strings for printing or reading.
    These formats are used by functions in modules Printf, Format, and Scanf.

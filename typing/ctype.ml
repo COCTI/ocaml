@@ -884,14 +884,10 @@ let update_scope_for tr_exn scope ty =
 
 let rec update_level env level expand ty =
   if get_level ty > level then begin
-    (*if get_level ty = generic_level then assert false;*)
-(*      Format.eprintf "lower to %d: %a@." level !Btype.print_raw ty;
-      let open Printexc in
-      let cs = get_callstack 10 in
-      let sl =
-        match backtrace_slots cs with
-          None -> [] | Some arr -> Array.to_list arr
-      in *)
+    begin try if Sys.getenv "DONT_LOWER_GENERIC" <> "0"
+        && get_level ty = generic_level then assert false
+    with Not_found -> ()
+    end;
     if level < get_scope ty then raise_scope_escape_exn ty;
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
