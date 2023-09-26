@@ -3715,6 +3715,7 @@ and type_expect_
         type_label_access env srecord Env.Projection lid
       in
       let (_, ty_arg, ty_res) = instance_label ~fixed:false label in
+      let record = {record with exp_type = instance record.exp_type} in
       unify_exp env record ty_res;
       rue {
         exp_desc = Texp_field(record, lid, label);
@@ -3729,7 +3730,8 @@ and type_expect_
         if expected_type = None then newvar () else record.exp_type in
       let (label_loc, label, newval) =
         type_label_exp false env loc ty_record (lid, label, snewval) in
-      unify_exp env record ty_record;
+      let record = {record with exp_type = instance record.exp_type} in
+      unify_exp env record (instance ty_record);
       if label.lbl_mut = Immutable then
         raise(Error(loc, env, Label_not_mutable lid.txt));
       rue {
@@ -4754,7 +4756,7 @@ and type_label_access env srecord usage lid =
   let label =
     wrap_disambiguate "This expression has" (mk_expected ty_exp)
       (Label.disambiguate usage lid env expected_type) labels in
-  ({record with exp_type = instance ty_exp}, label, expected_type)
+  (record, label, expected_type)
 
 (* Typing format strings for printing or reading.
    These formats are used by functions in modules Printf, Format, and Scanf.
