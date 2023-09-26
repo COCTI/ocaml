@@ -169,17 +169,13 @@ let end_def () =
   saved_level := List.tl !saved_level;
   current_level := cl; nongen_level := nl
 let create_scope () =
-  let from = !current_level in
-  init_def (from + 1);
-  let level = !current_level in
-  share_level_pool ~from ~level;
+  let level = !current_level + 1 in
+  init_def level;
   level
 
 let wrap_end_def f = Misc.try_finally f ~always:end_def
 let wrap_end_def_new_pool f =
   wrap_end_def (fun _ -> with_new_pool ~level:!current_level f)
-let wrap_end_def_share_pool ~from f =
-  wrap_end_def (fun _ -> with_shared_pool ~from ~level:!current_level f)
 
 let with_local_level_generalize ~structure ?post f =
   begin_def ();
@@ -213,17 +209,15 @@ let with_local_level_generalize_structure_if_principal f =
   if !Clflags.principal then with_local_level_generalize_structure f else f ()
 
 let with_local_level ?post f =
-  let from = !current_level in
   begin_def ();
-  let result = wrap_end_def_share_pool ~from f in
+  let result = wrap_end_def f in
   Option.iter (fun g -> g result) post;
   result
 let with_local_level_if cond f ~post =
   if cond then with_local_level f ~post else f ()
 let with_local_level_iter f ~post =
-  let from = !current_level in
   begin_def ();
-  let (result, l) = wrap_end_def_share_pool ~from f in
+  let (result, l) = wrap_end_def f in
   List.iter post l;
   result
 let with_local_level_iter_if cond f ~post =
@@ -236,16 +230,14 @@ let with_existing_level ~level f =
   begin_def (); init_def level;
   wrap_end_def f
 let with_level ~level f =
-  let from = !current_level in
   begin_def (); init_def level;
-  wrap_end_def_share_pool ~from f
+  wrap_end_def f
 let with_level_if cond ~level f =
   if cond then with_level ~level f else f ()
 
 let with_local_level_for_class ?post f =
-  let from = !current_level in
   begin_class_def ();
-  let result = wrap_end_def_share_pool ~from f in
+  let result = wrap_end_def f in
   Option.iter (fun g -> g result) post;
   result
 

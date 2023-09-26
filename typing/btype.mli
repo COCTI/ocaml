@@ -56,11 +56,14 @@ end
 (**** Levels ****)
 
 val generic_level: int
+val pattern_level: int
+val subject_level: int
+val highest_level: int
+        (* highest_level < subject_level < pattern_level < generic_level *)
 
 val with_new_pool: level:int -> (unit -> 'a) -> 'a * transient_expr list
-val with_shared_pool: from:int -> level:int -> (unit -> 'a) -> 'a
 val add_to_pool: warn:bool -> level:int -> transient_expr -> unit
-val share_level_pool: from:int -> level:int -> unit
+        (* Only types with level <= highest_level are tracked *)
 
 val newty3: level:int -> scope:int -> type_desc -> type_expr
         (* Create a type with a fresh id *)
@@ -74,6 +77,8 @@ val newgenvar: ?name:string -> unit -> type_expr
 val newgenstub: scope:int -> type_expr
         (* Return a fresh generic node, to be instantiated
            by [Transient_expr.set_stub_desc] *)
+val newhity: type_desc -> type_expr
+        (* Create a type at highest level, lowering it later *)
 
 (**** Types ****)
 

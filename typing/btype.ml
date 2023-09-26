@@ -100,6 +100,9 @@ let print_raw =
 (**** Type level management ****)
 
 let generic_level = Ident.highest_scope
+let pattern_level = generic_level - 1
+let subject_level = generic_level - 2
+let highest_level = generic_level - 3
 
 (* Used to mark a type during a traversal. *)
 let lowest_level = Ident.lowest_scope
@@ -110,36 +113,27 @@ let pivot_level = 2 * lowest_level - 1
 
 module IntMap = Map.Make(Int)
 let leveled_type_pool = s_ref IntMap.empty
+let last_pool = s_ref 0
 
-let with_new_pool ?share ~level f =
+let with_new_pool ~level f =
   let old_type_pool = !leveled_type_pool in
-  let pool =
-    match share with
-      None -> ref []
-    | Some from ->
-        (* assert (from < level); *)
-        try IntMap.find from old_type_pool
-        with Not_found -> ref []
-          (*Format.eprintf "@[<2>Level %d not in pool: %a@." from
-            (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
-            (List.map fst (IntMap.bindings !leveled_type_pool));
-          assert false*)
-  in
+  let old_last = !last_pool in
+  let pool = ref [] in
   leveled_type_pool := IntMap.add level pool old_type_pool;
+  last_pool := level;
   let r =
-    Misc.try_finally f ~always:(fun () -> leveled_type_pool := old_type_pool)
+    Misc.try_finally f ~always:
+      (fun () -> leveled_type_pool := old_type_pool; last_pool := old_last)
   in
   let p = !pool in
   (r, p)
 
-let with_shared_pool ~from ~level f =
-  fst (with_new_pool ~share:from ~level f)
-
 let with_new_pool ~level f = with_new_pool ~level f
 
 let add_to_pool ~warn ~level ty =
-  if level >= generic_level - 1 || level <= 0 then () else
+  if level > highest_level || level <= 0 then () else
   try
+    let level = min !last_pool level in
     let pool = IntMap.find level !leveled_type_pool in
     pool := ty :: !pool
   with Not_found ->
@@ -148,11 +142,13 @@ let add_to_pool ~warn ~level ty =
         (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
         (List.map fst (IntMap.bindings !leveled_type_pool))
 
+(*
 let share_level_pool ~from ~level =
   try
     let pool = IntMap.find from !leveled_type_pool in
     leveled_type_pool := IntMap.add level pool !leveled_type_pool
   with Not_found -> ()
+*)
 (*    Format.eprintf "Level %d not in pool, could not create level %d@."
       from level *)
 
@@ -169,6 +165,8 @@ let newty2 ~level desc =
 let newgenty desc      = newty2 ~level:generic_level desc
 let newgenvar ?name () = newgenty (Tvar name)
 let newgenstub ~scope  = newty3 ~level:generic_level ~scope (Tvar None)
+
+let newhity desc       = newty2 ~level:highest_level desc
 
 (*
 let newmarkedvar level =
