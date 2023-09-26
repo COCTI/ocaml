@@ -614,21 +614,22 @@ let enter_orpat_variables loc env  p1_vs p2_vs =
   let rec unify_vars p1_vs p2_vs =
     let vars vs = List.map (fun {pv_id; _} -> pv_id) vs in
     match p1_vs, p2_vs with
-      | {pv_id = x1; pv_type = t1; _}::rem1, {pv_id = x2; pv_type = t2; _}::rem2
+      | ({pv_id = x1; pv_type = t1; _} as pv1)::rem1,
+        {pv_id = x2; pv_type = t2; _}::rem2
         when Ident.equal x1 x2 ->
-          if x1==x2 then
-            unify_vars rem1 rem2
-          else begin
-            begin try
-              unify_var env (newvar ()) t1;
-              unify env t1 t2
+          let (alpha, pvs) = unify_vars rem1 rem2 in
+          if x1==x2 then (alpha, pv1 :: pvs) else begin
+            try
+              with_local_level_generalize begin fun () ->
+                let t1 = instance t1 and t2 = instance t2 in
+                unify env t1 t2;
+                ((x2,x1)::alpha, {pv1 with pv_type = t1} :: pvs)
+              end
             with
             | Unify err ->
                 raise(Error(loc, env, Or_pattern_type_clash(x1, err)))
-            end;
-          (x2,x1)::unify_vars rem1 rem2
           end
-      | [],[] -> []
+      | [],[] -> ([], [])
       | {pv_id; _}::_, [] | [],{pv_id; _}::_ ->
           raise (Error (loc, env, Orpat_vars (pv_id, [])))
       | {pv_id = x; _}::_, {pv_id = y; _}::_ ->
@@ -886,14 +887,14 @@ let solve_Ppat_array ~refine loc env expected_ty =
     let ty_elt = newvar() in
     let expected_ty = instance expected_ty in
     unify_pat_types_refine ~refine
-      loc env (Predef.type_array ty_elt) expected_ty;
+      loc env (instance (Predef.type_array ty_elt)) expected_ty;
     ty_elt
   end
 
 let solve_Ppat_lazy ~refine loc env expected_ty =
   with_local_level_generalize begin fun () ->
     let nv = newvar () in
-    unify_pat_types_refine ~refine loc env (Predef.type_lazy_t nv)
+    unify_pat_types_refine ~refine loc env (instance (Predef.type_lazy_t nv))
       (instance expected_ty);
     nv
   end
@@ -1878,14 +1879,14 @@ and type_pat_aux
       List.iter (fun { pv_type; pv_loc; _ } ->
         check_scope_escape pv_loc env2 outer_lev pv_type
       ) p2_variables;
-      let alpha_env =
+      let alpha_env, pattern_variables =
         enter_orpat_variables loc !!penv p1_variables p2_variables in
       (* Propagate the outcome of checking the or-pattern back to
          the type_pat_state that the caller passed in.
       *)
       blit_type_pat_state
         ~src:
-          { tps_pattern_variables = tps1.tps_pattern_variables;
+          { tps_pattern_variables = pattern_variables;
             (* We want to propagate all pattern forces, regardless of
                which branch they were found in.
             *)
