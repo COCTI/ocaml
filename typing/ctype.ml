@@ -3749,7 +3749,7 @@ let moregen_occur env level ty =
   let rec occur ty =
     let lv = get_level ty in
     if lv <= level then () else
-    if is_Tvar ty && lv >= generic_level - 1 then raise Occur else
+    if is_Tvar ty && lv >= subject_level then raise Occur else
     if try_mark_node ty then iter_type_expr occur ty
   in
   begin try
@@ -3763,8 +3763,8 @@ let moregen_occur env level ty =
 
 let may_instantiate inst_nongen t1 =
   let level = get_level t1 in
-  if inst_nongen then level <> generic_level - 1
-                 else level =  generic_level
+  if inst_nongen then level <> subject_level
+                 else level =  pattern_level
 
 let rec moregen inst_nongen type_pairs env t1 t2 =
   if eq_type t1 t2 then () else
@@ -3895,8 +3895,8 @@ and moregen_row inst_nongen type_pairs env row1 row2 =
   | _ when static_row row1 -> ()
   | _ when may_inst ->
       let ext =
-        newgenty (Tvariant
-                    (create_row ~fields:r2 ~more:rm2 ~name:None
+        newty2 ~level:pattern_level
+          (Tvariant (create_row ~fields:r2 ~more:rm2 ~name:None
                        ~fixed:row2_fixed ~closed:row2_closed))
       in
       moregen_occur env (get_level rm1) ext;
@@ -3995,7 +3995,7 @@ let moregen inst_nongen type_pairs env patt subj =
 *)
 let moregeneral env inst_nongen pat_sch subj_sch =
   let old_level = !current_level in
-  current_level := generic_level - 1;
+  current_level := subject_level;
   (*
      Generic variables are first duplicated with [instance].  So,
      their levels are lowered to [generic_level - 1].  The subject is
@@ -4003,8 +4003,8 @@ let moregeneral env inst_nongen pat_sch subj_sch =
      changed.
   *)
   let subj_inst = instance subj_sch in
-  let subj = duplicate_type subj_inst in
-  current_level := generic_level;
+  let subj = instance (duplicate_type subj_inst) in
+  current_level := pattern_level;
   (* Duplicate generic variables *)
   let patt = instance pat_sch in
 
@@ -4014,14 +4014,14 @@ let moregeneral env inst_nongen pat_sch subj_sch =
          moregen inst_nongen (TypePairs.create 13) env patt subj
        with Moregen_trace trace ->
          (* Moregen splits the generic level into two finer levels:
-            [generic_level] and [generic_level - 1].  In order to properly
+            [pattern_level] and [subject_level - 1].  In order to properly
             detect and print weak variables when printing this error, we need to
             merge them back together, by regeneralizing the levels of the types
-            after they were instantiated at [generic_level - 1] above.  Because
+            after they were instantiated at [subject_level] above.  Because
             [moregen] does some unification that we need to preserve for more
             legible error messages, we have to manually perform the
             regeneralization rather than backtracking. *)
-         current_level := generic_level - 2;
+         current_level := subject_level - 1;
          generalize subj_inst;
          raise (Moregen (expand_to_moregen_error env trace)))
     ~always:(fun () -> current_level := old_level)
@@ -4479,7 +4479,7 @@ let match_class_types ?(trace=true) env pat_sch subj_sch =
   match errors with
   | [] ->
       let old_level = !current_level in
-      current_level := generic_level - 1;
+      current_level := subject_level;
       (*
          Generic variables are first duplicated with [instance].  So,
          their levels are lowered to [generic_level - 1].  The subject is
@@ -4488,7 +4488,7 @@ let match_class_types ?(trace=true) env pat_sch subj_sch =
       *)
       let (_, subj_inst) = instance_class [] subj_sch in
       let subj = duplicate_class_type subj_inst in
-      current_level := generic_level;
+      current_level := pattern_level;
       (* Duplicate generic variables *)
       let (_, patt) = instance_class [] pat_sch in
       let type_pairs = TypePairs.create 53 in
@@ -4506,15 +4506,15 @@ let match_class_types ?(trace=true) env pat_sch subj_sch =
         | () -> []
         | exception Failure res ->
           (* We've found an error.  Moregen splits the generic level into two
-             finer levels: [generic_level] and [generic_level - 1].  In order
+             finer levels: [pattern_level] and [subject_level].  In order
              to properly detect and print weak variables when printing this
              error, we need to merge them back together, by regeneralizing the
              levels of the types after they were instantiated at
-             [generic_level - 1] above.  Because [moregen] does some
+             [subject_level] above.  Because [moregen] does some
              unification that we need to preserve for more legible error
              messages, we have to manually perform the regeneralization rather
              than backtracking. *)
-          current_level := generic_level - 2;
+          current_level := subject_level - 1;
           generalize_class_type subj_inst;
           res
       in

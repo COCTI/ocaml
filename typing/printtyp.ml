@@ -782,7 +782,7 @@ type type_or_scheme = Type | Type_scheme
 
 let is_non_gen mode ty =
   match mode with
-  | Type_scheme -> is_Tvar ty && get_level ty <> generic_level
+  | Type_scheme -> is_Tvar ty && get_level ty <= highest_level
   | Type        -> false
 
 let nameable_row row =
