@@ -4438,7 +4438,7 @@ and type_newtype
     in
     let ety = Subst.type_expr Subst.identity exp_type in
     replace ety;
-    (result, ety)
+    (result, instance ety)
   end
 
 and type_ident env ?(recarg=Rejected) lid =
