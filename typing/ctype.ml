@@ -4473,7 +4473,7 @@ let match_class_types ?(trace=true) env pat_sch subj_sch =
          changed.
       *)
       let (_, subj_inst) = instance_class [] subj_sch in
-      let subj = duplicate_class_type subj_inst in
+      let (_, subj) = instance_class [] (duplicate_class_type subj_inst) in
       current_level := pattern_level;
       (* Duplicate generic variables *)
       let (_, patt) = instance_class [] pat_sch in
