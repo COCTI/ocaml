@@ -749,13 +749,13 @@ let close_variant env row =
         | Rabsent | Rpresent _ -> (nm, static))
       (orig_name, true) fields in
   if not closed || name != orig_name then begin
-    let more' = if static then Btype.newgenty Tnil else Btype.newgenvar () in
+    let newty = Btype.newty2 ~level:(get_level more) in
+    let more' = if static then newty Tnil else newty (Tvar None) in
     (* this unification cannot fail *)
     Ctype.unify env more
-      (Btype.newgenty
+      (newty
          (Tvariant
-            (create_row ~fields:[] ~more:more'
-               ~closed:true ~name ~fixed)))
+            (create_row ~fields:[] ~more:more' ~closed:true ~name ~fixed)))
   end
 
 (*

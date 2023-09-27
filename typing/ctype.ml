@@ -165,6 +165,7 @@ let raise_nongen_level () =
   saved_level := (!current_level, !nongen_level) :: !saved_level;
   nongen_level := !current_level
 let end_def () =
+  cleanup_abbrev ();
   let (cl, nl) = List.hd !saved_level in
   saved_level := List.tl !saved_level;
   current_level := cl; nongen_level := nl
@@ -776,28 +777,22 @@ let generalize_structure ty =
 
 (* Generalize the spine of a function, if the level >= !current_level *)
 
-let rec generalize_spine ty =
+let rec copy_spine ty =
   let level = get_level ty in
-  if level < !current_level || level = generic_level then () else
+  if level < !current_level || level = generic_level then ty else
   match get_desc ty with
-    Tarrow (_, ty1, ty2, _) ->
-      set_level ty generic_level;
-      generalize_spine ty1;
-      generalize_spine ty2;
-  | Tpoly (ty', _) ->
-      set_level ty generic_level;
-      generalize_spine ty'
+    Tarrow (lbl, ty1, ty2, _) ->
+      newgenty (Tarrow (lbl, copy_spine ty1, copy_spine ty2, commu_ok))
+  | Tpoly (ty', tvl) ->
+      newgenty (Tpoly (copy_spine ty', tvl))
   | Ttuple tyl ->
-      set_level ty generic_level;
-      List.iter generalize_spine tyl
-  | Tpackage (_, fl) ->
-      set_level ty generic_level;
-      List.iter (fun (_n, ty) -> generalize_spine ty) fl
-  | Tconstr (_, tyl, memo) ->
-      set_level ty generic_level;
-      memo := Mnil;
-      List.iter generalize_spine tyl
-  | _ -> ()
+      newgenty (Ttuple (List.map copy_spine tyl))
+  | Tpackage (path, fl) ->
+      let fl = List.map (fun (n, ty) -> n, copy_spine ty) fl in
+      newgenty (Tpackage (path, fl))
+  | Tconstr (path, tyl, _) ->
+      newgenty (Tconstr (path, List.map copy_spine tyl, ref Mnil))
+  | _ -> ty
 
 let forward_try_expand_safe = (* Forward declaration *)
   ref (fun _env _ty -> assert false)
@@ -2933,7 +2928,7 @@ and unify3 uenv t1 t1' t2 t2' =
             Fprivate when f <> dummy_method ->
               link_kind ~inside:kind field_absent;
               if d2 = Tnil then unify uenv rem t2'
-              else unify uenv (newgenty Tnil) rem
+              else unify uenv (newty2 ~level:(get_level rem) Tnil) rem
           | _      ->
               if f = dummy_method then
                 raise_for Unify (Obj Self_cannot_be_closed)
@@ -3116,14 +3111,14 @@ and unify_row uenv row1 row2 =
     if !trace_gadt_instances && not (in_subst_mode uenv) then
       (* in_subst_mode: see PR#11771 *)
       update_level_for Unify (get_env uenv) (get_level rm)
-        (newgenty (Tvariant row));
+        (newhity ~above:(get_level rm) (Tvariant row));
     if has_fixed_explanation row then
       if eq_type more rm then () else
       if is_Tvar rm then link_type rm more else unify uenv rm more
     else
       let ty =
-        newgenty (Tvariant
-                    (create_row ~fields:rest ~more ~closed ~fixed ~name))
+        newhity ~above:(get_level rm)
+          (Tvariant (create_row ~fields:rest ~more ~closed ~fixed ~name))
       in
       update_level_for Unify (get_env uenv) (get_level rm) ty;
       update_scope_for Unify (get_scope rm) ty;
@@ -3722,20 +3717,11 @@ let close_class_signature env sign =
   let self = expand_head env sign.csig_self in
   close env (object_fields self)
 
-let generalize_class_signature_spine env sign =
+let generalize_class_signature_spine _env sign =
   (* Generalize the spine of methods *)
-  let meths = sign.csig_meths in
-  Meths.iter (fun _ (_, _, ty) -> generalize_spine ty) meths;
-  let new_meths =
-    Meths.map
-      (fun (priv, virt, ty) -> (priv, virt, generic_instance ty))
-      meths
-  in
-  (* But keep levels correct on the type of self *)
-  Meths.iter
-    (fun _ (_, _, ty) -> unify_var env (newvar ()) ty)
-    meths;
-  sign.csig_meths <- new_meths
+  sign.csig_meths <-
+    Meths.map (fun (priv, virt, ty) -> priv, virt, copy_spine ty)
+      sign.csig_meths
 
                         (***********************************)
                         (*  Matching between type schemes  *)

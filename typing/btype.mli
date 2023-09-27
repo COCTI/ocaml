@@ -77,8 +77,9 @@ val newgenvar: ?name:string -> unit -> type_expr
 val newgenstub: scope:int -> type_expr
         (* Return a fresh generic node, to be instantiated
            by [Transient_expr.set_stub_desc] *)
-val newhity: type_desc -> type_expr
-        (* Create a type at highest level, lowering it later *)
+val newhity: above:int -> type_desc -> type_expr
+        (* Create a type at [highest_level], if [above < highest_level],
+           otherwise call [newgenty]. The level is to be lowered afterwards. *)
 
 (**** Types ****)
 

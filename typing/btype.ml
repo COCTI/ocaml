@@ -128,8 +128,6 @@ let with_new_pool ~level f =
   let p = !pool in
   (r, p)
 
-let with_new_pool ~level f = with_new_pool ~level f
-
 let add_to_pool ~warn ~level ty =
   if level > highest_level || level <= 0 then () else
   try
@@ -166,7 +164,8 @@ let newgenty desc      = newty2 ~level:generic_level desc
 let newgenvar ?name () = newgenty (Tvar name)
 let newgenstub ~scope  = newty3 ~level:generic_level ~scope (Tvar None)
 
-let newhity desc       = newty2 ~level:highest_level desc
+let newhity ~above =
+  if above >= highest_level then newgenty else newty2 ~level:highest_level
 
 (*
 let newmarkedvar level =
