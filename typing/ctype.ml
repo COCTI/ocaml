@@ -869,13 +869,22 @@ let update_scope_for tr_exn scope ty =
     (without this constraint, the type system would actually be unsound.)
 *)
 
+let in_subst = s_ref false
+
 let rec update_level env level expand ty =
-  if get_level ty > level then begin
-    begin try if Sys.getenv "DONT_LOWER_GENERIC" <> "0"
-        && get_level ty = generic_level then assert false
-    with Not_found -> ()
+  let ty_level = get_level ty in
+  if ty_level > level then begin
+    if ty_level = generic_level && not !in_subst then begin
+      match Sys.getenv "DONT_LOWER_GENERIC" with
+      | "0" | exception Not_found -> ()
+      | _ -> assert false
     end;
     if level < get_scope ty then raise_scope_escape_exn ty;
+    let set_level () =
+      set_level ty level;
+      if ty_level = generic_level then
+        add_to_pool ~warn:false ~level (Transient_expr.repr ty)
+    in
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
@@ -902,7 +911,7 @@ let rec update_level env level expand ty =
           link_type ty ty';
           update_level env level expand ty'
         with Cannot_expand ->
-          set_level ty level;
+          set_level ();
           iter_type_expr (update_level env level expand) ty
         end
     | Tpackage (p, fl) when level < Path.scope p ->
@@ -920,13 +929,13 @@ let rec update_level env level expand ty =
             set_type_desc ty (Tvariant (set_row_name row None))
         | _ -> ()
         end;
-        set_level ty level;
+        set_level ();
         iter_type_expr (update_level env level expand) ty
     | Tfield(lab, _, ty1, _)
       when lab = dummy_method && level < get_scope ty1 ->
         raise_escape_exn Self
     | _ ->
-        set_level ty level;
+        set_level ();
         (* XXX what about abbreviations in Tconstr ? *)
         iter_type_expr (update_level env level expand) ty
   end
@@ -1548,8 +1557,9 @@ let unify_var' = (* Forward declaration *)
 
 let subst env level priv abbrev oty params args body =
   if List.length params <> List.length args then raise Cannot_subst;
-  let old_level = !current_level in
+  let old_level = !current_level and old_in_subst = !in_subst in
   current_level := level;
+  in_subst := true;
   let body0 = newvar () in          (* Stub *)
   let undo_abbrev =
     match oty with
@@ -1570,9 +1580,11 @@ let subst env level priv abbrev oty params args body =
     !unify_var' uenv body0 body';
     List.iter2 (!unify_var' uenv) params' args;
     current_level := old_level;
+    in_subst := old_in_subst;
     body'
   with Unify _ ->
     current_level := old_level;
+    in_subst := old_in_subst;
     undo_abbrev ();
     raise Cannot_subst
 
