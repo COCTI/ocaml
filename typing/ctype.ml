@@ -869,12 +869,10 @@ let update_scope_for tr_exn scope ty =
     (without this constraint, the type system would actually be unsound.)
 *)
 
-let in_subst = s_ref false
-
 let rec update_level env level expand ty =
   let ty_level = get_level ty in
   if ty_level > level then begin
-    if ty_level = generic_level && not !in_subst then begin
+    if !Clflags.principal && ty_level = generic_level then begin
       match Sys.getenv "DONT_LOWER_GENERIC" with
       | "0" | exception Not_found -> ()
       | _ -> assert false
@@ -1557,9 +1555,8 @@ let unify_var' = (* Forward declaration *)
 
 let subst env level priv abbrev oty params args body =
   if List.length params <> List.length args then raise Cannot_subst;
-  let old_level = !current_level and old_in_subst = !in_subst in
+  let old_level = !current_level in
   current_level := level;
-  in_subst := true;
   let body0 = newvar () in          (* Stub *)
   let undo_abbrev =
     match oty with
@@ -1580,11 +1577,9 @@ let subst env level priv abbrev oty params args body =
     !unify_var' uenv body0 body';
     List.iter2 (!unify_var' uenv) params' args;
     current_level := old_level;
-    in_subst := old_in_subst;
     body'
   with Unify _ ->
     current_level := old_level;
-    in_subst := old_in_subst;
     undo_abbrev ();
     raise Cannot_subst
 
