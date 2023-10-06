@@ -60,9 +60,8 @@ end
 val generic_level: int
 
 val with_new_pool: level:int -> (unit -> 'a) -> 'a * transient_expr list
-val with_shared_pool: from:int -> level:int -> (unit -> 'a) -> 'a
 val add_to_pool: warn:bool -> level:int -> transient_expr -> unit
-val share_level_pool: from:int -> level:int -> unit
+        (* Only types with [level < generic_level - 1] are tracked *)
 
 val newty3: level:int -> scope:int -> type_desc -> type_expr
         (* Create a type with a fresh id *)

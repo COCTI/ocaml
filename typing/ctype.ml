@@ -169,17 +169,13 @@ let end_def () =
   saved_level := List.tl !saved_level;
   current_level := cl; nongen_level := nl
 let create_scope () =
-  let from = !current_level in
-  init_def (from + 1);
-  let level = !current_level in
-  share_level_pool ~from ~level;
+  let level = !current_level + 1 in
+  init_def level;
   level
 
 let wrap_end_def f = Misc.try_finally f ~always:end_def
 let wrap_end_def_new_pool f =
   wrap_end_def (fun _ -> with_new_pool ~level:!current_level f)
-let wrap_end_def_share_pool ~from f =
-  wrap_end_def (fun _ -> with_shared_pool ~from ~level:!current_level f)
 
 let with_local_level_generalize ~structure ?post f =
   begin_def ();
@@ -194,6 +190,7 @@ let with_local_level_generalize ~structure ?post f =
         add_to_pool ~warn:false ~level:old_level ty
     | Tlink _ -> ()
     | _ ->
+        if ty.level >= generic_level then () else
         if ty.level >= level then
           Transient_expr.set_level ty generic_level
         else
@@ -204,19 +201,23 @@ let with_local_level_generalize_structure f =
   with_local_level_generalize ~structure:true f
 let with_local_level_generalize ?post f =
   with_local_level_generalize ~structure:false ?post f
+let with_local_level_generalize_if cond ?post f =
+  if cond then with_local_level_generalize ?post f else f ()
+let with_local_level_generalize_structure_if cond f =
+  if cond then with_local_level_generalize_structure f else f ()
+let with_local_level_generalize_structure_if_principal f =
+  if !Clflags.principal then with_local_level_generalize_structure f else f ()
 
 let with_local_level ?post f =
-  let from = !current_level in
   begin_def ();
-  let result = wrap_end_def_share_pool ~from f in
+  let result = wrap_end_def f in
   Option.iter (fun g -> g result) post;
   result
 let with_local_level_if cond f ~post =
   if cond then with_local_level f ~post else f ()
 let with_local_level_iter f ~post =
-  let from = !current_level in
   begin_def ();
-  let (result, l) = wrap_end_def_share_pool ~from f in
+  let (result, l) = wrap_end_def f in
   List.iter post l;
   result
 let with_local_level_iter_if cond f ~post =
@@ -226,17 +227,14 @@ let with_local_level_if_principal f ~post =
 let with_local_level_iter_if_principal f ~post =
   with_local_level_iter_if !Clflags.principal f ~post
 let with_level ~level f =
-  let from = !current_level in
   begin_def (); init_def level;
-  let result = wrap_end_def_share_pool ~from f in
-  result
+  wrap_end_def f
 let with_level_if cond ~level f =
   if cond then with_level ~level f else f ()
 
 let with_local_level_for_class ?post f =
-  let from = !current_level in
   begin_class_def ();
-  let result = wrap_end_def_share_pool ~from f in
+  let result = wrap_end_def f in
   Option.iter (fun g -> g result) post;
   result
 
@@ -775,28 +773,22 @@ let generalize_structure ty =
 
 (* Generalize the spine of a function, if the level >= !current_level *)
 
-let rec generalize_spine ty =
+let rec copy_spine ty =
   let level = get_level ty in
-  if level < !current_level || level = generic_level then () else
+  if level < !current_level || level = generic_level then ty else
   match get_desc ty with
-    Tarrow (_, ty1, ty2, _) ->
-      set_level ty generic_level;
-      generalize_spine ty1;
-      generalize_spine ty2;
-  | Tpoly (ty', _) ->
-      set_level ty generic_level;
-      generalize_spine ty'
+    Tarrow (lbl, ty1, ty2, _) ->
+      newgenty (Tarrow (lbl, copy_spine ty1, copy_spine ty2, commu_ok))
+  | Tpoly (ty', tvl) ->
+      newgenty (Tpoly (copy_spine ty', tvl))
   | Ttuple tyl ->
-      set_level ty generic_level;
-      List.iter generalize_spine tyl
-  | Tpackage (_, fl) ->
-      set_level ty generic_level;
-      List.iter (fun (_n, ty) -> generalize_spine ty) fl
-  | Tconstr (_, tyl, memo) ->
-      set_level ty generic_level;
-      memo := Mnil;
-      List.iter generalize_spine tyl
-  | _ -> ()
+      newgenty (Ttuple (List.map copy_spine tyl))
+  | Tpackage (path, fl) ->
+      let fl = List.map (fun (n, ty) -> n, copy_spine ty) fl in
+      newgenty (Tpackage (path, fl))
+  | Tconstr (path, tyl, _) ->
+      newgenty (Tconstr (path, List.map copy_spine tyl, ref Mnil))
+  | _ -> ty
 
 let forward_try_expand_safe = (* Forward declaration *)
   ref (fun _env _ty -> assert false)
@@ -874,8 +866,14 @@ let update_scope_for tr_exn scope ty =
 *)
 
 let rec update_level env level expand ty =
-  if get_level ty > level then begin
+  let ty_level = get_level ty in
+  if ty_level > level then begin
     if level < get_scope ty then raise_scope_escape_exn ty;
+    let set_level () =
+      set_level ty level;
+      if ty_level = generic_level then
+        add_to_pool ~warn:false ~level (Transient_expr.repr ty)
+    in
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
@@ -902,7 +900,7 @@ let rec update_level env level expand ty =
           link_type ty ty';
           update_level env level expand ty'
         with Cannot_expand ->
-          set_level ty level;
+          set_level ();
           iter_type_expr (update_level env level expand) ty
         end
     | Tpackage (p, fl) when level < Path.scope p ->
@@ -920,13 +918,13 @@ let rec update_level env level expand ty =
             set_type_desc ty (Tvariant (set_row_name row None))
         | _ -> ()
         end;
-        set_level ty level;
+        set_level ();
         iter_type_expr (update_level env level expand) ty
     | Tfield(lab, _, ty1, _)
       when lab = dummy_method && level < get_scope ty1 ->
         raise_escape_exn Self
     | _ ->
-        set_level ty level;
+        set_level ();
         (* XXX what about abbreviations in Tconstr ? *)
         iter_type_expr (update_level env level expand) ty
   end
@@ -3722,20 +3720,11 @@ let close_class_signature env sign =
   let self = expand_head env sign.csig_self in
   close env (object_fields self)
 
-let generalize_class_signature_spine env sign =
+let generalize_class_signature_spine _env sign =
   (* Generalize the spine of methods *)
-  let meths = sign.csig_meths in
-  Meths.iter (fun _ (_, _, ty) -> generalize_spine ty) meths;
-  let new_meths =
-    Meths.map
-      (fun (priv, virt, ty) -> (priv, virt, generic_instance ty))
-      meths
-  in
-  (* But keep levels correct on the type of self *)
-  Meths.iter
-    (fun _ (_, _, ty) -> unify_var env (newvar ()) ty)
-    meths;
-  sign.csig_meths <- new_meths
+  sign.csig_meths <-
+    Meths.map (fun (priv, virt, ty) -> priv, virt, copy_spine ty)
+      sign.csig_meths
 
                         (***********************************)
                         (*  Matching between type schemes  *)
