@@ -535,7 +535,7 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
           ty
         with Not_found ->
           let t, ty =
-            with_local_level_if_principal begin fun () ->
+            with_local_level_generalize_structure_if_principal begin fun () ->
               let t = newvar () in
               (* Use the whole location, which is used by [Type_mismatch]. *)
               TyVarEnv.remember_used alias.txt t styp.ptyp_loc;
@@ -546,7 +546,6 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
               end;
               (t, ty)
             end
-            ~post: (fun (t, _) -> generalize_structure t)
           in
           let t = instance t in
           let px = Btype.proxy t in
@@ -661,14 +660,13 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
   | Ptyp_poly(vars, st) ->
       let vars = List.map (fun v -> v.txt) vars in
       let new_univars, cty =
-        with_local_level begin fun () ->
+        with_local_level_generalize begin fun () ->
           let new_univars = TyVarEnv.make_poly_univars vars in
           let cty = TyVarEnv.with_univars new_univars begin fun () ->
             transl_type env ~policy ~row_context st
           end in
           (new_univars, cty)
         end
-        ~post:(fun (_,cty) -> generalize_ctyp cty)
       in
       let ty = cty.ctyp_type in
       let ty_list = TyVarEnv.check_poly_univars env styp.ptyp_loc new_univars in

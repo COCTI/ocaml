@@ -657,7 +657,7 @@ and build_as_type_extra env p = function
          If we used [generic_instance] we would lose the sharing between
          [instance ty] and [ty].  *)
       let ty =
-        with_local_level ~post:generalize_structure (fun () -> instance ty)
+        with_local_level_generalize_structure (fun () -> instance ty)
       in
       (* This call to unify may only fail due to missing GADT equations *)
       unify_pat_types p.pat_loc env (instance as_ty) (instance ty);
@@ -760,7 +760,7 @@ let solve_constructor_annotation
       name_list
   in
   let cty, ty, force =
-    with_local_level ~post:(fun (_,ty,_) -> generalize_structure ty)
+    with_local_level_generalize_structure
       (fun () -> Typetexp.transl_simple_type_delayed !!penv sty)
   in
   tps.tps_pattern_force <- force :: tps.tps_pattern_force;
@@ -811,7 +811,7 @@ let solve_Ppat_construct ~refine tps penv loc constr no_existentials
   in
 
   let ty_args, equated_types, existential_ctyp =
-    with_local_level_iter ~post: generalize_structure begin fun () ->
+    with_local_level_generalize_structure begin fun () ->
       let expected_ty = instance expected_ty in
       let ty_args, ty_res, equated_types, existential_ctyp =
         match existential_styp with
@@ -840,8 +840,7 @@ let solve_Ppat_construct ~refine tps penv loc constr no_existentials
       in
       if constr.cstr_existentials <> [] then
         lower_variables_only !!penv penv.Pattern_env.equations_scope ty_res;
-      ((ty_args, equated_types, existential_ctyp),
-       expected_ty :: ty_res :: ty_args)
+      (ty_args, equated_types, existential_ctyp)
     end
   in
   if !Clflags.principal && not refine then begin
@@ -850,8 +849,6 @@ let solve_Ppat_construct ~refine tps penv loc constr no_existentials
     try
       TypePairs.iter
         (fun (t1, t2) ->
-          generalize_structure t1;
-          generalize_structure t2;
           if not (fully_generic t1 && fully_generic t2) then
             let msg =
               Format.asprintf
@@ -869,7 +866,7 @@ let solve_Ppat_construct ~refine tps penv loc constr no_existentials
   (ty_args, existential_ctyp)
 
 let solve_Ppat_record_field ~refine loc penv label label_lid record_ty =
-  with_local_level_iter ~post:generalize_structure begin fun () ->
+  with_local_level_generalize_structure begin fun () ->
     let (_, ty_arg, ty_res) = instance_label ~fixed:false label in
     begin try
       unify_pat_types_refine ~refine loc penv ty_res (instance record_ty)
@@ -877,7 +874,7 @@ let solve_Ppat_record_field ~refine loc penv label label_lid record_ty =
       raise(Error(label_lid.loc, !!penv,
                   Label_mismatch(label_lid.txt, err)))
     end;
-    (ty_arg, [ty_res; ty_arg])
+    ty_arg
   end
 
 let solve_Ppat_array ~refine loc env expected_ty =
@@ -895,7 +892,7 @@ let solve_Ppat_lazy ~refine loc env expected_ty =
 
 let solve_Ppat_constraint tps loc env sty expected_ty =
   let cty, ty, force =
-    with_local_level ~post:(fun (_, ty, _) -> generalize_structure ty)
+    with_local_level_generalize_structure
       (fun () -> Typetexp.transl_simple_type_delayed env sty)
   in
   tps.tps_pattern_force <- force :: tps.tps_pattern_force;
