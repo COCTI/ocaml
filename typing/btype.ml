@@ -130,6 +130,7 @@ let with_new_pool ~level f =
 let add_to_pool ~warn ~level ty =
   if level >= generic_level - 1 || level <= 0 then () else
   try
+    let level = min !last_pool level in
     let pool = IntMap.find level !leveled_type_pool in
     pool := ty :: !pool
   with Not_found ->
