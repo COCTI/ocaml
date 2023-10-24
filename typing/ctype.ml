@@ -146,6 +146,32 @@ exception Matches_failure of Env.t * unification_error
 
 exception Incompatible
 
+(**** Control tracing of GADT instances *)
+
+let trace_gadt_instances = ref false
+let check_trace_gadt_instances env =
+  not !trace_gadt_instances && Env.has_local_constraints env &&
+  (trace_gadt_instances := true; cleanup_abbrev (); true)
+
+let reset_trace_gadt_instances b =
+  if b then trace_gadt_instances := false
+
+let wrap_trace_gadt_instances env f x =
+  let b = check_trace_gadt_instances env in
+  let y = f x in
+  reset_trace_gadt_instances b;
+  y
+
+(**** Abbreviations without parameters ****)
+(* Shall reset after generalizing *)
+
+let simple_abbrevs = ref Mnil
+
+let proper_abbrevs tl abbrev =
+  if tl <> [] || !trace_gadt_instances || !Clflags.principal
+  then abbrev
+  else simple_abbrevs
+
 (**** Type level management ****)
 
 let current_level = s_ref 0
@@ -182,6 +208,7 @@ let with_local_level_generalize ~structure ?post f =
   let level = !current_level in
   let result, pool = wrap_end_def_new_pool f in
   Option.iter (fun g -> g result) post;
+  simple_abbrevs := Mnil;
   List.iter begin fun ty ->
     match ty.desc with
     | Tvar _ when structure && ty.level >= level ->
@@ -191,8 +218,13 @@ let with_local_level_generalize ~structure ?post f =
     | Tlink _ -> ()
     | _ ->
         if ty.level >= generic_level then () else
-        if ty.level >= level then
-          Transient_expr.set_level ty generic_level
+        if ty.level >= level then begin
+          Transient_expr.set_level ty generic_level;
+          match ty.desc with
+            Tconstr (_, _, abbrev) when structure ->
+              abbrev := Mnil
+          | _ -> ()
+        end
         else
           add_to_pool ~warn:false ~level:ty.level ty
   end pool;
@@ -251,32 +283,6 @@ let increase_global_level () =
   gl
 let restore_global_level gl =
   global_level := gl
-
-(**** Control tracing of GADT instances *)
-
-let trace_gadt_instances = ref false
-let check_trace_gadt_instances env =
-  not !trace_gadt_instances && Env.has_local_constraints env &&
-  (trace_gadt_instances := true; cleanup_abbrev (); true)
-
-let reset_trace_gadt_instances b =
-  if b then trace_gadt_instances := false
-
-let wrap_trace_gadt_instances env f x =
-  let b = check_trace_gadt_instances env in
-  let y = f x in
-  reset_trace_gadt_instances b;
-  y
-
-(**** Abbreviations without parameters ****)
-(* Shall reset after generalizing *)
-
-let simple_abbrevs = ref Mnil
-
-let proper_abbrevs tl abbrev =
-  if tl <> [] || !trace_gadt_instances || !Clflags.principal
-  then abbrev
-  else simple_abbrevs
 
 (**** Some type creators ****)
 
