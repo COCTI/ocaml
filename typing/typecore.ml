@@ -3422,8 +3422,8 @@ and type_expect_
         with_local_level_iter
           begin fun () ->
             let funct =
-              with_local_level_if_principal (fun () -> type_exp env sfunct)
-                ~post: generalize_structure_exp
+              with_local_level_generalize_structure_if_principal
+                (fun () -> type_exp env sfunct)
             in
             let ty = instance funct.exp_type in
             (funct, [ty])
@@ -3552,9 +3552,8 @@ and type_expect_
           None -> None
         | Some sexp ->
             let exp =
-              with_local_level_if_principal
+              with_local_level_generalize_structure_if_principal
                 (fun () -> type_exp ~recarg env sexp)
-                ~post: generalize_structure_exp
             in
             Some exp
       in
@@ -3587,7 +3586,7 @@ and type_expect_
         | (None | Some (_, _, false)), Some (_, p', _) ->
             let decl = Env.find_type p' env in
             let ty =
-              with_local_level ~post:generalize_structure
+              with_local_level_generalize_structure
                 (fun () -> newconstr p' (instance_list decl.type_params))
             in
             ty, opt_exp_opath
@@ -3832,9 +3831,8 @@ and type_expect_
       }
   | Pexp_send (e, {txt=met}) ->
       let (obj,meth,typ) =
-        with_local_level_if_principal
+        with_local_level_generalize_structure_if_principal
           (fun () -> type_send env loc explanation e met)
-          ~post:(fun (_,_,typ) -> generalize_structure typ)
       in
       let typ =
         match get_desc typ with
@@ -4044,8 +4042,7 @@ and type_expect_
       }
   | Pexp_poly(sbody, sty) ->
       let ty, cty =
-        with_local_level_if_principal
-          ~post:(fun (ty,_) -> generalize_structure ty)
+        with_local_level_generalize_structure_if_principal
           begin fun () ->
             match sty with None -> protect_expansion env ty_expected, None
             | Some sty ->
@@ -4064,20 +4061,17 @@ and type_expect_
             { exp with exp_type = instance ty }
         | Tpoly (ty', tl) ->
             (* One more level to generalize locally *)
-            let (exp,_) =
-              with_local_level begin fun () ->
+            let (exp, vars) =
+              with_local_level_generalize begin fun () ->
                 let vars, ty'' =
-                  with_local_level_if_principal
+                  with_local_level_generalize_structure_if_principal
                     (fun () -> instance_poly ~fixed:true tl ty')
-                    ~post:(fun (_,ty'') -> generalize_structure ty'')
                 in
                 let exp = type_expect env sbody (mk_expected ty'') in
                 (exp, vars)
               end
-              ~post: begin fun (exp,vars) ->
-                generalize_and_check_univars env "method" exp ty_expected vars
-              end
             in
+            check_univars env "method" exp ty_expected vars;
             { exp with exp_type = instance ty }
         | Tvar _ ->
             let exp = type_exp env sbody in
@@ -4150,8 +4144,7 @@ and type_expect_
       in
       let op_path, op_desc, op_type, spat_params, ty_params,
           ty_func_result, ty_result, ty_andops =
-        with_local_level_iter_if_principal
-          ~post:generalize_structure begin fun () ->
+        with_local_level_generalize_structure_if_principal begin fun () ->
           let let_loc = slet.pbop_op.loc in
           let op_path, op_desc = type_binding_op_ident env slet.pbop_op in
           let op_type = instance op_desc.val_type in
@@ -4170,9 +4163,8 @@ and type_expect_
           with Unify err ->
             raise(Error(let_loc, env, Letop_type_clash(slet.pbop_op.txt, err)))
           end;
-          ((op_path, op_desc, op_type, spat_params, ty_params,
-            ty_func_result, ty_result, ty_andops),
-           [ty_andops; ty_params; ty_func_result; ty_result])
+          (op_path, op_desc, op_type, spat_params, ty_params,
+           ty_func_result, ty_result, ty_andops)
         end
       in
       let exp, ands = type_andops env slet.pbop_exp sands ty_andops in
@@ -4318,14 +4310,13 @@ and type_coerce
       (arg, ty', Texp_coerce (None, cty'))
   | Some sty ->
       let cty, ty, force, cty', ty', force' =
-        with_local_level_iter ~post:generalize_structure begin fun () ->
+        with_local_level_generalize_structure begin fun () ->
           let (cty, ty, force) =
             Typetexp.transl_simple_type_delayed env sty
           and (cty', ty', force') =
             Typetexp.transl_simple_type_delayed env sty'
           in
-          ((cty, ty, force, cty', ty', force'),
-           [ ty; ty' ])
+          (cty, ty, force, cty', ty', force')
         end
       in
       begin try
@@ -4340,10 +4331,9 @@ and type_coerce
 and type_constraint env sty =
   (* Pretend separate = true, 1% slowdown for lablgtk *)
   let cty =
-    with_local_level begin fun () ->
+    with_local_level_generalize_structure begin fun () ->
       Typetexp.transl_simple_type env ~closed:false sty
     end
-    ~post:(fun cty -> generalize_structure cty.ctyp_type)
   in
   cty.ctyp_type, Texp_constraint cty
 
@@ -4458,7 +4448,7 @@ and type_binding_op_ident env s =
 and split_function_ty env ty_expected ~arg_label ~first ~in_function =
   let { ty = ty_fun; explanation }, loc = in_function in
   let separate = !Clflags.principal || Env.has_local_constraints env in
-  with_local_level_iter_if separate ~post:generalize_structure begin fun () ->
+  with_local_level_generalize_structure_if separate begin fun () ->
     let ty_arg, ty_res =
       try filter_arrow env (instance ty_expected) arg_label
       with Filter_arrow_failed err ->
@@ -4484,7 +4474,7 @@ and split_function_ty env ty_expected ~arg_label ~first ~in_function =
         type_option tv
       else ty_arg
     in
-    (ty_arg, ty_res), [ ty_arg; ty_res ]
+    (ty_arg, ty_res)
   end
 
 (* Typecheck parameters one at a time followed by the body. Later parameters
@@ -4716,7 +4706,7 @@ and type_function
 
 and type_label_access env srecord usage lid =
   let record =
-    with_local_level_if_principal ~post:generalize_structure_exp
+    with_local_level_generalize_structure_if_principal
       (fun () -> type_exp ~recarg:Allowed env srecord)
   in
   let ty_exp = record.exp_type in
@@ -4993,14 +4983,10 @@ and type_label_exp create env loc ty_expected
     (* try the first approach *)
     with_local_level begin fun () ->
       let (vars, ty_arg) =
-        with_local_level_iter_if separate begin fun () ->
+        with_local_level_generalize_structure_if separate begin fun () ->
           let (vars, ty_arg, ty_res) =
-            with_local_level_iter_if separate ~post:generalize_structure
-              begin fun () ->
-                let ((_, ty_arg, ty_res) as r) =
-                  instance_label ~fixed:true label in
-                (r, [ty_arg; ty_res])
-              end
+            with_local_level_generalize_structure_if separate
+              (fun () -> instance_label ~fixed:true label)
           in
           begin try
             unify env (instance ty_res) (instance ty_expected)
@@ -5009,9 +4995,8 @@ and type_label_exp create env loc ty_expected
           end;
           (* Instantiate so that we can generalize internal nodes *)
           let ty_arg = instance ty_arg in
-          ((vars, ty_arg), [ty_arg])
+          (vars, ty_arg)
         end
-        ~post:generalize_structure
       in
 
       if label.lbl_private = Private then
@@ -5044,15 +5029,13 @@ and type_label_exp create env loc ty_expected
           ~post:(fun arg -> lower_contravariant env arg.exp_type)
       in
       let arg =
-        with_local_level begin fun () ->
+        with_local_level_generalize begin fun () ->
           let arg = {arg with exp_type = instance arg.exp_type} in
           unify_exp env arg (instance ty_arg);
           arg
         end
-        ~post: begin fun arg ->
-          generalize_and_check_univars env "field value" arg label.lbl_arg vars
-        end
       in
+      check_univars env "field value" arg label.lbl_arg vars;
       {arg with exp_type = instance arg.exp_type}
     with Error (_, _, Less_general _) as e -> raise e
     | _ -> raise first_try_exn
@@ -5085,7 +5068,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
       (* apply optional arguments when expected type is "" *)
       (* we must be very careful about not breaking the semantics *)
       let texp =
-        with_local_level_if_principal ~post:generalize_structure_exp
+        with_local_level_generalize_structure_if_principal
           (fun () -> type_exp env sarg)
       in
       let rec make_args args ty_fun =
@@ -5413,9 +5396,9 @@ and type_construct env loc lid sarg ty_expected_explained attrs =
                             (lid.txt, constr.cstr_arity, List.length sargs)));
   let separate = !Clflags.principal || Env.has_local_constraints env in
   let ty_args, ty_res, texp =
-    with_local_level_iter_if separate ~post:generalize_structure begin fun () ->
+    with_local_level_generalize_structure_if separate begin fun () ->
       let ty_args, ty_res, texp =
-        with_local_level_if separate begin fun () ->
+        with_local_level_generalize_structure_if separate begin fun () ->
           let (ty_args, ty_res, _) =
             instance_constructor Keep_existentials_flexible constr
           in
@@ -5428,14 +5411,11 @@ and type_construct env loc lid sarg ty_expected_explained attrs =
             exp_env = env } in
           (ty_args, ty_res, texp)
         end
-        ~post: begin fun (_, ty_res, texp) ->
-          generalize_structure ty_res;
-          with_explanation explanation (fun () ->
-            unify_exp env {texp with exp_type = instance ty_res}
-              (instance ty_expected));
-        end
       in
-      ((ty_args, ty_res, texp), ty_res::ty_args)
+      with_explanation explanation (fun () ->
+        unify_exp env {texp with exp_type = instance ty_res}
+          (instance ty_expected));
+      (ty_args, ty_res, texp)
     end
   in
   let ty_args0, ty_res =
@@ -5580,7 +5560,7 @@ and map_half_typed_cases
   in
   let half_typed_cases, ty_res, do_copy_types, ty_arg' =
    (* propagation of the argument *)
-    with_local_level begin fun () ->
+    with_local_level_generalize begin fun () ->
       let pattern_force = ref [] in
       (*  Format.printf "@[%i %i@ %a@]@." lev (get_current_level())
           Printtyp.raw_type_expr ty_arg; *)
@@ -5588,7 +5568,7 @@ and map_half_typed_cases
         List.map
         (fun ({ Parmatch.pattern; _ } as untyped_case, case_data) ->
           let htc =
-            with_local_level_if_principal begin fun () ->
+            with_local_level_generalize_structure_if_principal begin fun () ->
               let ty_arg =
                 (* propagation of pattern *)
                 with_local_level ~post:generalize_structure
@@ -5607,9 +5587,6 @@ and map_half_typed_cases
                 module_vars = mvs;
                 contains_gadt = contains_gadt (as_comp_pattern category pat);
               }
-            end
-            ~post: begin fun htc ->
-              iter_pattern_variables_type generalize_structure htc.pat_vars;
             end
           in
           (* Ensure that no ambivalent pattern type escapes its branch *)
@@ -5651,12 +5628,6 @@ and map_half_typed_cases
         iter_pattern_variables_type (enforce_current_level env) pat_vars
       ) half_typed_cases;
       (half_typed_cases, ty_res, do_copy_types, ty_arg')
-    end
-    ~post: begin fun (half_typed_cases, _, _, ty_arg') ->
-      generalize ty_arg';
-      List.iter (fun { pat_vars; _ } ->
-        iter_pattern_variables_type generalize pat_vars
-      ) half_typed_cases
     end
   in
   (* type bodies *)
@@ -5841,7 +5812,7 @@ and type_let ?check ?check_strict
     with_local_level begin fun () ->
       if existential_context = At_toplevel then Typetexp.TyVarEnv.reset ();
       let (pat_list, new_env, force, pvs, mvs) =
-        with_local_level_if_principal begin fun () ->
+        with_local_level_generalize_structure_if_principal begin fun () ->
           let nvs = List.map (fun _ -> newvar ()) spatl in
           let (pat_list, _new_env, _force, _pvs, _mvs as res) =
             type_pattern_list
@@ -5870,11 +5841,6 @@ and type_let ?check ?check_strict
               end)
             pat_list;
           res
-        end
-        ~post: begin fun (pat_list, _, _, pvs, _) ->
-          (* Generalize the structure *)
-          iter_pattern_variables_type generalize_structure pvs;
-          List.iter (fun pat -> generalize_structure pat.pat_type) pat_list
         end
       in
       (* Note [add_module_variables after checking expressions]
@@ -5912,8 +5878,7 @@ and type_let ?check ?check_strict
             match get_desc pat.pat_type with
             | Tpoly (ty, tl) ->
                 let vars, ty' =
-                  with_local_level_if_principal
-                    ~post:(fun (_,ty') -> generalize_structure ty')
+                  with_local_level_generalize_structure_if_principal
                     (fun () -> instance_poly ~keep_names:true ~fixed:true tl ty)
                 in
                 let exp =
@@ -6124,7 +6089,7 @@ and type_andops env sarg sands expected_ty =
     | [] -> type_expect env let_sarg (mk_expected expected_ty), []
     | { pbop_op = sop; pbop_exp = sexp; pbop_loc = loc; _ } :: rest ->
         let op_path, op_desc, op_type, ty_arg, ty_rest, ty_result =
-          with_local_level_iter_if_principal begin fun () ->
+          with_local_level_generalize_structure_if_principal begin fun () ->
             let op_path, op_desc = type_binding_op_ident env sop in
             let op_type = instance op_desc.val_type in
             let ty_arg = newvar () in
@@ -6139,10 +6104,8 @@ and type_andops env sarg sands expected_ty =
             with Unify err ->
               raise(Error(sop.loc, env, Andop_type_clash(sop.txt, err)))
             end;
-            ((op_path, op_desc, op_type, ty_arg, ty_rest, ty_result),
-             [ty_rest; ty_arg; ty_result])
+            (op_path, op_desc, op_type, ty_arg, ty_rest, ty_result)
           end
-          ~post:generalize_structure
         in
         let let_arg, rest = loop env let_sarg rest ty_rest in
         let exp = type_expect env sexp (mk_expected ty_arg) in

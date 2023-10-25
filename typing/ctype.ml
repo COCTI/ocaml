@@ -203,11 +203,11 @@ let wrap_end_def f = Misc.try_finally f ~always:end_def
 let wrap_end_def_new_pool f =
   wrap_end_def (fun _ -> with_new_pool ~level:!current_level f)
 
-let with_local_level_generalize ~structure ?post f =
+let with_local_level_generalize ~structure ?before_generalize f =
   begin_def ();
   let level = !current_level in
   let result, pool = wrap_end_def_new_pool f in
-  Option.iter (fun g -> g result) post;
+  Option.iter (fun g -> g result) before_generalize;
   simple_abbrevs := Mnil;
   List.iter begin fun ty ->
     match ty.desc with
@@ -231,10 +231,10 @@ let with_local_level_generalize ~structure ?post f =
   result
 let with_local_level_generalize_structure f =
   with_local_level_generalize ~structure:true f
-let with_local_level_generalize ?post f =
-  with_local_level_generalize ~structure:false ?post f
-let with_local_level_generalize_if cond ?post f =
-  if cond then with_local_level_generalize ?post f else f ()
+let with_local_level_generalize ?before_generalize f =
+  with_local_level_generalize ~structure:false ?before_generalize f
+let with_local_level_generalize_if cond ?before_generalize f =
+  if cond then with_local_level_generalize ?before_generalize f else f ()
 let with_local_level_generalize_structure_if cond f =
   if cond then with_local_level_generalize_structure f else f ()
 let with_local_level_generalize_structure_if_principal f =
