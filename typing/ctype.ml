@@ -203,7 +203,7 @@ let wrap_end_def f = Misc.try_finally f ~always:end_def
 let wrap_end_def_new_pool f =
   wrap_end_def (fun _ -> with_new_pool ~level:!current_level f)
 
-let with_local_level_generalize ~structure ?before_generalize f =
+let with_local_level_gen ~begin_def ~structure ?before_generalize f =
   begin_def ();
   let level = !current_level in
   let result, pool = wrap_end_def_new_pool f in
@@ -230,15 +230,17 @@ let with_local_level_generalize ~structure ?before_generalize f =
   end pool;
   result
 let with_local_level_generalize_structure f =
-  with_local_level_generalize ~structure:true f
+  with_local_level_gen ~begin_def ~structure:true f
 let with_local_level_generalize ?before_generalize f =
-  with_local_level_generalize ~structure:false ?before_generalize f
+  with_local_level_gen ~begin_def ~structure:false ?before_generalize f
 let with_local_level_generalize_if cond ?before_generalize f =
   if cond then with_local_level_generalize ?before_generalize f else f ()
 let with_local_level_generalize_structure_if cond f =
   if cond then with_local_level_generalize_structure f else f ()
 let with_local_level_generalize_structure_if_principal f =
   if !Clflags.principal then with_local_level_generalize_structure f else f ()
+let with_local_level_generalize_for_class f =
+  with_local_level_gen ~begin_def:begin_class_def ~structure:false f
 
 let with_local_level ?post f =
   begin_def ();
@@ -782,6 +784,11 @@ let generalize_structure ty =
 let rec copy_spine ty =
   let level = get_level ty in
   if level < !current_level || level = generic_level then ty else
+(*XXXXX  
+  let t = newgenstub ~scope:(get_scope ty) in
+  let 
+  For_copy.redirect_desc 
+*)
   match get_desc ty with
     Tarrow (lbl, ty1, ty2, _) ->
       newgenty (Tarrow (lbl, copy_spine ty1, copy_spine ty2, commu_ok))
@@ -1025,16 +1032,17 @@ let rec generalize_class_type' gen =
 
 let generalize_class_type cty =
   generalize_class_type' generalize cty
-
+(*
 let generalize_class_type_structure cty =
   generalize_class_type' generalize_structure cty
+*)
 
 (* Correct the levels of type [ty]. *)
 let correct_levels ty =
   duplicate_type ty
 
 (* Only generalize the type ty0 in ty *)
-let limited_generalize ty0 ty =
+let limited_generalize ty0 ~inside:ty =
   let graph = TypeHash.create 17 in
   let roots = ref [] in
 
@@ -1074,8 +1082,8 @@ let limited_generalize ty0 ty =
        if get_level ty <> generic_level then set_level ty !current_level)
     graph
 
-let limited_generalize_class_type rv cty =
-  generalize_class_type' (limited_generalize rv) cty
+let limited_generalize_class_type rv ~inside:cty =
+  generalize_class_type' (fun inside -> limited_generalize rv ~inside) cty
 
 (* Compute statically the free univars of all nodes in a type *)
 (* This avoids doing it repeatedly during instantiation *)
