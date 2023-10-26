@@ -786,7 +786,7 @@ let set_type_desc ty td =
   end
 (* TODO: separate set_level into two specific functions: *)
 (*  set_lower_level and set_generic_level *)
-let set_level ty level =
+let proto_set_level ty level =
   let ty = repr ty in
   if level <> ty.level then begin
     if ty.id <= !last_snapshot then log_change (Clevel (ty, ty.level));

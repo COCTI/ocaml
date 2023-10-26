@@ -896,11 +896,6 @@ let rec update_level env level expand ty =
   let ty_level = get_level ty in
   if ty_level > level then begin
     if level < get_scope ty then raise_scope_escape_exn ty;
-    let set_level () =
-      set_level ty level;
-      if ty_level = generic_level then
-        add_to_pool ~warn:false ~level (Transient_expr.repr ty)
-    in
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
@@ -927,7 +922,7 @@ let rec update_level env level expand ty =
           link_type ty ty';
           update_level env level expand ty'
         with Cannot_expand ->
-          set_level ();
+          set_level ty level;
           iter_type_expr (update_level env level expand) ty
         end
     | Tpackage (p, fl) when level < Path.scope p ->
@@ -945,13 +940,13 @@ let rec update_level env level expand ty =
             set_type_desc ty (Tvariant (set_row_name row None))
         | _ -> ()
         end;
-        set_level ();
+        set_level ty level;
         iter_type_expr (update_level env level expand) ty
     | Tfield(lab, _, ty1, _)
       when lab = dummy_method && level < get_scope ty1 ->
         raise_escape_exn Self
     | _ ->
-        set_level ();
+        set_level ty level;
         (* XXX what about abbreviations in Tconstr ? *)
         iter_type_expr (update_level env level expand) ty
   end

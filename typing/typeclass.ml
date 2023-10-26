@@ -1850,7 +1850,7 @@ let type_classes define_class approx kind env cls =
       cls
   in
   let res, env =
-    Ctype.with_local_level_for_class begin fun () ->
+    Ctype.with_local_level_generalize_for_class begin fun () ->
       let (res, env) =
         List.fold_left (initial_env define_class approx) ([], env) cls
       in

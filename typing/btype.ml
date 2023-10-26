@@ -139,6 +139,11 @@ let add_to_pool ~warn ~level ty =
         (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
         (List.map fst (IntMap.bindings !leveled_type_pool))
 
+let set_level ty level =
+  if get_level ty >= generic_level - 1 then
+    add_to_pool ~warn:false ~level (Transient_expr.repr ty);
+  proto_set_level ty level
+
 (**** Some type creators ****)
 
 let newty3 ~level ~scope desc =
