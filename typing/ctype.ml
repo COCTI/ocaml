@@ -781,27 +781,41 @@ let generalize_structure ty =
 
 (* Generalize the spine of a function, if the level >= !current_level *)
 
-let rec copy_spine ty =
-  let level = get_level ty in
-  if level < !current_level || level = generic_level then ty else
-(*XXXXX  
-  let t = newgenstub ~scope:(get_scope ty) in
-  let 
-  For_copy.redirect_desc 
-*)
+let rec copy_spine copy_scope ty =
   match get_desc ty with
-    Tarrow (lbl, ty1, ty2, _) ->
-      newgenty (Tarrow (lbl, copy_spine ty1, copy_spine ty2, commu_ok))
-  | Tpoly (ty', tvl) ->
-      newgenty (Tpoly (copy_spine ty', tvl))
-  | Ttuple tyl ->
-      newgenty (Ttuple (List.map copy_spine tyl))
-  | Tpackage (path, fl) ->
-      let fl = List.map (fun (n, ty) -> n, copy_spine ty) fl in
-      newgenty (Tpackage (path, fl))
-  | Tconstr (path, tyl, _) ->
-      newgenty (Tconstr (path, List.map copy_spine tyl, ref Mnil))
-  | _ -> ty
+  | Tsubst (ty, _) -> ty
+  | Tvar _
+  | Tfield _
+  | Tnil
+  | Tvariant _
+  | Tobject _
+  | Tlink _
+  | Tunivar _ -> ty
+  | (Tarrow _ | Tpoly _ | Ttuple _ | Tpackage _ | Tconstr _) as desc ->
+      let level = get_level ty in
+      if level < !current_level || level = generic_level then ty else
+      let t = newgenstub ~scope:(get_scope ty) in
+      For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
+      let copy_rec = copy_spine copy_scope in
+      let desc' = match desc with
+      | Tarrow (lbl, ty1, ty2, _) ->
+          Tarrow (lbl, copy_rec ty1, copy_rec ty2, commu_ok)
+      | Tpoly (ty', tvl) ->
+          Tpoly (copy_rec ty', tvl)
+      | Ttuple tyl ->
+          Ttuple (List.map copy_rec tyl)
+      | Tpackage (path, fl) ->
+          let fl = List.map (fun (n, ty) -> n, copy_rec ty) fl in
+          Tpackage (path, fl)
+      | Tconstr (path, tyl, _) ->
+          Tconstr (path, List.map copy_rec tyl, ref Mnil)
+      | _ -> assert false
+      in
+      Transient_expr.set_stub_desc t desc';
+      t
+
+let copy_spine ty =
+  For_copy.with_scope (fun copy_scope -> copy_spine copy_scope ty)
 
 let forward_try_expand_safe = (* Forward declaration *)
   ref (fun _env _ty -> assert false)

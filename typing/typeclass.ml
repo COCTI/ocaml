@@ -1725,7 +1725,6 @@ let final_decl env define_class
   List.iter Ctype.generalize cl_abbr.type_params;
   Option.iter  Ctype.generalize cl_abbr.type_manifest;
 
-
   Ctype.nongen_vars_in_class_declaration clty
   |> Option.iter (fun vars ->
       let nongen_vars = Btype.TypeSet.elements vars in
