@@ -8,12 +8,12 @@ Section eqtype.
 Variable T : Type.
 Variable eq_dec : comparable T.
 Definition compareb x y : bool := eq_dec x y.
-Definition compareP' x y :=
+Definition comparePc x y :=
   match eq_dec x y as s return reflect (x = y) s with
   | left a => ReflectT (x = y) a
   | right b => ReflectF (x = y) b
   end.
-Definition eqP' (E : eqType) : Equality.axiom (@eq_op E) :=
+Definition eqPc (E : eqType) : Equality.axiom (@eq_op E) :=
   match E with EqType sort (EqMixin op a) => a end.
 End eqtype.
 
@@ -122,7 +122,7 @@ Definition cnew T (v : coq_type T) : M (loc T) :=
     inr (inr (mkloc T n), mkEnv (rcons st (mkbind T (v : coq_type T)))).
 
 Definition coerce T1 T2 (v : coq_type T1) : option (coq_type T2) :=
-  match eqP' _ T1 T2 with
+  match eqPc _ T1 T2 with
   | ReflectT H => Some (eq_rect _ _ v _ H)
   |  _ => None
   end.

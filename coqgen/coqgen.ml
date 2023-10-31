@@ -203,7 +203,7 @@ let transl_implementation _modname st =
 \n    right; injection; intros; contradiction.\
 \nDefined.\
 \n\
-\nDefinition ml_type_eq_mixin := EqMixin (compareP' _ ml_type_eq_dec).\
+\nDefinition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).\
 \nCanonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.\
 \n\
 \nLocal Definition ml_type := ml_type_eqType.\

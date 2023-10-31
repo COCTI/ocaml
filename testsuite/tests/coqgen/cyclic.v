@@ -33,7 +33,7 @@ revert T2; induction T1; destruct T2;
     right; injection; intros; contradiction.
 Defined.
 
-Definition ml_type_eq_mixin := EqMixin (compareP' _ ml_type_eq_dec).
+Definition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).
 Canonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.
 
 Local Definition ml_type := ml_type_eqType.
@@ -195,22 +195,22 @@ Definition h := 100000.
 
 Definition cycle (T : ml_type) (a b : coq_type T)
   : M (coq_type (ml_rlist T)) :=
-  do r <- cnew (ml_rlist T) (Nil (coq_type T));
+  do r <- cnew (ml_rlist T) (Nil (coq_type T) T);
   do l <-
-  (do v <- cnew (ml_rlist T) (Cons (coq_type T) b r);
-   Ret (Cons (coq_type T) a v));
+  (do v <- cnew (ml_rlist T) (Cons (coq_type T) T b r);
+   Ret (Cons (coq_type T) T a v));
   do _ <- cput (ml_rlist T) r l; Ret l.
 
 Definition l := Restart it (cycle ml_bool true false).
 
 Definition hd (T : ml_type) (def : coq_type T)
   (param : coq_type (ml_rlist T)) : coq_type T :=
-  match param with | Nil _ => def | Cons _ a _ => a end.
+  match param with | Nil => def | Cons a _ => a end.
 
 Definition tl (T : ml_type) (param : coq_type (ml_rlist T))
   : M (coq_type (ml_rlist T)) :=
   match param with
-  | Nil _ => Ret (Nil (coq_type T))
-  | Cons _ _ t => cget (ml_rlist T) t
+  | Nil => Ret (Nil (coq_type T) T)
+  | Cons _ t => cget (ml_rlist T) t
   end.
 

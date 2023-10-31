@@ -36,7 +36,7 @@ revert T2; induction T1; destruct T2;
     right; injection; intros; contradiction.
 Defined.
 
-Definition ml_type_eq_mixin := EqMixin (compareP' _ ml_type_eq_dec).
+Definition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).
 Canonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.
 
 Local Definition ml_type := ml_type_eqType.
