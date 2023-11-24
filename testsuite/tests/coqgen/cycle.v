@@ -33,7 +33,7 @@ revert T2; induction T1; destruct T2;
     right; injection; intros; contradiction.
 Defined.
 
-Definition ml_type_eq_mixin := EqMixin (compareP' _ ml_type_eq_dec).
+Definition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).
 Canonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.
 
 Local Definition ml_type := ml_type_eqType.
@@ -195,12 +195,29 @@ Definition h := 100000.
 
 Definition cycle (T : ml_type) (a b : coq_type T)
   : M (coq_type (ml_rlist T)) :=
-  do r <- cnew (ml_rlist T) (Nil (coq_type T));
+  do r <- cnew (ml_rlist T) (Nil (coq_type T) T);
   do l <-
-  (do v <- cnew (ml_rlist T) (Cons (coq_type T) b r);
-   Ret (Cons (coq_type T) a v));
+  (do v <- cnew (ml_rlist T) (Cons (coq_type T) T b r);
+   Ret (Cons (coq_type T) T a v));
   do _ <- cput (ml_rlist T) r l; Ret l.
 
 Definition hd (T : ml_type) (x : coq_type T) (param : coq_type (ml_rlist T))
-  : coq_type T := match param with | Nil _ => x | Cons _ a _ => a end.
+  : coq_type T := match param with | Nil => x | Cons a _ => a end.
+
+Definition tl (T : ml_type) (x : coq_type (ml_ref (ml_rlist T)))
+  (param : coq_type (ml_rlist T)) : coq_type (ml_ref (ml_rlist T)) :=
+  match param with | Nil => x | Cons _ x_1 => x_1 end.
+
+Fixpoint iappend (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_rlist T))
+  : M (coq_type (ml_rlist T)) :=
+  if h is h.+1 then
+    match l1 with
+    | Nil => Ret l2
+    | Cons a l1' =>
+      do _ <-
+      (do v <- (do v <- cget (ml_rlist T) l1'; iappend h T v l2);
+       cput (ml_rlist T) l1' v);
+      Ret l1
+    end
+  else FailGas.
 
