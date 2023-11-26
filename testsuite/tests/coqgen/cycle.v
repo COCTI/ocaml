@@ -204,9 +204,12 @@ Definition cycle (T : ml_type) (a b : coq_type T)
 Definition hd (T : ml_type) (x : coq_type T) (param : coq_type (ml_rlist T))
   : coq_type T := match param with | Nil => x | Cons a _ => a end.
 
-Definition tl (T : ml_type) (x : coq_type (ml_ref (ml_rlist T)))
-  (param : coq_type (ml_rlist T)) : coq_type (ml_ref (ml_rlist T)) :=
-  match param with | Nil => x | Cons _ x_1 => x_1 end.
+Definition tl (T : ml_type) (param : coq_type (ml_rlist T))
+  : M (coq_type (ml_rlist T)) :=
+  match param with
+  | Nil => Ret (Nil (coq_type T) T)
+  | Cons _ l => cget (ml_rlist T) l
+  end.
 
 Fixpoint iappend (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_rlist T))
   : M (coq_type (ml_rlist T)) :=

@@ -7,7 +7,7 @@ let cycle a b =
   l
 
 let hd x = function Nil -> x | Cons (a, _) -> a
-let tl x = function Nil -> x | Cons (_, x) -> x
+let tl = function Nil -> Nil | Cons (_, l) -> !l
 
 let rec iappend l1 l2 =
   match l1 with
