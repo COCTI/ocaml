@@ -194,22 +194,51 @@ Definition h := 100000.
 (* Translated code *)
 
 Definition cycle (T : ml_type) (a b : coq_type T)
-  : M (coq_type (ml_rlist T)) :=
+  : M (coq_type (ml_ref (ml_rlist T))) :=
   do r <- cnew (ml_rlist T) (Nil (coq_type T) T);
-  do l <-
-  (do v <- cnew (ml_rlist T) (Cons (coq_type T) T b r);
-   Ret (Cons (coq_type T) T a v));
-  do _ <- cput (ml_rlist T) r l; Ret l.
+  do _ <-
+  (do v <-
+   (do v <- cnew (ml_rlist T) (Cons (coq_type T) T b r);
+    Ret (Cons (coq_type T) T a v));
+   cput (ml_rlist T) r v);
+  Ret r.
 
-Definition hd (T : ml_type) (x : coq_type T) (param : coq_type (ml_rlist T))
-  : coq_type T := match param with | Nil => x | Cons a _ => a end.
+Definition hd (T : ml_type) (x : coq_type T)
+  (r : coq_type (ml_ref (ml_rlist T))) : M (coq_type T) :=
+  do v <- cget (ml_rlist T) r;
+  match v with | Nil => Ret x | Cons a _ => Ret a end.
 
-Definition tl (T : ml_type) (param : coq_type (ml_rlist T))
-  : M (coq_type (ml_rlist T)) :=
-  match param with
-  | Nil => Ret (Nil (coq_type T) T)
-  | Cons _ l => cget (ml_rlist T) l
-  end.
+Definition tl (T : ml_type) (r : coq_type (ml_ref (ml_rlist T)))
+  : M (coq_type (ml_ref (ml_rlist T))) :=
+  do v <- cget (ml_rlist T) r;
+  match v with | Nil => Ret r | Cons _ l => Ret l end.
+
+Fixpoint drop (h : nat) (T : ml_type) (n : coq_type ml_int)
+  (l : coq_type (ml_ref (ml_rlist T)))
+  : M (coq_type (ml_ref (ml_rlist T))) :=
+  if h is h.+1 then
+    do v <- ml_le h ml_int n 0%int63; if v then Ret l else tl T l
+  else FailGas.
+
+Fixpoint rseqn (h : nat) (T : ml_type) (n : coq_type ml_int) (a : coq_type T)
+  (r : coq_type (ml_ref (ml_rlist T)))
+  : M (coq_type (ml_ref (ml_rlist T))) :=
+  if h is h.+1 then
+    do v <- ml_le h ml_int n 0%int63;
+    if v then Ret r else
+      do v <-
+      (do v <- rseqn h T (PrimInt63.sub n 1%int63) a r;
+       Ret (Cons (coq_type T) T a v));
+      cnew (ml_rlist T) v
+  else FailGas.
+
+Definition cyclen (h : nat) (T : ml_type) (n : coq_type ml_int)
+  (a b : coq_type T) : M (coq_type (ml_ref (ml_rlist T))) :=
+  do r <- cnew (ml_rlist T) (Nil (coq_type T) T);
+  do _ <-
+  (do v <- (do v <- rseqn h T n b r; Ret (Cons (coq_type T) T a v));
+   cput (ml_rlist T) r v);
+  Ret r.
 
 Fixpoint iappend (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_rlist T))
   : M (coq_type (ml_rlist T)) :=
