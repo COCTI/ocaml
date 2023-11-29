@@ -5,15 +5,15 @@ let cycle a b =
   r := Cons (a, ref (Cons (b, r)));
   r
 
-let hd x r = match !r with Nil -> x | Cons (a, _) -> a
-let tl r = match !r with Nil -> r | Cons (_, l) -> l
-let rec drop n l = if n <= 0 then l else tl l
-let rec rseqn n a r =
-  if n <= 0 then r else ref (Cons (a, rseqn (n-1) a r))
+let rhd x r = match !r with Nil -> x | Cons (a, _) -> a
+let rtl r = match !r with Nil -> r | Cons (_, l) -> l
+let rec rdrop n l = if n <= 0 then l else rtl l
+let rec mkrlist l r =
+  match l with [] -> r | a :: l -> ref (Cons (a, mkrlist l r))
 
-let cyclen n a b =
+let cyclel a l =
   let r = ref Nil in
-  r := Cons (a, rseqn n b r);
+  r := Cons (a, mkrlist l r);
   r
 
 let rec iappend l1 l2 =
