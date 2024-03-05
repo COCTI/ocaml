@@ -105,42 +105,51 @@ let lowest_level = Ident.lowest_scope
 
 (**** leveled type pool ****)
 
-module IntMap = Map.Make(Int)
+(*module IntMap = Map.Make(Int)*)
 let last_pool = s_ref (ref [])
 let last_level = s_ref 0
-let leveled_type_pool = s_ref IntMap.(add !last_level !last_pool empty)
+let leveled_type_pool = s_ref (Hashtbl.create 7)
+let () = Hashtbl.add !leveled_type_pool !last_level !last_pool
+let added_levels = s_ref []
 
 let with_new_pool ~level f =
-  let old_type_pool = !leveled_type_pool in
+  let old_added_levels = !added_levels in
   let old_level = !last_level and old_pool = !last_pool in
   let pool = ref [] in
-  leveled_type_pool := IntMap.add level pool old_type_pool;
+  Hashtbl.add !leveled_type_pool level pool;
+  added_levels := [level];
   last_level := level;
   last_pool := pool;
   let r =
     Misc.try_finally f ~always:
       (fun () ->
-        leveled_type_pool := old_type_pool;
         last_level := old_level;
-        last_pool := old_pool)
+        last_pool := old_pool;
+        List.iter (Hashtbl.remove !leveled_type_pool) !added_levels;
+        added_levels := old_added_levels)
   in
   let p = !pool in
   (r, p)
 
 let register_last_pool ~level =
-  leveled_type_pool := IntMap.add level !last_pool !leveled_type_pool
+  added_levels := level :: !added_levels;
+  Hashtbl.add !leveled_type_pool level !last_pool
 
 let with_last_pool ~level f =
   if level >= generic_level then f () else
-  let old_type_pool = !leveled_type_pool in
-  register_last_pool ~level;
-  Misc.try_finally f ~always:(fun () -> leveled_type_pool := old_type_pool)
+  let old_added_levels = !added_levels in
+  Hashtbl.add !leveled_type_pool level !last_pool;
+  added_levels := [level];
+  Misc.try_finally f ~always:
+    (fun () ->
+      List.iter (Hashtbl.remove !leveled_type_pool) !added_levels;
+      added_levels := old_added_levels)
 
 let add_to_pool ~level ty =
   if level >= generic_level || level <= 0 then () else
   let pool =
     if level >= !last_level then !last_pool else
-    try IntMap.find level !leveled_type_pool
+    try Hashtbl.find !leveled_type_pool level
     with Not_found ->
       (* Format.eprintf "@[<2>Level %d not in pool: %a@]@." level
         (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
