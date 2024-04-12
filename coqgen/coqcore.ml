@@ -423,6 +423,7 @@ let rec transl_exp ~vars e =
       let prec = if ct.prec = Recursive then Recursive else cm.prec in
       {prec; pary = 0;
        pterm = ctapp (CTid"handle") [cty; ct.pterm; CTabs (v, None, cm.pterm)]}
+  | Texp_tuple exp_list -> {pterm = make_tuple (List.map (fun tp -> (transl_exp ~vars tp).pterm) exp_list); prec = Nonrecursive; pary = 0}
   | Texp_function {arg_label = Nolabel; param; cases; partial} ->
       let pat, exp =
         match cases with
