@@ -124,6 +124,10 @@ let init_type_map vars =
      ct_arity = 2; ct_args = [0, "a"; 1, "b"];
      ct_type = CTprod (None, CTid"a",
                        CTapp (CTid"M", [CTid"b"]))});
+   (coqgen, ["pair"],
+    {ctd with ct_name = "ml_pair";
+     ct_arity = 2; ct_args = [0, "a"; 1, "b"];
+     ct_type = CTapp (CTid "prod", [CTid "a"; CTid "b"])});
   ]
 
 let init_term_map vars =
