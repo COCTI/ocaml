@@ -186,7 +186,7 @@ let transl_implementation _modname st =
   let inductives = topo_sort deps_inductive inductives in
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in
 
-  CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+  ((CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
 \nRequire Import PrimInt63 Ascii String Floats coqgen_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
@@ -235,6 +235,7 @@ let transl_implementation _modname st =
   make_compare_rec vars ::
   CTverbatim "Definition ml_compare := compare_rec.\
 \n\
+  Definition failwith T (s : string) : M (coq_type T) := raise T (Failure s).\
 \nDefinition wrap_compare wrap T h x y : M bool :=\
 \n  do c <- compare_rec T h x y; Ret (wrap c).\
 \n\
@@ -245,7 +246,7 @@ let transl_implementation _modname st =
 \nDefinition ml_ge := wrap_compare (fun c => if c is Lt then false else true).\
 \nDefinition ml_le := wrap_compare (fun c => if c is Gt then false else true).\
 \n" ::
-  CTverbatim "(* Array operations *)\
+  [CTverbatim "(* Array operations *)\
 \nDefinition newarray T len (x : coq_type T) :=\
 \n  do len <- nat_of_int len; cnew (ml_array_t T) (ArrayVal _ (nseq len x)).\
 \nDefinition getarray T (a : coq_type (ml_array T)) n : M (coq_type T) :=\
@@ -278,6 +279,6 @@ let transl_implementation _modname st =
 \nDefinition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=\
 \n  Lval _ _ b.\
 \n\n(* Default amount of gas *)\
-\nDefinition h := 100000.\
-\n\n(* Translated code *)\n"
-  :: cmds
+\nDefinition h := 100000.\n"]), 
+CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+\nRequire Import PrimInt63 Ascii String Floats coqgen_defs." :: cmds)

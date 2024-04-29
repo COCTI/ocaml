@@ -14,4 +14,4 @@
 (**************************************************************************)
 
 val transl_implementation :
-  string -> Typedtree.structure -> Coqdef.vernacular list
+  string -> Typedtree.structure -> Coqdef.vernacular list * Coqdef.vernacular list
