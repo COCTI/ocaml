@@ -1,0 +1,909 @@
+DIGEST 177294f466de5b7eebd0f53b90656634
+Fagdagen.agdagen_defs
+R29:41 mathcomp.ssreflect.all_ssreflect <> <> lib
+R52:57 Coq.Numbers.Cyclic.Int63.Sint63 <> <> lib
+R75:83 Coq.Numbers.Cyclic.Int63.PrimInt63 <> <> lib
+R85:91 Coq.Numbers.BinNums <> <> lib
+R93:97 Coq.Strings.Ascii <> <> lib
+R99:104 Coq.Strings.String <> <> lib
+R106:111 Coq.ZArith.ZArith <> <> lib
+R113:118 Coq.Floats.Floats <> <> lib
+R141:146 mathcomp.ssreflect.eqtype <> eqVneq thm
+R141:146 mathcomp.ssreflect.eqtype <> eqVneq thm
+sec 181:186 <> eqtype
+var 198:198 eqtype T
+var 217:222 eqtype eq_dec
+R226:235 mathcomp.ssreflect.eqtype <> comparable def
+R237:237 agdagen.agdagen_defs <> eqtype.T var
+def 251:258 <> compareb
+binder 260:260 <> x:3
+binder 262:262 <> y:4
+R266:269 Coq.Init.Datatypes <> bool ind
+R274:279 agdagen.agdagen_defs <> eqtype.eq_dec var
+R281:281 agdagen.agdagen_defs <> x:3 var
+R283:283 agdagen.agdagen_defs <> y:4 var
+def 297:305 <> comparePc
+binder 307:307 <> x:5
+binder 309:309 <> y:6
+R322:327 agdagen.agdagen_defs <> eqtype.eq_dec var
+R329:329 agdagen.agdagen_defs <> x:5 var
+R331:331 agdagen.agdagen_defs <> y:6 var
+R345:351 Coq.ssr.ssrbool <> reflect abbrev
+R355:357 Coq.Init.Logic <> ::type_scope:x_'='_x not
+R354:354 agdagen.agdagen_defs <> x:5 var
+R358:358 agdagen.agdagen_defs <> y:6 var
+R361:361 agdagen.agdagen_defs <> s:7 var
+R372:375 Coq.Init.Specif <> left constr
+R382:389 Coq.ssr.ssrbool <> ReflectT abbrev
+R393:395 Coq.Init.Logic <> ::type_scope:x_'='_x not
+R392:392 agdagen.agdagen_defs <> x:5 var
+R396:396 agdagen.agdagen_defs <> y:6 var
+R405:409 Coq.Init.Specif <> right constr
+R416:423 Coq.ssr.ssrbool <> ReflectF abbrev
+R427:429 Coq.Init.Logic <> ::type_scope:x_'='_x not
+R426:426 agdagen.agdagen_defs <> x:5 var
+R430:430 agdagen.agdagen_defs <> y:6 var
+def 453:456 <> eqPc
+R463:468 mathcomp.ssreflect.eqtype Equality.Exports eqType abbrev
+binder 459:459 <> E:8
+R473:486 mathcomp.ssreflect.eqtype Equality axiom def
+R490:494 mathcomp.ssreflect.eqtype <> eq_op def
+R496:496 agdagen.agdagen_defs <> E:8 var
+R510:510 agdagen.agdagen_defs <> E:8 var
+R530:536 mathcomp.ssreflect.eqtype Equality.Exports EqMixin abbrev
+R517:522 mathcomp.ssreflect.eqtype Equality.Exports EqType abbrev
+R558:563 agdagen.agdagen_defs eqtype <> sec
+ind 606:610 <> empty
+scheme 606:610 <> empty_rect
+scheme 606:610 <> empty_ind
+scheme 606:610 <> empty_rec
+scheme 606:610 <> empty_sind
+ind 658:664 <> array_t
+constr 671:678 <> ArrayVal
+binder 666:666 <> T:12
+R685:688 Coq.Init.Datatypes <> list ind
+R690:690 agdagen.agdagen_defs <> T:12 var
+scheme 658:664 <> array_t_rect
+scheme 658:664 <> array_t_ind
+scheme 658:664 <> array_t_rec
+scheme 658:664 <> array_t_sind
+def 749:750 <> W0
+binder 752:754 <> Env:15
+binder 756:758 <> Exn:16
+binder 760:760 <> T:17
+R776:779 Coq.Init.Datatypes <> ::type_scope:x_'+'_x not
+R795:795 Coq.Init.Datatypes <> ::type_scope:x_'+'_x not
+R772:775 Coq.Init.Datatypes <> unit ind
+R780:780 Coq.Init.Datatypes <> ::type_scope:x_'*'_x not
+R788:791 Coq.Init.Datatypes <> ::type_scope:x_'*'_x not
+R784:786 Coq.Init.Datatypes <> ::type_scope:x_'+'_x not
+R781:783 agdagen.agdagen_defs <> Exn:16 var
+R787:787 agdagen.agdagen_defs <> T:17 var
+R792:794 agdagen.agdagen_defs <> Env:15 var
+def 809:810 <> M0
+binder 812:814 <> Env:18
+binder 816:818 <> Exn:19
+binder 820:820 <> T:20
+R828:831 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R825:827 agdagen.agdagen_defs <> Env:18 var
+R832:833 agdagen.agdagen_defs <> W0 def
+R835:837 agdagen.agdagen_defs <> Env:18 var
+R839:841 agdagen.agdagen_defs <> Exn:19 var
+R843:843 agdagen.agdagen_defs <> T:20 var
+modtype 859:861 <> ENV
+ax 874:876 ENV Env
+ax 896:898 ENV Exn
+R912:914 agdagen.agdagen_defs ENV <> modtype
+R940:942 agdagen.agdagen_defs ENV <> mod
+mod 925:931 <> EFmonad
+R953:955 agdagen.agdagen_defs Env <> mod
+def 970:970 EFmonad W
+binder 972:972 <> T:23
+R977:978 agdagen.agdagen_defs <> W0 def
+R980:982 agdagen.agdagen_defs Env Env defax
+R984:986 agdagen.agdagen_defs Env Exn defax
+R988:988 agdagen.agdagen_defs <> T:23 var
+def 1002:1002 EFmonad M
+binder 1004:1004 <> T:24
+R1012:1015 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R1009:1011 agdagen.agdagen_defs Env Env defax
+R1016:1016 agdagen.agdagen_defs EFmonad W def
+R1018:1018 agdagen.agdagen_defs <> T:24 var
+def 1033:1036 EFmonad Fail
+binder 1039:1039 <> A:25
+R1044:1044 agdagen.agdagen_defs EFmonad M def
+R1046:1046 agdagen.agdagen_defs <> A:25 var
+binder 1055:1057 <> env:26
+R1062:1064 Coq.Init.Datatypes <> inl constr
+R1066:1067 Coq.Init.Datatypes <> tt constr
+def 1081:1085 EFmonad Raise
+binder 1088:1088 <> A:27
+R1096:1098 agdagen.agdagen_defs Env Exn defax
+binder 1092:1092 <> e:28
+R1103:1103 agdagen.agdagen_defs EFmonad M def
+R1105:1105 agdagen.agdagen_defs <> A:27 var
+binder 1114:1116 <> env:29
+R1121:1123 Coq.Init.Datatypes <> inr constr
+R1125:1125 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1131:1132 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1136:1136 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1126:1128 Coq.Init.Datatypes <> inl constr
+R1130:1130 agdagen.agdagen_defs <> e:28 var
+R1133:1135 agdagen.agdagen_defs <> env:29 var
+def 1150:1152 EFmonad Ret
+binder 1155:1155 <> A:30
+R1163:1163 agdagen.agdagen_defs <> A:30 var
+binder 1159:1159 <> x:31
+R1168:1168 agdagen.agdagen_defs EFmonad M def
+R1170:1170 agdagen.agdagen_defs <> A:30 var
+binder 1179:1181 <> env:32
+R1186:1188 Coq.Init.Datatypes <> inr constr
+R1190:1190 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1196:1197 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1201:1201 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1191:1193 Coq.Init.Datatypes <> inr constr
+R1195:1195 agdagen.agdagen_defs <> x:31 var
+R1198:1200 agdagen.agdagen_defs <> env:32 var
+def 1216:1219 EFmonad Bind
+binder 1222:1222 <> A:33
+binder 1224:1224 <> B:34
+R1232:1232 agdagen.agdagen_defs EFmonad M def
+R1234:1234 agdagen.agdagen_defs <> A:33 var
+binder 1228:1228 <> x:35
+R1243:1246 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R1242:1242 agdagen.agdagen_defs <> A:33 var
+R1247:1247 agdagen.agdagen_defs EFmonad M def
+R1249:1249 agdagen.agdagen_defs <> B:34 var
+binder 1238:1238 <> f:36
+R1254:1254 agdagen.agdagen_defs EFmonad M def
+R1256:1256 agdagen.agdagen_defs <> B:34 var
+binder 1265:1267 <> env:37
+R1280:1280 agdagen.agdagen_defs <> x:35 var
+R1282:1284 agdagen.agdagen_defs <> env:37 var
+R1295:1297 Coq.Init.Datatypes <> inr constr
+R1299:1299 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1305:1306 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1311:1311 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1300:1302 Coq.Init.Datatypes <> inr constr
+R1316:1316 agdagen.agdagen_defs <> f:36 var
+R1329:1331 Coq.Init.Datatypes <> inr constr
+R1333:1333 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1339:1340 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1345:1345 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1334:1336 Coq.Init.Datatypes <> inl constr
+R1350:1352 Coq.Init.Datatypes <> inr constr
+R1354:1354 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1360:1361 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1366:1366 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1355:1357 Coq.Init.Datatypes <> inl constr
+R1372:1374 Coq.Init.Datatypes <> inl constr
+R1376:1377 Coq.Init.Datatypes <> tt constr
+R1382:1384 Coq.Init.Datatypes <> inl constr
+R1386:1387 Coq.Init.Datatypes <> tt constr
+def 1408:1412 EFmonad BindW
+binder 1415:1415 <> A:38
+binder 1417:1417 <> B:39
+R1425:1425 agdagen.agdagen_defs EFmonad W def
+R1427:1427 agdagen.agdagen_defs <> A:38 var
+binder 1421:1421 <> x:40
+R1436:1439 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R1435:1435 agdagen.agdagen_defs <> A:38 var
+R1440:1440 agdagen.agdagen_defs EFmonad M def
+R1442:1442 agdagen.agdagen_defs <> B:39 var
+binder 1431:1431 <> f:41
+R1447:1447 agdagen.agdagen_defs EFmonad W def
+R1449:1449 agdagen.agdagen_defs <> B:39 var
+R1459:1459 agdagen.agdagen_defs <> x:40 var
+R1464:1466 Coq.Init.Datatypes <> inr constr
+R1468:1468 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1470:1470 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1474:1474 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1481:1484 agdagen.agdagen_defs EFmonad Bind def
+R1499:1499 agdagen.agdagen_defs <> f:41 var
+R1496:1496 agdagen.agdagen_defs <> x:40 var
+R1510:1512 Coq.Init.Datatypes <> inl constr
+R1514:1515 Coq.Init.Datatypes <> tt constr
+def 1667:1673 EFmonad Restart
+binder 1676:1676 <> A:43
+binder 1678:1678 <> B:44
+R1686:1686 agdagen.agdagen_defs EFmonad W def
+R1688:1688 agdagen.agdagen_defs <> A:43 var
+binder 1682:1682 <> x:45
+R1696:1696 agdagen.agdagen_defs EFmonad M def
+R1698:1698 agdagen.agdagen_defs <> B:44 var
+binder 1692:1692 <> f:46
+R1703:1703 agdagen.agdagen_defs EFmonad W def
+R1705:1705 agdagen.agdagen_defs <> B:44 var
+R1715:1715 agdagen.agdagen_defs <> x:45 var
+R1720:1722 Coq.Init.Datatypes <> inr constr
+R1724:1724 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1726:1726 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1730:1730 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1737:1737 agdagen.agdagen_defs <> f:46 var
+R1748:1750 Coq.Init.Datatypes <> inl constr
+R1752:1753 Coq.Init.Datatypes <> tt constr
+def 1825:1829 EFmonad FromW
+binder 1832:1832 <> A:48
+R1840:1840 agdagen.agdagen_defs EFmonad W def
+R1842:1842 agdagen.agdagen_defs <> A:48 var
+binder 1836:1836 <> x:49
+R1847:1847 agdagen.agdagen_defs EFmonad M def
+R1849:1849 agdagen.agdagen_defs <> A:48 var
+binder 1860:1862 <> env:50
+R1870:1870 agdagen.agdagen_defs <> x:49 var
+R1875:1877 Coq.Init.Datatypes <> inr constr
+R1879:1879 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1881:1881 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1883:1883 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1890:1892 Coq.Init.Datatypes <> inr constr
+R1894:1894 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1896:1896 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1900:1900 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1897:1899 agdagen.agdagen_defs <> env:50 var
+R1907:1909 Coq.Init.Datatypes <> inl constr
+R1911:1912 Coq.Init.Datatypes <> tt constr
+R2067:2070 agdagen.agdagen_defs EFmonad Bind def
+not 2053:2053 EFmonad :::x_'>>='_x
+R2123:2126 agdagen.agdagen_defs EFmonad Bind def
+binder 2135:2135 <> x:52
+not 2101:2101 EFmonad :::'do'_x_'<-'_x_';'_x
+R2235:2238 agdagen.agdagen_defs EFmonad Bind def
+binder 2247:2247 <> x:53
+not 2209:2209 EFmonad :::'do'_x_':'_x_'<-'_x_';'_x
+R2338:2341 agdagen.agdagen_defs EFmonad Bind def
+not 2325:2325 EFmonad :::x_'>>'_x
+R2405:2408 agdagen.agdagen_defs EFmonad :::x_'>>'_x not
+R2399:2401 agdagen.agdagen_defs EFmonad Ret def
+R2403:2404 Coq.Init.Datatypes <> tt constr
+not 2383:2383 EFmonad :::'Delay'_x
+def 2440:2442 EFmonad App
+binder 2445:2445 <> A:54
+binder 2447:2447 <> B:55
+R2455:2455 agdagen.agdagen_defs EFmonad M def
+R2459:2462 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R2458:2458 agdagen.agdagen_defs <> A:54 var
+R2463:2463 agdagen.agdagen_defs EFmonad M def
+R2465:2465 agdagen.agdagen_defs <> B:55 var
+binder 2451:2451 <> f:56
+R2474:2474 agdagen.agdagen_defs EFmonad M def
+R2476:2476 agdagen.agdagen_defs <> A:54 var
+binder 2470:2470 <> x:57
+R2482:2484 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2486:2489 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2491:2492 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2490:2490 agdagen.agdagen_defs <> x:57 var
+binder 2485:2485 <> x:58
+R2493:2495 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2497:2500 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2502:2503 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2501:2501 agdagen.agdagen_defs <> f:56 var
+binder 2496:2496 <> f:59
+R2504:2504 agdagen.agdagen_defs <> f:59 var
+R2506:2506 agdagen.agdagen_defs <> x:58 var
+def 2520:2523 EFmonad AppM
+binder 2526:2526 <> A:60
+binder 2528:2528 <> B:61
+R2536:2536 agdagen.agdagen_defs EFmonad M def
+R2540:2543 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R2539:2539 agdagen.agdagen_defs <> A:60 var
+R2544:2544 agdagen.agdagen_defs EFmonad M def
+R2546:2546 agdagen.agdagen_defs <> B:61 var
+binder 2532:2532 <> f:62
+R2555:2555 agdagen.agdagen_defs <> A:60 var
+binder 2551:2551 <> x:63
+R2561:2563 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2565:2568 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2570:2571 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2569:2569 agdagen.agdagen_defs <> f:62 var
+binder 2564:2564 <> f:64
+R2572:2572 agdagen.agdagen_defs <> f:64 var
+R2574:2574 agdagen.agdagen_defs <> x:63 var
+def 2588:2592 EFmonad AppM2
+binder 2595:2595 <> A:65
+binder 2597:2597 <> B:66
+binder 2599:2599 <> C:67
+R2607:2607 agdagen.agdagen_defs EFmonad M def
+R2611:2614 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R2610:2610 agdagen.agdagen_defs <> A:65 var
+R2615:2615 agdagen.agdagen_defs EFmonad M def
+R2619:2622 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R2618:2618 agdagen.agdagen_defs <> B:66 var
+R2623:2623 agdagen.agdagen_defs EFmonad M def
+R2625:2625 agdagen.agdagen_defs <> C:67 var
+binder 2603:2603 <> f:68
+R2635:2635 agdagen.agdagen_defs <> A:65 var
+binder 2631:2631 <> x:69
+R2643:2643 agdagen.agdagen_defs <> B:66 var
+binder 2639:2639 <> y:70
+R2651:2653 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2655:2658 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2660:2661 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2659:2659 agdagen.agdagen_defs <> f:68 var
+binder 2654:2654 <> f:71
+R2662:2664 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2666:2669 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2673:2674 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R2670:2670 agdagen.agdagen_defs <> f:71 var
+R2672:2672 agdagen.agdagen_defs <> x:69 var
+binder 2665:2665 <> f:72
+R2675:2675 agdagen.agdagen_defs <> f:72 var
+R2677:2677 agdagen.agdagen_defs <> y:70 var
+R2684:2690 agdagen.agdagen_defs EFmonad <> mod
+ind 2702:2704 <> loc
+constr 2735:2739 <> mkloc
+binder 2706:2712 <> ml_type:73
+R2723:2726 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+binder 2741:2741 <> T:76
+R2748:2751 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R2745:2747 Coq.Init.Datatypes <> nat ind
+R2752:2754 agdagen.agdagen_defs <> loc:74 ind
+R2764:2764 agdagen.agdagen_defs <> T:76 var
+R2756:2762 agdagen.agdagen_defs <> ml_type:73 var
+modtype 2780:2783 <> MLTY
+ax 2796:2802 MLTY ml_type
+R2806:2811 mathcomp.ssreflect.eqtype Equality.Exports eqType abbrev
+ax 2824:2829 MLTY ml_exn
+R2833:2839 agdagen.agdagen_defs MLTY ml_type defax
+ax 2852:2859 MLTY coq_type
+R2878:2881 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+binder 2870:2870 <> M:79
+R2895:2898 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R2888:2894 agdagen.agdagen_defs MLTY ml_type defax
+R2909:2912 agdagen.agdagen_defs MLTY <> modtype
+R2942:2945 agdagen.agdagen_defs MLTY <> mod
+mod 2923:2930 <> REFmonad
+R2956:2962 agdagen.agdagen_defs MLtypes <> mod
+rec 2973:2979 REFmonad binding
+proj 3014:3022 REFmonad bind_type
+proj 3035:3042 REFmonad bind_val
+R2990:2993 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+binder 2982:2982 <> M:81
+R3026:3032 agdagen.agdagen_defs MLtypes ml_type defax
+R3046:3053 agdagen.agdagen_defs MLtypes coq_type defax
+R3055:3055 agdagen.agdagen_defs <> M:81 var
+R3057:3065 agdagen.agdagen_defs <> bind_type:83 meth
+R3080:3085 agdagen.agdagen_defs REFmonad mkbind constr
+R3080:3085 agdagen.agdagen_defs REFmonad mkbind constr
+ind 3131:3133 REFmonad Env
+constr 3138:3142 REFmonad mkEnv
+ind 3185:3187 REFmonad Exn
+constr 3196:3207 REFmonad GasExhausted
+constr 3213:3222 REFmonad BoundedNat
+constr 3228:3236 REFmonad Catchable
+R3172:3175 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R3146:3148 mathcomp.ssreflect.seq <> seq abbrev
+R3151:3157 agdagen.agdagen_defs REFmonad binding rec
+R3160:3161 agdagen.agdagen_defs <> M0 def
+R3163:3165 agdagen.agdagen_defs <> Env:85 ind
+R3167:3169 agdagen.agdagen_defs <> Exn:86 ind
+R3176:3178 agdagen.agdagen_defs <> Env:85 ind
+R3241:3248 agdagen.agdagen_defs MLtypes coq_type defax
+R3251:3252 agdagen.agdagen_defs <> M0 def
+R3254:3256 agdagen.agdagen_defs <> Env:85 ind
+R3258:3260 agdagen.agdagen_defs <> Exn:86 ind
+R3263:3268 agdagen.agdagen_defs MLtypes ml_exn defax
+mod 3279:3281 <> REFmonad.Env
+def 3295:3297 REFmonad.Env Env
+R3302:3304 agdagen.agdagen_defs REFmonad Env ind
+def 3318:3320 REFmonad.Env Exn
+R3325:3327 agdagen.agdagen_defs REFmonad Exn ind
+R3334:3336 agdagen.agdagen_defs REFmonad.Env <> mod
+R3360:3366 agdagen.agdagen_defs EFmonad <> modtype
+R3368:3370 agdagen.agdagen_defs REFmonad.Env <> modtype
+mod 3346:3355 <> REFmonad.EFmonadEnv
+R3381:3390 agdagen.agdagen_defs REFmonad.EFmonadEnv <> mod
+sec 3402:3419 REFmonad monadic_operations
+var 3426:3433 REFmonad.monadic_operations coq_type
+R3438:3445 agdagen.agdagen_defs MLtypes coq_type defax
+R3447:3447 agdagen.agdagen_defs REFmonad M def
+var 3454:3460 REFmonad.monadic_operations binding
+R3465:3471 agdagen.agdagen_defs REFmonad binding rec
+R3473:3473 agdagen.agdagen_defs REFmonad M def
+var 3480:3482 REFmonad.monadic_operations loc
+R3488:3490 agdagen.agdagen_defs <> loc variant
+R3492:3498 agdagen.agdagen_defs MLtypes ml_type defax
+def 3512:3517 REFmonad loc_id
+binder 3520:3520 <> T:89
+R3528:3530 agdagen.agdagen_defs <> REFmonad.monadic_operations.loc var
+R3532:3532 agdagen.agdagen_defs <> T:89 var
+binder 3524:3524 <> l:90
+R3556:3556 agdagen.agdagen_defs <> l:90 var
+R3543:3547 agdagen.agdagen_defs <> mkloc constr
+var 3568:3572 REFmonad.monadic_operations mkloc
+R3578:3582 agdagen.agdagen_defs <> mkloc constr
+R3584:3590 agdagen.agdagen_defs MLtypes ml_type defax
+def 3605:3608 REFmonad cnew
+binder 3610:3610 <> T:92
+R3617:3624 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R3626:3626 agdagen.agdagen_defs <> T:92 var
+binder 3613:3613 <> v:93
+R3631:3631 agdagen.agdagen_defs REFmonad M def
+R3634:3636 agdagen.agdagen_defs <> REFmonad.monadic_operations.loc var
+R3638:3638 agdagen.agdagen_defs <> T:92 var
+binder 3650:3651 <> st:94
+R3677:3678 agdagen.agdagen_defs <> st:94 var
+R3665:3669 agdagen.agdagen_defs REFmonad mkEnv constr
+R3696:3699 mathcomp.ssreflect.seq <> size def
+R3701:3702 agdagen.agdagen_defs <> st:94 var
+binder 3691:3691 <> n:96
+R3711:3713 Coq.Init.Datatypes <> inr constr
+R3715:3715 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R3731:3732 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R3777:3777 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R3716:3718 Coq.Init.Datatypes <> inr constr
+R3721:3725 agdagen.agdagen_defs <> REFmonad.monadic_operations.mkloc var
+R3727:3727 agdagen.agdagen_defs <> T:92 var
+R3729:3729 agdagen.agdagen_defs <> n:96 var
+R3733:3737 agdagen.agdagen_defs REFmonad mkEnv constr
+R3740:3744 mathcomp.ssreflect.seq <> rcons def
+R3750:3755 agdagen.agdagen_defs REFmonad mkbind constr
+R3761:3763 Coq.ssr.ssreflect <> ::core_scope:x_':'_x not
+R3764:3771 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R3773:3773 agdagen.agdagen_defs <> T:92 var
+R3760:3760 agdagen.agdagen_defs <> v:93 var
+R3757:3757 agdagen.agdagen_defs <> T:92 var
+R3746:3747 agdagen.agdagen_defs <> st:94 var
+def 3792:3797 REFmonad coerce
+binder 3799:3800 <> T1:97
+binder 3802:3803 <> T2:98
+R3810:3817 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R3819:3820 agdagen.agdagen_defs <> T1:97 var
+binder 3806:3806 <> v:99
+R3825:3830 Coq.Init.Datatypes <> option ind
+R3833:3840 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R3842:3843 agdagen.agdagen_defs <> T2:98 var
+R3857:3860 agdagen.agdagen_defs <> eqPc def
+R3864:3865 agdagen.agdagen_defs <> T1:97 var
+R3867:3868 agdagen.agdagen_defs <> T2:98 var
+R3879:3886 Coq.ssr.ssrbool <> ReflectT abbrev
+R3893:3896 Coq.Init.Datatypes <> Some constr
+R3899:3905 Coq.Init.Logic <> eq_rect scheme
+R3911:3911 agdagen.agdagen_defs <> v:99 var
+R3928:3931 Coq.Init.Datatypes <> None constr
+abbrev 3956:3964 REFmonad nth_error
+R3969:3982 Coq.Lists.List <> nth_error def
+def 3997:4000 REFmonad cget
+binder 4002:4002 <> T:100
+R4009:4011 agdagen.agdagen_defs <> REFmonad.monadic_operations.loc var
+R4013:4013 agdagen.agdagen_defs <> T:100 var
+binder 4005:4005 <> r:101
+R4018:4018 agdagen.agdagen_defs REFmonad M def
+R4021:4028 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4030:4030 agdagen.agdagen_defs <> T:100 var
+binder 4042:4043 <> st:102
+R4069:4070 agdagen.agdagen_defs <> st:102 var
+R4057:4061 agdagen.agdagen_defs REFmonad mkEnv constr
+R4082:4090 agdagen.agdagen_defs REFmonad nth_error abbrev
+R4096:4101 agdagen.agdagen_defs REFmonad loc_id def
+R4103:4103 agdagen.agdagen_defs <> r:101 var
+R4109:4112 Coq.Init.Datatypes <> Some constr
+R4115:4120 agdagen.agdagen_defs REFmonad mkbind constr
+R4142:4147 agdagen.agdagen_defs REFmonad coerce def
+R4151:4151 agdagen.agdagen_defs <> T:100 var
+R4158:4161 Coq.Init.Datatypes <> Some constr
+R4170:4172 Coq.Init.Datatypes <> inr constr
+R4174:4174 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4180:4181 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4184:4184 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4175:4177 Coq.Init.Datatypes <> inr constr
+R4182:4183 agdagen.agdagen_defs <> st:102 var
+R4191:4193 Coq.Init.Datatypes <> inl constr
+R4195:4196 Coq.Init.Datatypes <> tt constr
+R4207:4209 Coq.Init.Datatypes <> inl constr
+R4211:4212 Coq.Init.Datatypes <> tt constr
+def 4227:4230 REFmonad cput
+binder 4232:4232 <> T:104
+R4239:4241 agdagen.agdagen_defs <> REFmonad.monadic_operations.loc var
+R4243:4243 agdagen.agdagen_defs <> T:104 var
+binder 4235:4235 <> r:105
+R4251:4258 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4260:4260 agdagen.agdagen_defs <> T:104 var
+binder 4247:4247 <> v:106
+R4265:4265 agdagen.agdagen_defs REFmonad M def
+R4267:4270 Coq.Init.Datatypes <> unit ind
+binder 4281:4282 <> st:107
+R4308:4309 agdagen.agdagen_defs <> st:107 var
+R4296:4300 agdagen.agdagen_defs REFmonad mkEnv constr
+R4327:4332 agdagen.agdagen_defs REFmonad loc_id def
+R4334:4334 agdagen.agdagen_defs <> r:105 var
+binder 4322:4322 <> n:109
+R4346:4354 agdagen.agdagen_defs REFmonad nth_error abbrev
+R4359:4359 agdagen.agdagen_defs <> n:109 var
+R4356:4357 agdagen.agdagen_defs <> st:107 var
+R4364:4367 Coq.Init.Datatypes <> Some constr
+R4370:4375 agdagen.agdagen_defs REFmonad mkbind constr
+R4397:4402 agdagen.agdagen_defs REFmonad coerce def
+R4409:4409 agdagen.agdagen_defs <> v:106 var
+R4414:4417 Coq.Init.Datatypes <> Some constr
+R4443:4448 agdagen.agdagen_defs REFmonad mkbind constr
+R4455:4457 Coq.ssr.ssreflect <> ::core_scope:x_':'_x not
+R4458:4465 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+binder 4438:4438 <> b:110
+R4481:4483 Coq.Init.Datatypes <> inr constr
+R4485:4485 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4492:4493 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4518:4518 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4486:4488 Coq.Init.Datatypes <> inr constr
+R4490:4491 Coq.Init.Datatypes <> tt constr
+R4494:4498 agdagen.agdagen_defs REFmonad mkEnv constr
+R4501:4507 mathcomp.ssreflect.seq <> set_nth def
+R4516:4516 agdagen.agdagen_defs <> b:110 var
+R4514:4514 agdagen.agdagen_defs <> n:109 var
+R4511:4512 agdagen.agdagen_defs <> st:107 var
+R4509:4509 agdagen.agdagen_defs <> b:110 var
+R4531:4533 Coq.Init.Datatypes <> inl constr
+R4535:4536 Coq.Init.Datatypes <> tt constr
+R4547:4549 Coq.Init.Datatypes <> inl constr
+R4551:4552 Coq.Init.Datatypes <> tt constr
+def 4567:4573 REFmonad FailGas
+binder 4576:4576 <> A:111
+R4581:4581 agdagen.agdagen_defs REFmonad M def
+R4583:4583 agdagen.agdagen_defs <> A:111 var
+R4588:4592 agdagen.agdagen_defs REFmonad Raise def
+R4594:4605 agdagen.agdagen_defs REFmonad GasExhausted constr
+def 4620:4624 REFmonad raise
+binder 4626:4626 <> T:112
+R4633:4640 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4642:4647 agdagen.agdagen_defs MLtypes ml_exn defax
+binder 4629:4629 <> e:113
+R4652:4652 agdagen.agdagen_defs REFmonad M def
+R4655:4662 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4664:4664 agdagen.agdagen_defs <> T:112 var
+R4672:4676 agdagen.agdagen_defs REFmonad Raise def
+R4679:4687 agdagen.agdagen_defs REFmonad Catchable constr
+R4689:4689 agdagen.agdagen_defs <> e:113 var
+def 4705:4710 REFmonad handle
+binder 4712:4712 <> T:114
+R4719:4719 agdagen.agdagen_defs REFmonad M def
+R4722:4729 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4731:4731 agdagen.agdagen_defs <> T:114 var
+binder 4715:4715 <> c:115
+R4766:4769 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R4751:4758 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4760:4765 agdagen.agdagen_defs MLtypes ml_exn defax
+R4770:4770 agdagen.agdagen_defs REFmonad M def
+R4773:4780 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4782:4782 agdagen.agdagen_defs <> T:114 var
+binder 4747:4747 <> h:116
+R4788:4788 agdagen.agdagen_defs REFmonad M def
+R4791:4798 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R4800:4800 agdagen.agdagen_defs <> T:114 var
+binder 4812:4814 <> env:117
+R4829:4829 agdagen.agdagen_defs <> c:115 var
+R4831:4833 agdagen.agdagen_defs <> env:117 var
+R4846:4848 Coq.Init.Datatypes <> inr constr
+R4850:4850 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4868:4869 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4874:4874 Coq.Init.Datatypes <> ::core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R4851:4853 Coq.Init.Datatypes <> inl constr
+R4856:4864 agdagen.agdagen_defs REFmonad Catchable constr
+R4879:4879 agdagen.agdagen_defs <> h:116 var
+sec 4919:4928 REFmonad.monadic_operations Comparison
+def 4942:4953 REFmonad lexi_compare
+R4968:4968 agdagen.agdagen_defs REFmonad M def
+R4970:4979 Coq.Init.Datatypes <> comparison ind
+binder 4956:4959 <> cmp1:118
+binder 4961:4964 <> cmp2:119
+R4987:4989 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R4991:4994 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R4999:5000 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R4995:4998 agdagen.agdagen_defs <> cmp1:118 var
+binder 4990:4990 <> x:120
+R5007:5007 agdagen.agdagen_defs <> x:120 var
+R5014:5015 Coq.Init.Datatypes <> Eq constr
+R5020:5023 agdagen.agdagen_defs <> cmp2:119 var
+R5032:5034 agdagen.agdagen_defs REFmonad Ret def
+R5036:5036 agdagen.agdagen_defs <> x:120 var
+var 5053:5063 REFmonad.monadic_operations.Comparison compare_rec
+binder 5074:5074 <> T:122
+R5087:5090 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R5077:5084 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R5086:5086 agdagen.agdagen_defs <> T:122 var
+R5101:5104 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R5091:5098 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R5100:5100 agdagen.agdagen_defs <> T:122 var
+R5105:5105 agdagen.agdagen_defs REFmonad M def
+R5107:5116 Coq.Init.Datatypes <> comparison ind
+def 5129:5140 REFmonad compare_list
+binder 5142:5142 <> T:124
+R5153:5156 Coq.Init.Datatypes <> list ind
+R5159:5166 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R5168:5168 agdagen.agdagen_defs <> T:124 var
+binder 5145:5146 <> l1:125
+binder 5148:5149 <> l2:126
+R5174:5174 agdagen.agdagen_defs REFmonad M def
+R5176:5185 Coq.Init.Datatypes <> comparison ind
+R5202:5203 agdagen.agdagen_defs <> l2:126 var
+R5198:5199 agdagen.agdagen_defs <> l1:125 var
+R5214:5216 Coq.Init.Datatypes <> nil constr
+R5219:5221 Coq.Init.Datatypes <> nil constr
+R5226:5228 agdagen.agdagen_defs REFmonad Ret def
+R5230:5231 Coq.Init.Datatypes <> Eq constr
+R5237:5239 Coq.Init.Datatypes <> nil constr
+R5249:5251 agdagen.agdagen_defs REFmonad Ret def
+R5253:5254 Coq.Init.Datatypes <> Lt constr
+R5265:5267 Coq.Init.Datatypes <> nil constr
+R5272:5274 agdagen.agdagen_defs REFmonad Ret def
+R5276:5277 Coq.Init.Datatypes <> Gt constr
+R5285:5288 mathcomp.ssreflect.seq <> ::seq_scope:x_'::'_x not
+R5295:5298 mathcomp.ssreflect.seq <> ::seq_scope:x_'::'_x not
+R5309:5320 agdagen.agdagen_defs REFmonad lexi_compare def
+R5323:5333 agdagen.agdagen_defs <> REFmonad.monadic_operations.Comparison.compare_rec var
+R5335:5335 agdagen.agdagen_defs <> T:124 var
+R5345:5351 agdagen.agdagen_defs EFmonad :::'Delay'_x not
+R5372:5372 agdagen.agdagen_defs EFmonad :::'Delay'_x not
+R5352:5363 agdagen.agdagen_defs <> compare_list:127 def
+R5365:5365 agdagen.agdagen_defs <> T:124 var
+var 5392:5392 REFmonad.monadic_operations.Comparison T
+R5396:5402 agdagen.agdagen_defs MLtypes ml_type defax
+def 5417:5427 REFmonad compare_ref
+binder 5429:5429 <> T:131
+R5440:5442 agdagen.agdagen_defs <> REFmonad.monadic_operations.loc var
+R5444:5444 agdagen.agdagen_defs <> T:131 var
+binder 5432:5433 <> r1:132
+binder 5435:5436 <> r2:133
+R5452:5454 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5456:5459 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5469:5470 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5460:5463 agdagen.agdagen_defs REFmonad cget def
+R5465:5465 agdagen.agdagen_defs <> T:131 var
+R5467:5468 agdagen.agdagen_defs <> r1:132 var
+binder 5455:5455 <> x:134
+R5471:5473 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5475:5478 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5488:5489 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5479:5482 agdagen.agdagen_defs REFmonad cget def
+R5484:5484 agdagen.agdagen_defs <> T:131 var
+R5486:5487 agdagen.agdagen_defs <> r2:133 var
+binder 5474:5474 <> y:135
+R5490:5500 agdagen.agdagen_defs <> REFmonad.monadic_operations.Comparison.compare_rec var
+R5502:5502 agdagen.agdagen_defs <> T:131 var
+R5504:5504 agdagen.agdagen_defs <> x:134 var
+R5506:5506 agdagen.agdagen_defs <> y:135 var
+R5513:5522 agdagen.agdagen_defs REFmonad.monadic_operations.Comparison <> sec
+def 5537:5546 REFmonad nat_of_int
+R5553:5555 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 5549:5549 <> n:136
+R5560:5560 agdagen.agdagen_defs REFmonad M def
+R5562:5564 Coq.Init.Datatypes <> nat ind
+R5577:5587 Coq.Numbers.Cyclic.Int63.Sint63 <> to_Z def
+R5589:5589 agdagen.agdagen_defs <> n:136 var
+R5600:5601 Coq.Numbers.BinNums <> Z0 constr
+R5606:5608 agdagen.agdagen_defs REFmonad Ret def
+R5616:5619 Coq.Numbers.BinNums <> Zpos constr
+R5628:5630 agdagen.agdagen_defs REFmonad Ret def
+R5633:5642 Coq.PArith.BinPos Pos to_nat def
+R5653:5656 Coq.Numbers.BinNums <> Zneg constr
+R5663:5667 agdagen.agdagen_defs REFmonad Raise def
+R5669:5678 agdagen.agdagen_defs REFmonad BoundedNat constr
+def 5699:5716 REFmonad bounded_nat_of_int
+R5723:5725 Coq.Init.Datatypes <> nat ind
+binder 5719:5719 <> m:137
+R5733:5735 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 5729:5729 <> n:138
+R5740:5740 agdagen.agdagen_defs REFmonad M def
+R5742:5744 Coq.Init.Datatypes <> nat ind
+R5751:5753 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5755:5758 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5771:5774 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R5759:5768 agdagen.agdagen_defs REFmonad nat_of_int def
+R5770:5770 agdagen.agdagen_defs <> n:138 var
+binder 5754:5754 <> n:139
+R5775:5777 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R5783:5788 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R5794:5799 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R5779:5781 mathcomp.ssreflect.ssrnat <> ::nat_scope:x_'<'_x not
+R5778:5778 agdagen.agdagen_defs <> n:139 var
+R5782:5782 agdagen.agdagen_defs <> m:137 var
+R5789:5791 agdagen.agdagen_defs REFmonad Ret def
+R5793:5793 agdagen.agdagen_defs <> n:139 var
+R5800:5804 agdagen.agdagen_defs REFmonad Raise def
+R5806:5815 agdagen.agdagen_defs REFmonad BoundedNat constr
+def 5830:5835 REFmonad uint2N
+R5842:5844 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 5838:5838 <> n:140
+R5849:5851 Coq.Init.Datatypes <> nat ind
+R5861:5871 Coq.Numbers.Cyclic.Int63.Uint63 <> to_Z def
+R5873:5873 agdagen.agdagen_defs <> n:140 var
+R5878:5881 Coq.Numbers.BinNums <> Zpos constr
+R5892:5901 Coq.PArith.BinPos Pos to_nat def
+def 5927:5933 REFmonad forloop
+R5946:5948 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 5936:5938 <> n_1:141
+binder 5940:5942 <> n_2:142
+R5959:5962 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R5956:5958 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+R5963:5963 agdagen.agdagen_defs REFmonad M def
+R5965:5968 Coq.Init.Datatypes <> unit ind
+binder 5952:5952 <> b:143
+R5973:5973 agdagen.agdagen_defs REFmonad M def
+R5975:5978 Coq.Init.Datatypes <> unit ind
+R5985:5987 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6006:6011 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6018:6025 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R5988:5997 Coq.Numbers.Cyclic.Int63.Sint63 <> ltb abbrev
+R5999:6001 agdagen.agdagen_defs <> n_2:142 var
+R6003:6005 agdagen.agdagen_defs <> n_1:141 var
+R6012:6014 agdagen.agdagen_defs REFmonad Ret def
+R6016:6017 Coq.Init.Datatypes <> tt constr
+R6156:6159 agdagen.agdagen_defs EFmonad :::x_'>>'_x not
+R6026:6036 mathcomp.ssreflect.ssrnat <> iter def
+R6148:6150 agdagen.agdagen_defs REFmonad Ret def
+R6152:6154 agdagen.agdagen_defs <> n_1:141 var
+R6088:6088 agdagen.agdagen_defs REFmonad M def
+R6090:6092 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 6084:6084 <> m:144
+R6098:6100 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6102:6105 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6107:6108 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6106:6106 agdagen.agdagen_defs <> m:144 var
+binder 6101:6101 <> i:145
+R6109:6111 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6113:6116 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6120:6121 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6117:6117 agdagen.agdagen_defs <> b:143 var
+R6119:6119 agdagen.agdagen_defs <> i:145 var
+R6122:6124 agdagen.agdagen_defs REFmonad Ret def
+R6127:6137 Coq.Numbers.Cyclic.Int63.Uint63 <> succ def
+R6139:6139 agdagen.agdagen_defs <> i:145 var
+R6038:6038 mathcomp.ssreflect.ssrnat <> ::nat_scope:x_'.+1' not
+R6069:6072 mathcomp.ssreflect.ssrnat <> ::nat_scope:x_'.+1' not
+R6039:6044 agdagen.agdagen_defs REFmonad uint2N def
+R6047:6059 Coq.Numbers.Cyclic.Int63.PrimInt63 <> sub prim
+R6061:6063 agdagen.agdagen_defs <> n_2:142 var
+R6065:6067 agdagen.agdagen_defs <> n_1:141 var
+R6160:6162 agdagen.agdagen_defs REFmonad Ret def
+R6164:6165 Coq.Init.Datatypes <> tt constr
+def 6178:6188 REFmonad downforloop
+R6195:6197 Coq.Init.Datatypes <> nat ind
+binder 6191:6191 <> h:146
+R6211:6213 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 6201:6203 <> n_1:147
+binder 6205:6207 <> n_2:148
+R6225:6228 Coq.Init.Logic <> ::type_scope:x_'->'_x not
+R6222:6224 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+R6229:6229 agdagen.agdagen_defs REFmonad M def
+R6231:6234 Coq.Init.Datatypes <> unit ind
+binder 6218:6218 <> b:149
+R6239:6239 agdagen.agdagen_defs REFmonad M def
+R6241:6244 Coq.Init.Datatypes <> unit ind
+R6251:6253 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6272:6277 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6284:6291 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6254:6263 Coq.Numbers.Cyclic.Int63.Sint63 <> ltb abbrev
+R6265:6267 agdagen.agdagen_defs <> n_1:147 var
+R6269:6271 agdagen.agdagen_defs <> n_2:148 var
+R6278:6280 agdagen.agdagen_defs REFmonad Ret def
+R6282:6283 Coq.Init.Datatypes <> tt constr
+R6422:6425 agdagen.agdagen_defs EFmonad :::x_'>>'_x not
+R6292:6302 mathcomp.ssreflect.ssrnat <> iter def
+R6414:6416 agdagen.agdagen_defs REFmonad Ret def
+R6418:6420 agdagen.agdagen_defs <> n_1:147 var
+R6354:6354 agdagen.agdagen_defs REFmonad M def
+R6356:6358 Coq.Numbers.Cyclic.Int63.PrimInt63 <> int prim
+binder 6350:6350 <> m:151
+R6364:6366 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6368:6371 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6373:6374 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6372:6372 agdagen.agdagen_defs <> m:151 var
+binder 6367:6367 <> i:152
+R6375:6377 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6379:6382 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6386:6387 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6383:6383 agdagen.agdagen_defs <> b:149 var
+R6385:6385 agdagen.agdagen_defs <> i:152 var
+R6388:6390 agdagen.agdagen_defs REFmonad Ret def
+R6393:6403 Coq.Numbers.Cyclic.Int63.Uint63 <> pred def
+R6405:6405 agdagen.agdagen_defs <> i:152 var
+R6304:6304 mathcomp.ssreflect.ssrnat <> ::nat_scope:x_'.+1' not
+R6335:6338 mathcomp.ssreflect.ssrnat <> ::nat_scope:x_'.+1' not
+R6305:6310 agdagen.agdagen_defs REFmonad uint2N def
+R6313:6325 Coq.Numbers.Cyclic.Int63.PrimInt63 <> sub prim
+R6327:6329 agdagen.agdagen_defs <> n_1:147 var
+R6331:6333 agdagen.agdagen_defs <> n_2:148 var
+R6426:6428 agdagen.agdagen_defs REFmonad Ret def
+R6430:6431 Coq.Init.Datatypes <> tt constr
+def 6444:6452 REFmonad whileloop
+R6459:6461 Coq.Init.Datatypes <> nat ind
+binder 6455:6455 <> h:153
+R6469:6469 agdagen.agdagen_defs REFmonad M def
+R6471:6474 Coq.Init.Datatypes <> bool ind
+binder 6465:6465 <> f:154
+R6482:6482 agdagen.agdagen_defs REFmonad M def
+R6484:6487 Coq.Init.Datatypes <> unit ind
+binder 6478:6478 <> b:155
+R6492:6492 agdagen.agdagen_defs REFmonad M def
+R6494:6497 Coq.Init.Datatypes <> unit ind
+R6507:6507 agdagen.agdagen_defs <> h:153 var
+R6513:6515 mathcomp.ssreflect.ssrnat <> ::nat_scope:x_'.+1' not
+R6526:6528 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6530:6533 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6535:6540 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6534:6534 agdagen.agdagen_defs <> f:154 var
+binder 6529:6529 <> v:158
+R6541:6543 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6545:6559 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6586:6596 Coq.ssr.ssreflect <> ::boolean_if_scope:'if'_x_'then'_x_'else'_x not
+R6544:6544 agdagen.agdagen_defs <> v:158 var
+R6560:6562 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6564:6567 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6569:6570 agdagen.agdagen_defs EFmonad :::'do'_x_'<-'_x_';'_x not
+R6568:6568 agdagen.agdagen_defs <> b:155 var
+R6571:6579 agdagen.agdagen_defs <> whileloop:156 def
+R6585:6585 agdagen.agdagen_defs <> b:155 var
+R6583:6583 agdagen.agdagen_defs <> f:154 var
+R6581:6581 agdagen.agdagen_defs <> h:153 var
+R6597:6599 agdagen.agdagen_defs REFmonad Ret def
+R6601:6602 Coq.Init.Datatypes <> tt constr
+R6611:6617 agdagen.agdagen_defs REFmonad FailGas def
+def 6691:6700 REFmonad cast_empty
+binder 6702:6702 <> T:159
+R6709:6713 agdagen.agdagen_defs <> empty ind
+binder 6705:6705 <> v:160
+R6718:6725 agdagen.agdagen_defs <> REFmonad.monadic_operations.coq_type var
+R6727:6727 agdagen.agdagen_defs <> T:159 var
+R6740:6740 agdagen.agdagen_defs <> v:160 var
+def 6764:6772 REFmonad cast_list
+binder 6775:6776 <> T1:162
+binder 6780:6781 <> T2:163
+R6788:6790 mathcomp.ssreflect.seq <> map def
+R6792:6793 agdagen.agdagen_defs <> T1:162 var
+R6795:6796 agdagen.agdagen_defs <> T2:163 var
+R6804:6821 agdagen.agdagen_defs REFmonad.monadic_operations <> sec
+R6828:6835 agdagen.agdagen_defs REFmonad <> mod
+sec 6847:6856 <> Comparison
+def 6870:6882 <> compare_ascii
+R6891:6895 Coq.Strings.Ascii <> ascii ind
+binder 6885:6885 <> c:164
+binder 6887:6887 <> d:165
+R6903:6918 Coq.NArith.BinNat N compare def
+R6921:6930 Coq.Strings.Ascii <> N_of_ascii def
+R6932:6932 agdagen.agdagen_defs <> c:164 var
+R6936:6945 Coq.Strings.Ascii <> N_of_ascii def
+R6947:6947 agdagen.agdagen_defs <> d:165 var
+def 6961:6974 <> compare_string
+R6985:6990 Coq.Strings.String <> string ind
+binder 6977:6978 <> s1:166
+binder 6980:6981 <> s2:167
+R7008:7009 agdagen.agdagen_defs <> s2:167 var
+R7004:7005 agdagen.agdagen_defs <> s1:166 var
+R7020:7030 Coq.Strings.String <> EmptyString constr
+R7033:7043 Coq.Strings.String <> EmptyString constr
+R7048:7049 Coq.Init.Datatypes <> Eq constr
+R7055:7065 Coq.Strings.String <> EmptyString constr
+R7073:7074 Coq.Init.Datatypes <> Lt constr
+R7083:7093 Coq.Strings.String <> EmptyString constr
+R7098:7099 Coq.Init.Datatypes <> Gt constr
+R7105:7110 Coq.Strings.String <> String constr
+R7119:7124 Coq.Strings.String <> String constr
+R7145:7157 agdagen.agdagen_defs <> compare_ascii def
+R7176:7177 Coq.Init.Datatypes <> Eq constr
+R7182:7195 agdagen.agdagen_defs <> compare_string:168 def
+R7200:7201 agdagen.agdagen_defs <> s2:167 var
+R7197:7198 agdagen.agdagen_defs <> s1:166 var
+def 7247:7259 <> compare_float
+R7270:7274 Coq.Floats.PrimFloat <> float prim
+binder 7262:7263 <> x1:171
+binder 7265:7266 <> x2:172
+R7288:7294 Coq.Floats.PrimFloat <> compare prim
+R7296:7297 agdagen.agdagen_defs <> x1:171 var
+R7299:7300 agdagen.agdagen_defs <> x2:172 var
+R7312:7314 Coq.Floats.PrimFloat <> FEq constr
+R7318:7331 Coq.Floats.PrimFloat <> FNotComparable constr
+R7336:7337 Coq.Init.Datatypes <> Eq constr
+R7336:7337 Coq.Init.Datatypes <> Eq constr
+R7343:7345 Coq.Floats.PrimFloat <> FLt constr
+R7350:7351 Coq.Init.Datatypes <> Lt constr
+R7357:7359 Coq.Floats.PrimFloat <> FGt constr
+R7364:7365 Coq.Init.Datatypes <> Gt constr
+R7378:7387 agdagen.agdagen_defs Comparison <> sec
+sec 7399:7405 <> Helpers
+def 7419:7419 <> K
+binder 7422:7422 <> A:173
+binder 7424:7424 <> B:174
+R7432:7432 agdagen.agdagen_defs <> A:173 var
+binder 7428:7428 <> x:175
+R7440:7440 agdagen.agdagen_defs <> B:174 var
+binder 7436:7436 <> y:176
+R7446:7446 agdagen.agdagen_defs <> x:175 var
+R7453:7459 agdagen.agdagen_defs Helpers <> sec

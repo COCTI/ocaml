@@ -1,0 +1,326 @@
+From mathcomp Require Import ssreflect ssrnat eqtype seq.
+Require Import PrimInt63 Ascii String Floats coqgen_defs.
+
+(* Generated representation of all ML types *)
+data ml_type : Set where
+  ml_int : ml_type
+  ml_char : ml_type
+  ml_float : ml_type
+  ml_bool : ml_type
+  ml_unit : ml_type
+  ml_exn : ml_type
+  ml_array : ml_type → ml_type
+  ml_list : ml_type → ml_type
+  ml_lazy : ml_type → ml_type
+  ml_string : ml_type
+  ml_empty : ml_type
+  ml_array_t : ml_type → ml_type
+  ml_my_opt : ml_type → ml_type
+  ml_even_int : ml_type
+  ml_quadruplet : ml_type → ml_type → ml_type → ml_type → ml_type
+  ml_my_list : ml_type → ml_type
+  ml_lazy_val : ml_type → ml_type
+  ml_ref : ml_type → ml_type
+  ml_arrow : ml_type → ml_type → ml_type
+
+(* Module argument for monadic functor *)
+Module MLtype.
+Definition ml_type_eq_dec (T1 T2 : ml_type) : {T1=T2}+{T1<>T2}.
+revert T2; induction T1; destruct T2;
+  try (right; intro; discriminate); try (now left);
+  try (case (IHT1_5 T2_5); [|right; injection; intros; contradiction]);
+  try (case (IHT1_4 T2_4); [|right; injection; intros; contradiction]);
+  try (case (IHT1_3 T2_3); [|right; injection; intros; contradiction]);
+  try (case (IHT1_2 T2_2); [|right; injection; intros; contradiction]);
+  (case (IHT1 T2) || case (IHT1_1 T2_1)); try (left; now subst);
+    right; injection; intros; contradiction.
+Defined.
+
+Definition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).
+Canonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.
+
+Local Definition ml_type := ml_type_eqType.
+Local Notation loc := (@loc ml_type).
+
+Section with_monad.
+Context [M : Type -> Type].
+
+(* Generated type definitions *)
+data my_opt (a : Type) : Set where My_none : my_opt My_some : a → my_opt
+
+data even_int : Set where
+  Zorro : even_int
+  DoubleZ : even_int → even_int
+  D : Nat → even_int
+
+data quadruplet (a : Type) (b : Type) (c : Type) (d : Type) : Set where
+  Quatuor : a → b → c → d → quadruplet
+
+data my_list (a : Type) : Set where
+  E : my_list
+  Cons : a → my_list a → my_list
+
+data ml_exns : Set where
+  Invalid_argument : string → ml_exns
+  Failure : string → ml_exns
+  Not_found : ml_exns
+
+
+data lazy_val (a : Type) = Set where
+  LzVal : a → lazy_val
+  LzThunk : (M a) → lazy_val
+  LzExn : ml_exns → lazy_val
+
+data lazy_t (a a1 : Type) = Set where
+  Lval : a → lazy_t
+  Lref : (loc (ml_lazy_val a1)) → lazy_t
+
+Local (* Generated type translation function *)
+coq_type (T : ml_type) → Type
+coq_type = case T of λ {ml_int → Nat
+           ; ml_char → Ascii.ascii
+           ; ml_float → float
+           ; ml_bool → bool
+           ; ml_unit → unit
+           ; ml_exn → ml_exns
+           ; ml_array T1 → loc (ml_array_t T1)
+           ; ml_list T1 → list (coq_type T1)
+           ; ml_lazy T1 → lazy_t (coq_type T1) T1
+           ; ml_string → String.string
+           ; ml_empty → empty
+           ; ml_array_t T1 → array_t (coq_type T1)
+           ; ml_my_opt T1 → my_opt (coq_type T1)
+           ; ml_even_int → even_int
+           ; ml_quadruplet T1 T2 T3 T4 →
+               quadruplet (coq_type T1) (coq_type T2) (coq_type T3)
+                 (coq_type T4)
+           ; ml_my_list T1 → my_list (coq_type T1)
+           ; ml_lazy_val T1 → lazy_val (coq_type T1)
+           ; ml_ref T1 → loc T1
+           ; ml_arrow T1 T2 → coq_type T1 -> M (coq_type T2)
+           }
+
+End with_monad.
+Local Definition ml_exn := ml_exn.
+End MLtypes.
+Export MLtypes.
+
+Module REFmonadML := REFmonad (MLtypes).
+Export REFmonadML.
+
+Definition coq_type := @MLtypes.coq_type M.
+Definition empty_env := mkEnv nil.
+Definition it : W unit := inr (inr tt, empty_env).
+
+(* Generated comparison function *)
+compare_rec (h : nat) (T : ml_type)
+  → coq_type T -> coq_type T -> M comparison
+compare_rec = case h of λ {h.+1 →
+                              let compare_rec = compare_rec h in
+                              case T of λ {ml_int →
+                                              λ { x y →
+                                                Ret (Sint63.compare x y) }
+                              ; ml_char →
+                                  λ { x y → Ret (compare_ascii x y) }
+                              ; ml_float →
+                                  λ { x y → Ret (compare_float x y) }
+                              ; ml_bool →
+                                  λ { x y → Ret (Bool.compare x y) }
+                              ; ml_unit → λ { x y → Ret Eq }
+                              ; ml_exn →
+                                  λ { x y →
+                                    case x, y of λ {Not_found, Not_found →
+                                                       Ret Eq
+                                    ; Invalid_argument x1,
+                                      Invalid_argument y1 →
+                                        compare_rec ml_string x1 y1
+                                    ; Failure x1, Failure y1 →
+                                        compare_rec ml_string x1 y1
+                                    ; Not_found, _ → Ret Lt
+                                    ; _, Not_found → Ret Gt
+                                    ; Invalid_argument _, _ → Ret Lt
+                                    ; _, Invalid_argument _ → Ret Gt
+                                    } }
+                              ; ml_array T1 →
+                                  λ { x y →
+                                    compare_ref compare_rec (ml_array_t T1) x
+                                      y }
+                              ; ml_list T1 →
+                                  λ { x y →
+                                    compare_list compare_rec T1 x y }
+                              ; ml_lazy T1 →
+                                  λ { x y →
+                                    Raise
+                                      (Catchable
+                                         (Invalid_argument "compare"%string)) }
+                              ; ml_string →
+                                  λ { x y → Ret (compare_string x y) }
+                              ; ml_empty → λ { x y → case x of λ { } }
+                              ; ml_array_t T1 →
+                                  λ { x y →
+                                    case x, y of λ {ArrayVal x1, ArrayVal y1 →
+                                                       compare_rec
+                                                         (ml_list T1) x1 y1
+                                    } }
+                              ; ml_my_opt T1 →
+                                  λ { x y →
+                                    case x, y of λ {My_none, My_none →
+                                                       Ret Eq
+                                    ; My_some x1, My_some y1 →
+                                        compare_rec T1 x1 y1
+                                    ; My_none, _ → Ret Lt
+                                    ; _, My_none → Ret Gt
+                                    } }
+                              ; ml_even_int →
+                                  λ { x y →
+                                    case x, y of λ {Zorro, Zorro → Ret Eq
+                                    ; DoubleZ x1, DoubleZ y1 →
+                                        compare_rec ml_even_int x1 y1
+                                    ; D x1, D y1 → compare_rec ml_int x1 y1
+                                    ; Zorro, _ → Ret Lt
+                                    ; _, Zorro → Ret Gt
+                                    ; DoubleZ _, _ → Ret Lt
+                                    ; _, DoubleZ _ → Ret Gt
+                                    } }
+                              ; ml_quadruplet T1 T2 T3 T4 →
+                                  λ { x y →
+                                    case x, y of λ {Quatuor x1 x2 x3 x4,
+                                                     Quatuor y1 y2 y3 y4 →
+                                                       lexi_compare
+                                                         (compare_rec T1 x1
+                                                            y1)
+                                                         (Delay
+                                                            (lexi_compare
+                                                               (compare_rec
+                                                                  T2 x2 y2)
+                                                               (Delay
+                                                                  (lexi_compare
+                                                                    (compare_rec
+                                                                    T3 x3 y3)
+                                                                    (Delay
+                                                                    (compare_rec
+                                                                    T4 x4 y4))))))
+                                    } }
+                              ; ml_my_list T1 →
+                                  λ { x y →
+                                    case x, y of λ {E, E → Ret Eq
+                                    ; Cons x1 x2, Cons y1 y2 →
+                                        lexi_compare (compare_rec T1 x1 y1)
+                                          (Delay
+                                             (compare_rec (ml_my_list T1) x2
+                                                y2))
+                                    ; E, _ → Ret Lt
+                                    ; _, E → Ret Gt
+                                    } }
+                              ; ml_lazy_val T1 →
+                                  λ { x y →
+                                    Raise
+                                      (Catchable
+                                         (Invalid_argument "compare"%string)) }
+                              ; ml_ref T1 →
+                                  λ { x y →
+                                    compare_ref compare_rec T1 x y }
+                              ; ml_arrow T1 T2 →
+                                  λ { x y →
+                                    Raise
+                                      (Catchable
+                                         (Invalid_argument "compare"%string)) }
+                              }
+              ; _ → λ { _ _ → FailGas }
+              }
+
+Definition ml_compare := compare_rec.
+
+Definition wrap_compare wrap T h x y : M bool :=
+  do c <- compare_rec T h x y; Ret (wrap c).
+
+Definition ml_eq := wrap_compare (fun c => if c is Eq then true else false).
+Definition ml_lt := wrap_compare (fun c => if c is Lt then true else false).
+Definition ml_gt := wrap_compare (fun c => if c is Gt then true else false).
+Definition ml_ne := wrap_compare (fun c => if c is Eq then false else true).
+Definition ml_ge := wrap_compare (fun c => if c is Lt then false else true).
+Definition ml_le := wrap_compare (fun c => if c is Gt then false else true).
+
+(* Array operations *)
+Definition newarray T len (x : coq_type T) :=
+  do len <- nat_of_int len; cnew (ml_array_t T) (ArrayVal _ (nseq len x)).
+Definition getarray T (a : coq_type (ml_array T)) n : M (coq_type T) :=
+  do s <- cget (ml_array_t T) a;
+  let: ArrayVal s := s in
+  do n <- bounded_nat_of_int (seq.size s) n;
+  if s is x :: _ then Ret (nth x s n) else
+  raise _ (Invalid_argument "getarray").
+Definition setarray T (a : coq_type (ml_array T)) n (x : coq_type T) :=
+  do s <- cget (ml_array_t T) a;
+  let: ArrayVal s := s in
+  do n <- bounded_nat_of_int (seq.size s) n;
+  cput (ml_array_t T) a (ArrayVal _ (set_nth x s n x)).
+
+(* Lazy values *)
+Definition force a (lz : coq_type (ml_lazy a)) :=
+  match lz with
+  | Lval x => Ret x
+  | Lref r =>
+    do r' <- cget (ml_lazy_val a) r;
+    match r' with
+    | LzVal x => Ret x
+    | LzExn e => raise _ e
+    | LzThunk f => handle _
+        (do x <- f; do _ <- cput (ml_lazy_val a) r (LzVal _ x); Ret x)
+        (fun e => do _ <- cput _ r (LzExn _ e); raise _ e)
+    end
+  end.
+Definition make_lazy a (b : M (coq_type a)) : M (coq_type (ml_lazy a)) :=
+  do x <- cnew (ml_lazy_val a) (LzThunk _ b); Ret (Lref _ _ x).
+Definition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=
+  Lval _ _ b.
+
+(* Default amount of gas *)
+Definition h := 100000.
+
+(* Translated code *)
+
+add (x y : coq_type ml_int) → coq_type ml_int
+add = _+_ x y
+
+mult_2 (x y : coq_type ml_int) → coq_type ml_int
+mult_2 = PrimInt63.mul (PrimInt63.mul 2%int63 x) y
+
+arrow (v : coq_type ml_unit) → coq_type ml_string
+arrow = case v of λ {tt → "huhu"%string }
+
+two_first (lis : coq_type (ml_my_list ml_int))
+  → coq_type (ml_my_list ml_int)
+two_first = case lis of λ {E →
+                              Cons (coq_type ml_int) 0%int63
+                                (Cons (coq_type ml_int) 0%int63
+                                   (E (coq_type ml_int)))
+            ; Cons x E →
+                Cons (coq_type ml_int) x
+                  (Cons (coq_type ml_int) 0%int63 (E (coq_type ml_int)))
+            ; Cons x (Cons y _) →
+                Cons (coq_type ml_int) x
+                  (Cons (coq_type ml_int) y (E (coq_type ml_int)))
+            }
+
+f1 (T : ml_type) (x : coq_type T) → coq_type T
+f1 = x
+
+f2 (x y z u : coq_type ml_int) → coq_type ml_int
+f2 = _+_ x
+       (PrimInt63.mul y
+          ((λ { t v → PrimInt63.mul (PrimInt63.mul 2%int63 t) v }) z u))
+
+ignore (T : ml_type) (_ : coq_type T) → coq_type ml_unit
+ignore = tt
+
+g (x : coq_type ml_int) → coq_type ml_int
+g = let u = 2%int63 in _+_ x u
+
+g2 (x : coq_type ml_int) → coq_type ml_int
+g2 = let u = 5%int63 in _∸_ x u
+
+f3 (T T_1 : ml_type) (x : coq_type T_1) (y : coq_type T)
+  → M (coq_type ml_unit)
+f3 = do _ <- Ret (ignore T_1 x); do _ <- Ret (ignore T y); Ret tt
+
