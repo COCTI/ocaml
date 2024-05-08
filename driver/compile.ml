@@ -57,6 +57,9 @@ let emit_bytecode i (bytecode, required_globals) =
 let to_gallina i Typedtree.{structure; _} =
   Coqgen.transl_implementation i.module_name structure
 
+let to_agda i Typedtree.{structure; _} = 					(* AJOUTE - jacques_d *)
+  Agdagen.transl_implementation i.module_name structure  (* AJOUTE - jacques_d *)
+
 let emit_gallina i ct =
   let v_name = i.output_prefix ^ ".v" in
   let vfile = open_out v_name in
@@ -67,17 +70,35 @@ let emit_gallina i ct =
   fprintf ppf "@]@.";
   close_out vfile
 
+let emit_agda i ct = 									(* AJOUTE - jacques_d *)
+  let v_name = i.output_prefix ^ ".agda" in  	(* AJOUTE - jacques_d *)
+  let vfile = open_out v_name in 					(* AJOUTE - jacques_d *)
+  let open Format in									(* AJOUTE - jacques_d *)
+  let ppf = formatter_of_out_channel vfile in	(* AJOUTE - jacques_d *)
+  fprintf ppf "@[<v>";								(* AJOUTE - jacques_d *)
+  Agdaprint.emit_gallina i.module_name ppf ct;	(* AJOUTE - jacques_d *)
+  fprintf ppf "@]@.";									(* AJOUTE - jacques_d *)
+  close_out vfile										(* AJOUTE - jacques_d *)
+
 let implementation ~start_from ~source_file ~output_prefix =
   let backend info typed =
     if !Clflags.compile_to_coq then 
       let gallina = to_gallina info typed in
       emit_gallina info gallina
-    else
-      let bytecode = to_bytecode info typed in
-      emit_bytecode info bytecode
+    else													(* AJOUTE - jacques_d *)
+    	(if !Clflags.compile_to_agda then 			(* AJOUTE - jacques_d *)
+    		let gallina = to_agda info typed in	(* AJOUTE - jacques_d *)
+      		emit_agda info gallina					(* AJOUTE - jacques_d *)
+      	else
+      		let bytecode = to_bytecode info typed in
+      		emit_bytecode info bytecode)
   in
   with_info ~source_file ~output_prefix ~dump_ext:"cmo" @@ fun info ->
   match (start_from : Clflags.Compiler_pass.t) with
   | Parsing -> Compile_common.implementation info ~backend
   | _ -> Misc.fatal_errorf "Cannot start from %s"
            (Clflags.Compiler_pass.to_string start_from)
+
+
+
+

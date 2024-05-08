@@ -141,7 +141,14 @@ LAMBDA = \
   coqgen/coqtypes.cmo \
   coqgen/coqcore.cmo \
   coqgen/coqgen.cmo \
-  coqgen/coqprint.cmo
+  coqgen/coqprint.cmo \
+  agdagen/proof_eq.cmo \
+  agdagen/agdadef.cmo \
+  agdagen/agdainit.cmo \
+  agdagen/agdatypes.cmo \
+  agdagen/agdacore.cmo \
+  agdagen/agdagen.cmo \
+  agdagen/agdaprint.cmo
 LAMBDA_CMI =
 
 COMP = \

@@ -74,6 +74,7 @@ val dllibs : string list ref
 val compile_only : bool ref
 val output_name : string option ref
 val compile_to_coq : bool ref
+val compile_to_agda : bool ref (* AJOUTE - jacques_d *)
 val include_dirs : string list ref
 val no_std_include : bool ref
 val print_types : bool ref
