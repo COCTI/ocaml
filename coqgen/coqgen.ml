@@ -173,20 +173,16 @@ let deps_inductive ind =
   let vars = List.map coq_vars types in
   (ind.name, List.fold_left Names.union Names.empty vars)
 
-let transl_implementation _modname st =
-  let cmds, vars = transl_structure ~vars:init_vars st.str_items in
-  let typedefs, cmds =
-    List.partition (function CTinductive _ -> true | _ -> false) cmds
-  in
-  let typedefs = typedefs @ [inductive_of_exn vars] in
-  let inductives =
-    List.flatten
-      (List.map (function CTinductive ind -> ind | _ -> assert false) typedefs)
-  in
-  let inductives = topo_sort deps_inductive inductives in
-  let typedefs = List.map (fun gr -> CTinductive gr) inductives in
+(*coq_env -> unit*)
+let make_vlib vars typedefs = let vlib_channel = open_out (vars.absolute_path ^ ".vlib") in 
+output_value vlib_channel vars.type_map; 
+output_value vlib_channel vars.term_map; 
+output_value vlib_channel typedefs; (*maybe add a dependancy list at the end of the vlib?*)
+close_out vlib_channel (*open file given by the absolute path, and write typedefs in it*)
 
-  ((CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+(* this function should write in a vlib file the end vars and end typedefs...*)
+
+let make_v typedefs vars = (CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
 \nRequire Import PrimInt63 Ascii String Floats coqgen_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
@@ -279,6 +275,27 @@ let transl_implementation _modname st =
 \nDefinition make_lazy_val a (b : coq_type a) : coq_type (ml_lazy a) :=\
 \n  Lval _ _ b.\
 \n\n(* Default amount of gas *)\
-\nDefinition h := 100000.\n"]), 
-CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
-\nRequire Import PrimInt63 Ascii String Floats coqgen_defs." :: cmds)
+\nDefinition h := 100000.\n"])
+
+let rec end_of_list = function
+  | [] -> ""
+  | [s] -> s
+  | _ :: l -> end_of_list l
+
+let relative_path s = end_of_list (String.split_on_char '/' s) 
+
+let transl_implementation path_name st = 
+  (*if true then (failwith ("modname :"^_modname)) else*) 
+  let cmds, vars = transl_structure ~vars:{init_vars with absolute_path = path_name; dep_list = [relative_path path_name]} st.str_items in
+  let typedefs, cmds =
+    List.partition (function CTinductive _ -> true | _ -> false) cmds
+  in
+  let typedefs = typedefs @ [inductive_of_exn vars] in
+  let inductives =
+    List.flatten
+      (List.map (function CTinductive ind -> ind | _ -> assert false) typedefs)
+  in
+  let inductives = topo_sort deps_inductive inductives in
+  let typedefs = List.map (fun gr -> CTinductive gr) inductives in 
+  make_vlib vars typedefs;
+  ((make_v typedefs vars), cmds, vars.dep_list)

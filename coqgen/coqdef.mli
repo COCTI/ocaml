@@ -88,7 +88,9 @@ type coq_env = {
   ctvar_map : string Btype.TypeMap.t;
   top_exec : string list;
   coq_names : Names.t;
-}
+  absolute_path : string; (*short-term solution, should find a way to solve it later*)
+  dep_list : string list;
+} 
 
 val empty_vars : coq_env
 val add_type : Path.t -> coq_type_desc -> coq_env -> coq_env

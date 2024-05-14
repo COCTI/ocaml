@@ -20,6 +20,63 @@ open Coqdef
 open Coqinit
 open Coqtypes
 
+(*let counter = ref 0;;
+*)
+
+(*Path.t -> unit*)
+let print_path (p : Path.t) = Path.print Format.std_formatter p
+
+let env : (string, coq_type_desc Path.Map.t * coq_term_desc Path.Map.t)Hashtbl.t = Hashtbl.create 17;;
+Hashtbl.clear env;;
+
+let rec lizard = function
+  | [] -> []
+  | [_] -> []
+  | x :: l -> x :: (lizard l)
+(*removes tail from the list*)
+let pathway (abs_path : string) (s : string) = String.concat "/" ((lizard (String.split_on_char '/' abs_path)) @ [s])
+(*removes the last element of abs_path and replaces it by s, to get the absolute path to the file*)
+
+(*string -> string -> unit*)
+let add_env (abs_path : string) (s : string) =
+  let vlib_channel = open_in ((pathway abs_path s) ^ ".vlib") in
+  let type_map = input_value vlib_channel in
+  let term_map = input_value vlib_channel in
+  Hashtbl.add env s (type_map, term_map); (*probably try to open the env, and then try to catch the exceptionn raise not found if it doesn't work? or maybe just handle the error myself?*)
+  close_in vlib_channel
+
+(*let print_env () = incr counter;
+  print_endline ("call n°" ^ Int.to_string (!counter) ^ " current env : " ^
+  (String.concat "; " (List.map (fun (a, _) -> a) (Hashtbl.fold (fun k v acc -> (k, v) :: acc) env []))) ^ 
+  "end of print_env")
+*)
+
+(*string -> string -> coq_env*)
+let get_env (abs_path : string) (s : string) = try (Hashtbl.find env s) with Not_found -> 
+(*(print_string ("in get_env, tried to access with key : "^s^" "); print_env (); print_string "end of get_env"; 
+*)
+add_env abs_path s; 
+(*print_env (); 
+*)
+(*let x = *) Hashtbl.find env s (*in print_endline "tried to access again, and it DID work"; x*)
+
+
+(*Path.t -> string, returns the name of the first module in arborescence, if we assume that there is no submodule support, this should correspond to the file we depend on*)
+let get_module_name (p : Path.t) = Ident.name (Path.head p)
+
+(*let subst (vars : coq_env) (p : Path.t) = print_path p; print_endline (String.concat "; " vars.top_exec)
+*)
+
+(*coq_type_desc Path.Map.t -> Path.t -> coq_type_desc*)
+let find_type (type_map : coq_type_desc Path.Map.t) (p : Path.t) = List.assoc (Path.last p) (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings type_map))
+(*coq_env -> Path.t -> coq_term_desc*)
+(*let find_term (vars : coq_env) (p : Path.t) = List.assoc (Path.last p) (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings vars.term_map))*)
+(**This also assumes that there is no submodule support*)
+(*these functions use strings to match the path map, since there is no way to correctly compare path here*)
+
+(*let add_to_list (l : string list) (elt : string) = if List.exists (fun x -> x = elt) l then l else elt :: l
+*)
+
 type term_props =
     { pterm: coq_term; prec: rec_flag; pary: int }
 
@@ -113,7 +170,14 @@ let find_constructor ~loc ~vars cd =
     | _ -> assert false
   in
   try
-    let ct = Path.Map.find path vars.type_map in
+    (*let mod_name = get_module_name path in*)
+    print_path path;
+    let ct = (match path with
+      | Pdot (_, _) -> (*(try*) (*(let _dep_env =*) find_type (fst (get_env vars.absolute_path (get_module_name path))) path 
+      | _ -> Path.Map.find path vars.type_map
+        (*failwith "end of print";*) (*Path.Map.find path vars.type_map*)
+    ) in
+    (*let ct = Path.Map.find path vars.type_map in*)
     ct, List.assoc cd.cstr_name ct.ct_constrs, tl
   with Not_found ->
     not_allowed ~loc
@@ -207,15 +271,16 @@ let rec transl_exp ~vars e =
   close_type e.exp_type;
   match e.exp_desc with
   | Texp_ident (path, _, _) ->
+      print_path path;
       let desc =
-        try Path.Map.find path vars.term_map
+        try Path.Map.find path vars.term_map 
         with Not_found ->
           not_allowed ~loc ("Identifier " ^ Path.name path)
       in
       transl_ident ~loc ~vars e.exp_env desc None e.exp_type
   | Texp_constant cst ->
       {pterm = CTcstr (string_of_constant ~loc cst); prec = Nonrecursive;
-       pary = 1 }
+       pary = 1}
   | Texp_let (Nonrecursive, vbl, body) ->
       let ctl =
         List.map (transl_binding ~vars ~rec_flag:Nonrecursive) vbl in
