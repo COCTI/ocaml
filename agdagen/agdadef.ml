@@ -138,9 +138,9 @@ let ctRet ct = CTapp (CTid "Ret", [ct])
 let ctBind m f = CTapp (CTid "Bind", [m; f])
 let ctpair a b = ctcstr "pair" [a;b]
 
-let ml_type = "ml_type"
+let ml_type = "ml-type"
 let ml_tid = CTid ml_type
-let coq_tid = CTid "coq_type"
+let coq_tid = CTid "coq-type"
 let mkcoqty ct = ctapp coq_tid [ct]
 
 type coq_type_desc = {
@@ -252,10 +252,14 @@ let set_tvars vars (tvars, ctvars) =
       (Names.diff vars.coq_names (Names.diff current_names orig_names)) in
   { vars with tvar_map = tvars; ctvar_map = ctvars; coq_names }
 
+let replace_8t_by_6t s =
+	String.concat "-" (String.split_on_char '_' s)
+
 let fresh_name ~vars name =
+  let name = replace_8t_by_6t name in
   if not (Names.mem name vars.coq_names) then name else
   let rec search n =
-    let name_n = name ^ "_" ^ string_of_int n in
+    let name_n = name ^ "-" ^ string_of_int n in
     if not (Names.mem name_n vars.coq_names) then name_n else search (n+1)
   in search 1
 

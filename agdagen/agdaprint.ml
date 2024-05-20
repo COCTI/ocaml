@@ -36,8 +36,8 @@ let priority_level = function
   | CTif _ -> 0
 
 let string_of_sort = function
-  | Type -> "Type"
-  | Set -> "Set"
+  | Type -> "Set"
+  | Set -> "Set"	(* to do ?*)
   | Prop -> "Prop"
 
 let rec extract_args = function
@@ -53,6 +53,12 @@ let rec extract_args = function
 
 let ignore _ = ()
 
+(*let is_constructor_name s =
+	let is_uppercase c = 
+		Char.equal c (Char.uppercase_ascii c) in
+	is_uppercase (s.[0]) && not (String.equal s "List") && not (String.equal s "M")*)
+
+
 let rec print_term_rec lv ppf ty =
   if lv > priority_level ty then fprintf ppf "(%a)" (print_term_rec (-1)) ty
   else match ty with
@@ -62,26 +68,27 @@ let rec print_term_rec lv ppf ty =
   | CTapp (CTid "*", [t1; t2]) ->
       fprintf ppf "@[%a ->@ %a@]" (print_term_rec 3) t1 (print_term_rec 8) t2
   | CTapp (CTid "Bind", [ct1; CTabs (x, cto, ct2)]) ->
-      fprintf ppf "@[do %s%a <-@ %a;@ %a@]"
+      fprintf ppf "@[Do %s%a ←@ %a //@ %a@]"
         x print_type_ann cto
         (print_term_rec 1) ct1
         print_term ct2
   | CTapp (CTid "S", [t1]) ->
-      fprintf ppf "@[%a.+1@]" (print_term_rec 10) t1
+      fprintf ppf "@[suc %a@]" (print_term_rec 10) t1
   | CTapp (CTid "@cons", [_;t1;t2])
   | CTapp (CTcstr "@cons", [_;t1;t2]) ->
-      fprintf ppf "@[%a ::@ %a@]" (print_term_rec 8) t1 (print_term_rec 0) t2
+      fprintf ppf "@[%a ∷@ %a@]" (print_term_rec 8) t1 (print_term_rec 0) t2 (* constructor for lists *)
   | CTapp (CTcstr "|", [t1;t2]) ->
       fprintf ppf "@[%a |@ %a@]" (print_term_rec lv) t1 (print_term_rec lv) t2
   | CTapp (CTcstr "pair", [t1;t2]) ->
-      fprintf ppf "@[%a,@ %a@]" (print_term_rec (-1)) t1 (print_term_rec 0) t2
+      fprintf ppf "@[%a ,@ %a@]" (print_term_rec (-1)) t1 (print_term_rec 0) t2
+  (*| CTapp (CTid s, _) when is_constructor_name s -> fprintf ppf "@[<2>%a@]" pp_print_string s*)
   | CTapp (f, args) ->
-      fprintf ppf "@[<2>%a@ %a@]" (print_term_rec 8) f
+      fprintf ppf "@[<2>%a@ %a@]" (print_term_rec 8) f (* traductions of constructors and functions *)
         (pp_print_list ~pp_sep:pp_print_space (print_term_rec 9)) args
   | CTabs _ ->
-      fprintf ppf "@[<hov2>@[<hov2>λ@ {";
+      fprintf ppf "@[<hov2>@[<hov2>λ";
       let t1 = print_args ~no_types:true false ppf ty in
-      fprintf ppf "@ →@]@ %a }@]" print_term t1
+      fprintf ppf "@ →@]@ %a@]" print_term t1
   | CTsort k -> pp_print_string ppf (string_of_sort k)
 (*  | CTtuple tl ->
       fprintf ppf "(@[%a)@]"
@@ -101,17 +108,17 @@ let rec print_term_rec lv ppf ty =
 
   | CTmatch (ct, oret, cases) ->
   		ignore oret;
-      fprintf ppf "@[<hv>@[<2>case@ %a" (print_term_rec (-1)) ct; (* called when there is a match in a function *)
+      fprintf ppf "@[<v 2>case %a" (print_term_rec (-1)) ct; (* called when there is a match in a function *)
       (* Option.iter
         (fun (v, ct) ->
           fprintf ppf "@ as@ %s@ return@ %a" v print_term ct) (* Don't know what this does yet *)
         oret; *)
-      fprintf ppf "@ of λ {@]";
+      fprintf ppf " of λ {";
       let first = ref true in
       List.iter
         (fun (pat, ct) -> (* pat: pattern *)
-        	 if not !first then fprintf ppf "@ ; " else (fprintf ppf ""; first := false); 
-          fprintf ppf "@[@[%a →@]@;<1 2>%a@]"
+        	 if not !first then fprintf ppf "@ ; " else (fprintf ppf "@,"; first := false); 
+          fprintf ppf "@[@[(%a) →@]@;<1 2>%a@]"
             (print_term_rec (-1)) pat
             print_term ct)
         cases;
@@ -166,12 +173,15 @@ and print_args ?(no_types=false) is_def ppf ct =
   (* else may_app (fun cty ct -> CTann (ct, cty)) ann ct *)
 
 let emit_def ppf def s ~eval ct =
-  fprintf ppf "@[<2>%s%s" def s;
-  let ct = print_args true ppf ct in
+  fprintf ppf "@[<2>%s%s :" def s;
+  let ct2 = print_args true ppf ct in
   fprintf ppf "@]@.";
-  if eval then fprintf ppf "@ Eval compute in";
-  fprintf ppf "@[%s = " s;
-  fprintf ppf "%a@]" print_term ct;
+  (if eval then fprintf ppf "@ Eval compute in");
+  fprintf ppf "@[<2>%s" s;
+  (*fprintf ppf "@[%s %a@ =" s (print_args ~no_types:true false) ct;*)
+  let _ = print_args ~no_types:true false ppf ct in
+  fprintf ppf " =@;<1 2>";
+  fprintf ppf "%a@]" print_term ct2;
   if eval then fprintf ppf "@ Print %s." s;
   let is_it = s = "it" || String.length s >= 3 && String.sub s 0 3 = "it_" in
   if not is_it then pp_print_newline ppf ()
@@ -187,7 +197,23 @@ let print_arg_typed ppf (s, ct) = (* used to print the arguments of a constructo
 let print_arg_typed_data_def ppf (s, ct) = (* used to print the parameters in a dataype declaration *)
 	fprintf ppf "@ @[<1>(%s :@ %a)@]" s print_term ct
 
+let print_arg_untyped_data ppf fs (s, _) = (* used to print the parameters in a dataype declaration *)
+	if !fs 
+	then fprintf ppf "@ @[<1>%s@]" s
+	else (fprintf ppf "@ @[<1> %s@]" s; fs := false)
+
+
 let newlines = ref 1
+
+let rec repro n s = match n with
+	| 0 -> ""
+	| n -> s ^ (repro (n-1) s)
+
+let get_begin_spaces name = 
+	let indentation_opt = String.rindex_opt name ' ' in
+      let nb_spaces = match indentation_opt with
+      	| None -> 0
+      	| Some x -> x + 1 in repro nb_spaces " "
 
 let emit_vernacular ppf = function
   | CTverbatim s            -> fprintf ppf "%s" s
@@ -199,26 +225,28 @@ let emit_vernacular ppf = function
       newlines := 2
   | CTinductive tds ->
       let first = ref true in
-      fprintf ppf "@[<hv>@[<hv2>@[<2>data";
       List.iter (fun td ->
+        let begin_spaces = get_begin_spaces td.name in
+        fprintf ppf "@[<hv>@[<hv2>@[<2>%sdata" begin_spaces;
         if !first then first := false
         else fprintf ppf "@]@ @[<hv2>@[<2>with"; 
         (* I dont know what the line above does yet 
 			  Probably useful for mutually recursive inductive types 
 			  See https://coq.inria.fr/doc/V8.18.0/refman/language/core/inductive.html#simple-inductive-types 
 			  Section Mutually recursive inductive types *)
-        fprintf ppf " %s" td.name;
+        fprintf ppf " %s" (String.trim td.name);
         List.iter (print_arg_typed_data_def ppf) td.args;
         fprintf ppf "@ : Set where@]";
-        (* let bar = if List.length td.cases = 1 then "" else "| " in *) (* There is no "|" at the beginning of a line in Agda *)
-        let bar = "" in 
+        (* let bar = if List.length td.cases = 1 then "" else "| " in *) (* There is no "|" at the beginning of a line in Agda *) 
         List.iter
           (fun (s, args, ret) ->
-            fprintf ppf "@ @[<2>%s%s :" bar s;
+            fprintf ppf "@ @[<2>%s :" s;
             
             (* let first_arrow = ref false in *)
             List.iter (print_arg_typed ppf) args;
-            fprintf ppf " %s" td.name;	
+            fprintf ppf "@ %s" (String.trim td.name);
+            let fs = ref true in 
+            List.iter (print_arg_untyped_data ppf fs) td.args;
             match ret with
             | None -> fprintf ppf "@]"
             | Some ret -> fprintf ppf "@ : %a@]" print_term ret)
@@ -226,6 +254,7 @@ let emit_vernacular ppf = function
         tds;
       (* fprintf ppf ".@]@]"; *) (* There is no "." in Agda *)
       newlines := 2
+
 
 let print_newlines ppf () =
   for _ = 1 to !newlines do pp_print_newline ppf () done; newlines := 1

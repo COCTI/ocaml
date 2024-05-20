@@ -89,20 +89,20 @@ let rec insert_guard ct =
 
 let string_of_constant ~loc = function
   | Const_int x ->
-      let s = string_of_int x ^ "%int63" in
-      if x < 0 then "("^s^")" else s
+      let s = string_of_int (abs x) in
+      if x < 0 then "(- " ^ s ^ ")" else "(+ " ^ s ^")"
   | Const_float x ->
       let x = if x.[String.length x-1] = '.' then x ^ "0" else x in
-      let s = x ^ "%float" in
+      let s = x in
       "("^s^")"
   | Const_char c ->
       let s = Char.escaped c in
       let s =
         if String.length s = 1 then s else
         Printf.sprintf "%03d" (Char.code c) in
-      Printf.sprintf "\"%s\"%%char" s
+      Printf.sprintf "'%s'" s
   | Const_string (s, _, _) ->
-      Printf.sprintf "\"%s\"%%string" s
+      (*Printf.sprintf "\"%s\"%%string"*) "\"" ^ s ^ "\""
   | _ ->
       not_allowed ~loc "This constant"
 
@@ -173,6 +173,8 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
   | _ ->
       not_allowed ~loc "transl_pat : This pattern"
 
+let ignore _ = ()
+
 let transl_ident ~loc ~vars env desc ct ty =
   let f = CTid desc.ce_name in
   if desc.ce_purary = 0 then (* toplevel value; need to rebind it outside *)
@@ -189,6 +191,8 @@ let transl_ident ~loc ~vars env desc ct ty =
     in
     let args =
       if desc.ce_rec = Recursive then CTid"h" :: args else args in
+    ignore args;
+    let args = [] in
     {pterm = ctapp f args; prec = desc.ce_rec; pary = desc.ce_purary}
 
 let rec fun_arity e =
@@ -247,7 +251,7 @@ let rec transl_exp ~vars e =
           else
             {pbody with pterm = CTlet (v, None, ct, pbody.pterm)}
       | _ ->
-          if List.exists (fun (_,desc) -> desc.ce_purary = 0) id_descs then
+          if List.exists (fun (_, desc) -> desc.ce_purary = 0) id_descs then
             let pbody = nullary ~vars pbody in
             let pbody =
               List.fold_right
@@ -325,11 +329,13 @@ let rec transl_exp ~vars e =
           {ct with pterm = ctBind arg (CTabs (v,None,ct.pterm))})
         (nullary ~vars ct) binds
   | Texp_construct (_, cd, []) ->
-      let ct, name, tl = find_constructor ~loc ~vars cd in
+     let ct, name, tl = find_constructor ~loc ~vars cd in
+      (*let ct, name, _ = find_constructor ~loc ~vars cd in*)
       let ce =
         {ce_name = name;
          ce_type = List.fold_right newgenarrow cd.cstr_args cd.cstr_res;
          ce_vars = tl;
+         (*ce_vars = [];*)
          ce_rec = Nonrecursive;
          ce_purary = cd.cstr_arity + 1}
       in
@@ -400,10 +406,10 @@ let rec transl_exp ~vars e =
     let ct = transl_exp ~vars e in
     let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in
     if ct.pary = 0 then 
-      {ct with pterm = ctapp (CTid "make_lazy") [cty; ct.pterm]}
+      {ct with pterm = ctapp (CTid "make-lazy") [cty; ct.pterm]}
     else
       let ct = shrink_purary ~vars ct 1 in
-      {pterm = ctapp (CTid "make_lazy_val") [cty; ct.pterm];
+      {pterm = ctapp (CTid "make-lazy-val") [cty; ct.pterm];
        pary = 1; prec = ct.prec}
   | Texp_match (e, cases, partial) ->
       let ct = transl_exp ~vars e in
@@ -534,7 +540,7 @@ let close_top ~vars ~ce_vars pt =
     match pt.pterm with
     | CTabs (id, t, ct) when n > 0 ->
         let n' =
-          if t = Some (CTid "nat") || t = Some (CTid "ml_type") then n
+          if t = Some (CTid "nat") || t = Some (CTid "ml-type") then n
           else n-1 in
         let pt = push {pt with pterm = ct; pary = n'} in
         {pt with pterm = CTabs (id, t, pt.pterm);
@@ -551,7 +557,7 @@ let close_top ~vars ~ce_vars pt =
   let pt =
     if ce_vars = [] then pt else
     {pt with pterm =
-     ctapp pt.pterm (List.map (fun _ -> CTid "ml_empty") ce_vars)}
+     ctapp pt.pterm (List.map (fun _ -> CTid "ml-empty") ce_vars)}
   in
   let it = List.hd vars.top_exec in
   {pt with pterm = ctapp (CTid "Restart") [CTid it; pt.pterm]}

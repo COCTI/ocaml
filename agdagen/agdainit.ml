@@ -46,7 +46,7 @@ let init_type_map vars =
      ct_compare =
      Some (CTapp (CTid"compare-ref", CTid"compare-rec" :: CTid"T1" :: xy))});
    (path_empty, [],
-    {ctd with ct_name = "ml-empty"; ct_type = CTid "empty";
+    {ctd with ct_name = "ml-empty"; ct_type = CTid "⊥";
      ct_compare = Some (CTmatch (CTid"x", None, []))});
    (Predef.path_int, [],
     {ctd with ct_name = "ml-int";
@@ -66,7 +66,7 @@ let init_type_map vars =
      ct_compare = Some (ctRet (CTapp (CTid"compare-string", xy)))});
    (Predef.path_unit, [],
     {ctd with ct_name = "ml-unit";
-     ct_type = CTid "Unit";
+     ct_type = CTid "⊤";
      ct_def = Some ([], ["tt", []]);
      ct_constrs = ["()", "tt"];
      ct_compare = None});
@@ -115,8 +115,8 @@ let init_type_map vars =
      ct_type = CTid "ml-exns";
      ct_constrs = List.map (fun x -> (x,x))
        ["Invalid-argument"; "Failure"; "Not-found"];
-     ct_coqdef = ["Invalid-argument", [CTid"string"];
-                  "Failure", [CTid"string"]; "Not-found", []];
+     ct_coqdef = ["Invalid-argument", [CTid"String"];
+                  "Failure", [CTid"String"]; "Not-found", []];
      ct_def = Some ([], ["Invalid-argument", [CTid"ml-string"];
                          "Failure", [CTid"ml-string"]; "Not-found", []])});
    (agdagen, ["arrow"],
@@ -212,7 +212,7 @@ let init_term_map vars =
        ce_vars = [];
        ce_rec = Nonrecursive;
        ce_purary = 3})
-    [("+", "_+_"); ("-", "_-_"); ("*", "_*_");
+    [("+", "_+_"); ("-", "_⊖_"); ("*", "_*_");
      ("/", "_/_"); ("mod", "_%_")]
   @ [
     (["~-"],
@@ -257,7 +257,7 @@ let init_term_map vars =
 let init_reserved =
   [ "fix"; "data"; "unit"; "bool"; "int63";
     "M"; "Res"; "Raise"; "Fail"; "K"; "coq-type"; "S"; "Eq"; "Lt"; "Gt";
-    "nil"; "cons"; "it"; "Restart"; "T1"; "T2" ]
+    "nil"; "cons"; "it"; "Restart"; "T1"; "T2"; "A"; "B"; "C"; "D"; "E"; "F"; "u1"; "u2"; "u3"; "v1"; "v2"; "v3" ]
 
 let init_vars =
   init_type_map (
