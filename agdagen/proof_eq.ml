@@ -1,4 +1,4 @@
-let ml_type_list = ["ml-int", 0; "ml-char", 0; "ml-list", 1; "ml-arrow", 2]
+(*let ml_type_list = ["ml-int", 0; "ml-char", 0; "ml-list", 1; "ml-arrow", 2]*)
 
 
 (** [rm_last s] returns the string [s] without its last character
@@ -62,8 +62,8 @@ let nz n s = match n with
 	| _ -> s
 
 
-(** [p] is a shortcut for [print_endline] *)
-let p s = print_endline s
+(*(** [p] is a shortcut for [print_endline] *)
+let p s = print_endline s*)
 
 
 (** [body_Fl f_line ctds] applies the function [f_line], generating one line of a function,
@@ -199,7 +199,7 @@ let gen_eq_decc_line name arity =
 (** [gen_eq_decc ctds] returns a [string] corresponding to the definition of [eq_decc]
 for the types in [ctds], which is a [(string * int) list] of couples [(name, arity)] *)
 let gen_eq_decc ctds = 
-	let sign = "eq-decc : (T1 T2 : ml-type) → Dec (T1 ≡ T2) \
+	let sign = "eq-decc : (T1 T2 : ml-type) → Dec (T1 ≡ T2)\
 \neq-decc T1 T2 with view T1 T2 | inspect (view T1) T2\n" in 
 	let end_fun = "eq-decc m n | nothing | [ eq ] = no λ where refl → view-diag _ eq\n" in
 	let body = body_FL gen_eq_decc_line ctds in
@@ -218,7 +218,7 @@ let gen_proof ctdN_ctdA_list =
 	(gen_eq_decc ctdN_ctdA_list) ^ "\n" ^
 	"-- End of the proof of DecidableEquality on ml-type\n"
 	
-let () = p (gen_proof ml_type_list);;
+(*let () = p (gen_proof ml_type_list)*);;
 
 
 
