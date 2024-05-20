@@ -5,7 +5,7 @@ open import Data.Float using (Float) renaming (_<ᵇ_ to _ℝ<?_ ; _≡ᵇ_ to _
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
 open import Data.String renaming (_++_ to _cat_; length to Slength; _<?_ to _s<?_; _≈?_ to _s≡?_)
 open import Data.Char using (toℕ; Char)
-open import Data.Bool using (true; false; Bool; if_then_else_)
+open import Data.Bool using (true; false; Bool; if_then_else_) renaming (_<?_ to _b<?_; _≟_ to _b≡?_)
 open import Data.List using (List; _∷_; []; _++_; length)
 open import Data.Unit using ( ⊤ ; tt)
 open import Data.Empty
@@ -17,11 +17,12 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Binary.Definitions using (DecidableEquality)
 open import Relation.Nullary.Decidable.Core using (_because_; isYes; Dec; yes; no)
 open import Relation.Nullary.Reflects using (ofʸ; ofⁿ)
-
+open import Agda.Primitive
+open import Function.Base using (case_of_)
 -- Utils for the file
 
-case_of_ : {A B : Set} → A → (A → B) → B
-case x of f = f x
+--case_of_ : {l : Level} {A B : Set l} → A → (A → B) → B
+--case x of f = f x
 
 maxℕ : (p q : ℕ) → ℕ
 maxℕ 0 q = q
@@ -40,6 +41,11 @@ nth-opt : {A : Set} → List A → ℕ → Maybe A
 nth-opt [] _ = nothing
 nth-opt (x ∷ q) 0 = just x
 nth-opt (x ∷ q) (suc n) = nth-opt q n
+
+nth : {A : Set} → A → List A → ℕ → A
+nth x [] n = x
+nth x (y ∷ s) zero = y
+nth x (y ∷ s) (suc n) = nth x s n
 
 ncons : {A : Set} → ℕ → A → List A
 ncons zero x = []
@@ -88,6 +94,15 @@ compare-int n1 n2 = case (n1 ℕ<? n2) of λ {
                             ; false → case (n1 ℕ≡? n2) of λ {
                                            true → Eq
                                            ; _ → Gt } }
+
+compare-bool : (b1 b2 : Bool) → comparator
+compare-bool b1 b2 =
+  case isYes (b1 b<? b2) of λ {
+    true → Lt
+    ; _ → case isYes (b1 b≡? b2) of λ {
+      true → Eq
+      ; _ → Gt }
+ }
 
 compare-ascii : (c1 c2 : Char) → comparator
 compare-ascii c1 c2 = compare-int (toℕ c1) (toℕ c2)
@@ -154,6 +169,8 @@ record EFmonad (EnvM : ENV) : Set₁ where
       (inj₂ (inj₁ e , env')) → inj₂ (inj₁ e , env') ;
       (inj₁ tt) → inj₁ tt }
 
+  --infix -1 Bind _ _
+
   -- Could be necessary if I want to use a syntactic
   --   declaration to define '>>='
   Bind2 : {A B : Set} (x : M A) (f : A → M B) → M B
@@ -186,7 +203,9 @@ record EFmonad (EnvM : ENV) : Set₁ where
   -- Do x ← m // e = Bind m (λ x → e)
 
   -- syntax Bind2 m f = m >>= f
+  infix -1 Bind
   syntax Bind m (λ x → e) = Do x ← m // e
+  --infix -1 Do_←_//
 
   _>>_ : {A B : Set} (m : M A) (f : M B) → M B
   m >> f = Bind m (λ _ → f)
@@ -207,8 +226,8 @@ record EFmonad (EnvM : ENV) : Set₁ where
   AppM2 f x y = Do f ← f // Do f ← f x // f y
 
 
-data loc (ml-type : Set) : ml-type → Set where
-  mkloc : (T : ml-type) (n : ℕ) → loc ml-type T
+data loc-b (ml-type : Set) : ml-type → Set where
+  mkloc : (T : ml-type) (n : ℕ) → loc-b ml-type T
 
 
 -- Equality
@@ -237,7 +256,7 @@ record MLTY : Set₁ where
     ml-type : Set
     {{ml-type-is-eq-dec}} : eqType ml-type
     ml-exn : ml-type
-    coq-type : (Set → Set) → ml-type → Set
+    coq-type-b : (Set → Set) → ml-type → Set
 
 
 -- λ-lifting : potentially non-terminating definitions are outside the monad
@@ -266,13 +285,13 @@ interleaved mutual
     Catchable : coq-type (M0 (Env-ext binder coq-type ml-exn) (Exn-ext binder coq-type ml-exn)) ml-exn → Exn-ext binder coq-type ml-exn
 
 
-record REFMonad (MLtypes : MLTY) : Set₁ where
+record REFmonad (MLtypes : MLTY) : Set₁ where
   open MLTY MLtypes
 
-  binding = bind-ext ml-type coq-type
+  binding = bind-ext ml-type coq-type-b
 
-  Env2 = Env-ext binding coq-type ml-exn
-  Exn2 = Exn-ext binding coq-type ml-exn
+  Env2 = Env-ext binding coq-type-b ml-exn
+  Exn2 = Exn-ext binding coq-type-b ml-exn
 
   -- MDEF
   EnvM : ENV
@@ -282,32 +301,32 @@ record REFMonad (MLtypes : MLTY) : Set₁ where
   EFmonadENV : EFmonad EnvM
   EFmonadENV = record {}
 
-  open EFmonad EFmonadENV
+  open EFmonad EFmonadENV public
 
-  coq-typeM = coq-type M
+  coq-type = coq-type-b M
   bindingM = binding M
-  locm = loc ml-type
+  loc = loc-b ml-type
 
-  loc-id : {T : ml-type} (l : locm T) → ℕ
+  loc-id : {T : ml-type} (l : loc T) → ℕ
   loc-id (mkloc x n) = n
 
-  cnew : (T : ml-type) (v : coq-typeM T) → M (locm T)
+  cnew : (T : ml-type) (v : coq-type T) → M (loc T)
   cnew T v st = case st of λ {
                   (mkEnv l) → inj₂ (inj₂ (mkloc T (size l)), mkEnv (rcons l (mkbind T v))) }
 
-  coerce : (T1 T2 : ml-type) (v : coq-typeM T1) → Maybe (coq-typeM T2)
+  coerce : (T1 T2 : ml-type) (v : coq-type T1) → Maybe (coq-type T2)
   coerce T1 T2 v = case (eqPc ml-type T1 T2) of λ {
-                            (_because_ true (ofʸ x)) → just (eq-rect T1 coq-typeM v T2 x)
+                            (_because_ true (ofʸ x)) → just (eq-rect T1 coq-type v T2 x)
                             ; _ → nothing }
 
-  cget : (T : ml-type) (r : locm T) → M (coq-typeM T)
+  cget : (T : ml-type) (r : loc T) → M (coq-type T)
   cget T r (mkEnv x) = case nth-opt x (loc-id r) of λ {
                          (just (mkbind T2 v)) → case coerce _ T v of λ {
                                                   (just u) → inj₂ (inj₂ u , mkEnv x)
                                                   ; _ → inj₁ tt }
                          ; _ → inj₁ tt }
 
-  cput : (T : ml-type) (r : locm T) → (v : coq-typeM T) → M ⊤
+  cput : (T : ml-type) (r : loc T) → (v : coq-type T) → M ⊤
   cput T r v (mkEnv x) =  let n : ℕ
                               n = loc-id r in
     case nth-opt x n of λ {
@@ -320,10 +339,10 @@ record REFMonad (MLtypes : MLTY) : Set₁ where
   FailGas : {A : Set} → M A
   FailGas = Raise GasExhausted
 
-  raise : (T : ml-type) (e : coq-typeM ml-exn) → M (coq-typeM T)
+  raise : (T : ml-type) (e : coq-type ml-exn) → M (coq-type T)
   raise T e = Raise (Catchable e)
 
-  handle : (T : ml-type) (c : M (coq-typeM T)) (h : coq-typeM ml-exn → M (coq-typeM T)) → M (coq-typeM T)
+  handle : (T : ml-type) (c : M (coq-type T)) (h : coq-type ml-exn → M (coq-type T)) → M (coq-type T)
   handle T c h env = case c env of λ {
                        (inj₂ (inj₁ (Catchable e) , env2)) → h e env2
                        ; r → r }
@@ -334,16 +353,17 @@ record REFMonad (MLtypes : MLTY) : Set₁ where
                                             Eq → cmp2
                                             ; _ → Ret x }
 
-  postulate compare-rec : {T : ml-type} → coq-typeM T → coq-typeM T → M comparator
+  --variable
+  --compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator
 
-  compare-list : {T : ml-type} → (l1 l2 : List (coq-typeM T)) → M comparator
+  compare-list : {compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator} → {T : ml-type} → (l1 l2 : List (coq-type T)) → M comparator
   compare-list [] [] = Ret Eq
   compare-list [] (x ∷ l2) = Ret Lt
   compare-list (x ∷ l1) [] = Ret Gt
-  compare-list (a1 ∷ t1) (a2 ∷ t2) = lexi-compare (compare-rec a1 a2) (Delay (compare-list t1 t2))
+  compare-list {compare-rec} (a1 ∷ t1) (a2 ∷ t2) = lexi-compare (compare-rec a1 a2) (Delay (compare-list {compare-rec} t1 t2))
 
-  compare-ref : (T : ml-type) (r1 r2 : locm T) → M comparator
-  compare-ref T r1 r2 = Do x ← cget T r1 // Do y ← cget T r2 // compare-rec x y
+  compare-ref : {compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator} → (T : ml-type) (r1 r2 : loc T) → M comparator
+  compare-ref {compare-rec} T r1 r2 = Do x ← cget T r1 // Do y ← cget T r2 // compare-rec x y
 
   -- End Comparison
 
@@ -367,7 +387,7 @@ record REFMonad (MLtypes : MLTY) : Set₁ where
   whileloop zero f b = FailGas
   whileloop (suc h) f b = Do v ← f // (if v then (Do _ ← b // whileloop h f b) else Ret tt)
 
-  cast-empty : (T : ml-type) (v : ⊥) → coq-typeM T
+  cast-empty : (T : ml-type) (v : ⊥) → coq-type T
   cast-empty T ()
 
   cast-list : (T1 T2 : Set) → (T1 → T2) → List T1 → List T2
