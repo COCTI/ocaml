@@ -9,7 +9,7 @@ type 'a my_opt =
 type even_int = 
 	| Zorro
 	| DoubleZ of even_int
-	| D of int
+	| Ddd of int
 
 
 type ('a, 'b, 'c, 'd) quadruplet = 
@@ -31,19 +31,17 @@ let two_first lis = match lis with
 
 let f1 x = x
 
-let f2 x y z u = x + y * (fun t v -> 2*t*v) z u
+(*let f2 x y z u = x + y * (fun t v -> 2*t*v) z u*)
 
 let ignore _ = ()
 
 let g x =
 	let u = 2 in x + u
 
-let g2 x =
-	let u = 5 in x - u
 
 
-let f3 x y =
+(*let f3 x y =
 	ignore x;
 	ignore y;
-	()
+	()*)
 ;;
