@@ -301,10 +301,10 @@ let _ = make_compare_rec in
 \nit : W ⊤\
 \nit = inj₂ (inj₂ tt , empty-env)\
 \n\
-\n\n-- Generated comparison function\ "
-(*\npostulate compare-rec : (h : ℕ) (T : ml-type)\
-  → coq-type T -> coq-type T -> M comparator*) ::
-  make_compare_rec vars ::
+\n\n-- Generated comparison function\
+\npostulate compare-rec : (h : ℕ) (T : ml-type)\
+  → coq-type T -> coq-type T -> M comparator" ::
+(*  make_compare_rec vars ::*)
   CTverbatim "\
 \nml-compare = compare-rec\
 \n\
