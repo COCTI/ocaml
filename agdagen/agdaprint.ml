@@ -129,10 +129,19 @@ let rec print_term_rec lv ppf ty =
         print_term ct
         print_term cty
   | CTlet (x, None, ct1, ct2) ->
-      fprintf ppf "@[<2>@[let %s" x;
-      let ct1 = print_args true ppf ct1 in
-      fprintf ppf "@ =@]@ %a@ in@;<1 -2>%a@]"
-        print_term ct1
+      fprintf ppf "let @[<2>@[<v>%s" x;
+      let args, _, _ = extract_args ct1 in
+      let is_a_function_def = args <> [] in
+      if is_a_function_def
+      then (fprintf ppf " :@[";);
+      let ct1a = print_args true ppf ct1 in
+      if is_a_function_def 
+      then (fprintf ppf "@]@,%s@[" x;
+      	  let _ = print_args ~no_types:true false ppf ct1 in ();
+      	  fprintf ppf " @]")
+      else (fprintf ppf " ");
+      fprintf ppf "=@]@ %a@ in@;<1 2>%a@]"
+        print_term ct1a
         print_term ct2
   | CTlet (x, cto, ct1, ct2) ->
       fprintf ppf "@[<2>@[let %s%a =@]@ %a@;<1 -2>in@ %a@]"
