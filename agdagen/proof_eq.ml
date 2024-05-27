@@ -209,14 +209,14 @@ let gen_eq_decc ctds =
 (** [gen_proof ctds] returns the whole proof for the types in [ctds], 
 which is a [(string * int) list] of couples [(name, arity)] *)
 let gen_proof ctdN_ctdA_list = 
-	"\n-- Proof of DecidableEquality on ml-type\n\n" ^
+	"-- Proof of DecidableEquality on ml-type\n\n" ^
 	(gen_data_rel ctdN_ctdA_list) ^ "\n" ^
 	(gen_view ctdN_ctdA_list) ^ "\n" ^
 	(gen_view_diag ctdN_ctdA_list) ^ "\n" ^
 	(gen_inj ctdN_ctdA_list) ^ "\n" ^
 	(gen_cong ctdN_ctdA_list) ^ "\n" ^
 	(gen_eq_decc ctdN_ctdA_list) ^ "\n" ^
-	"-- End of the proof of DecidableEquality on ml-type\n"
+	"-- End of the proof of DecidableEquality on ml-type"
 	
 (*let () = p (gen_proof ml_type_list)*);;
 

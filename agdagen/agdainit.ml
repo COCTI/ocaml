@@ -94,7 +94,7 @@ let init_type_map vars =
                ctapp (CTid"ml-array-t") [CTid "T1"] :: xy))});
    (Predef.path_lazy_t, [],
     {ctd with ct_name = "ml-lazy";
-     ct_arity = 1;ct_args = [0, "a"];  ct_mlargs = [0, "a_1"];
+     ct_arity = 1; ct_args = [0, "a"];  ct_mlargs = [0, "a_1"];
      ct_type = CTapp (CTid"lazy-t", [CTid"a"; CTid"a_1"]);
      ct_compare = None
     });

@@ -333,7 +333,7 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
       (just (mkbind T2 _)) → (case coerce T T2 v of λ {
                                (just u) → let b : binding M
                                               b = mkbind T2 u in inj₂ (inj₂ tt , mkEnv (set-nth b x n b))
-                               ; _ → inj₁ tt })
+                               ; nothing → inj₁ tt })
           ; _ → inj₁ tt }
 
   FailGas : {A : Set} → M A
@@ -356,14 +356,14 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
   --variable
   --compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator
 
-  compare-list : {compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator} → {T : ml-type} → (l1 l2 : List (coq-type T)) → M comparator
+  compare-list : {T : ml-type} → {compare-rec : coq-type T → coq-type T → M comparator} → (l1 l2 : List (coq-type T)) → M comparator
   compare-list [] [] = Ret Eq
   compare-list [] (x ∷ l2) = Ret Lt
   compare-list (x ∷ l1) [] = Ret Gt
-  compare-list {compare-rec} (a1 ∷ t1) (a2 ∷ t2) = lexi-compare (compare-rec a1 a2) (Delay (compare-list {compare-rec} t1 t2))
+  compare-list {T} {compare-rec} (a1 ∷ t1) (a2 ∷ t2) = lexi-compare (compare-rec a1 a2) (Delay (compare-list {T} {compare-rec} t1 t2))
 
-  compare-ref : {compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator} → (T : ml-type) (r1 r2 : loc T) → M comparator
-  compare-ref {compare-rec} T r1 r2 = Do x ← cget T r1 // Do y ← cget T r2 // compare-rec x y
+  compare-ref : {T : ml-type} → {compare-rec : coq-type T → coq-type T → M comparator} → (r1 r2 : loc T) → M comparator
+  compare-ref {T} {compare-rec} r1 r2 = Do x ← cget T r1 // Do y ← cget T r2 // compare-rec x y
 
   -- End Comparison
 
