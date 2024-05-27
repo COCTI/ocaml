@@ -78,7 +78,7 @@ let init_type_map vars =
    (Predef.path_list, [],
     {ctd with ct_name = "ml-list";
      ct_arity = 1; ct_args = [0, "a"];
-     ct_constrs = [("[]", "@nil"); ("∷", "@cons")]; (* :: ; utf-8: 0x2237 *)
+     ct_constrs = [("[]", "[]"); ("::", "@cons")]; (*∷ :: ; utf-8: 0x2237 *)
      ct_type = CTapp (CTid "List", [CTid "a"]); ct_def = None;
      ct_maps = [1, "cast_list"];
      ct_compare = Some
@@ -225,16 +225,16 @@ let init_term_map vars =
   List.map
     (fun (ml, coq) ->
       [ml],
-      {ce_name = coq^"%float";
+      {ce_name = "_ℝ" ^ coq ^ "_"; (*ℝ is \bR*)
        ce_type = float_to_float_to_float;
        ce_vars = [];
        ce_rec = Nonrecursive;
        ce_purary = 3})
-    [("+.", "add"); ("-.", "sub"); ("*.", "mul");
-     ("/.", "div")]
+    [("+.", "+"); ("-.", "-"); ("*.", "*");
+     ("/.", "÷")]
   @ [
     (["~-."],
-     {ce_name = "opp";
+     {ce_name = "ℝ-_";
       ce_type = float_to_float;
       ce_vars = [];
       ce_rec = Nonrecursive;

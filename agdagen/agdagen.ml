@@ -244,6 +244,7 @@ let transl_implementation _modname st =
 @,open import Relation.Nullary.Reflects using (ofʸ; ofⁿ)\
 @,open import Data.String hiding (length; _<?_)\
 @,open import Data.Float using (Float)\
+renaming (_+_ to _ℝ+_; _*_ to _ℝ*_; _-_ to _ℝ-_; _÷_ to _ℝ÷_; -_ to ℝ-_)\
 @,open import Data.Char using (Char)\
 @,open import Data.Nat using (ℕ; suc) renaming (_<?_ to _ℕ<?_)\
 @,open import Data.Unit\
