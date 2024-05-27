@@ -175,20 +175,19 @@ and print_args ?(no_types=false) is_def ppf ct =
 let emit_def ppf def s ~eval ct =
   fprintf ppf "@[<2>%s%s :" def s;
   let ct2 = print_args true ppf ct in
-  fprintf ppf "@]@.";
+  fprintf ppf "@]@,";
   (if eval then fprintf ppf "@ Eval compute in");
   fprintf ppf "@[<2>%s" s;
   (*fprintf ppf "@[%s %a@ =" s (print_args ~no_types:true false) ct;*)
   let _ = print_args ~no_types:true false ppf ct in
   fprintf ppf " =@;<1 2>";
   fprintf ppf "%a@]" print_term ct2;
-  if eval then fprintf ppf "@ Print %s." s;
-  let is_it = s = "it" || String.length s >= 3 && String.sub s 0 3 = "it_" in
-  if not is_it then pp_print_newline ppf ()
+  if eval then fprintf ppf "@ Print %s." s
+  (*let is_it = s = "it" || String.length s >= 3 && String.sub s 0 3 = "it_" in
+  if not is_it then pp_print_newline ppf ()*)
 
 
-let print_arg_typed ppf (s, ct) = (* used to print the arguments of a constructor *)
-  if s = "" then () else (); (* to avoid getting a warning on s being unused *) 
+let print_arg_typed ppf (_, ct) = (* used to print the arguments of a constructor *)
   fprintf ppf "@ @[<1>%a@]" print_term ct;
   fprintf ppf "@ →"
   (* fprintf ppf "@ @[<1>(%s :@ %a)@]" s print_term ct;*)
@@ -216,7 +215,7 @@ let get_begin_spaces name =
       	| Some x -> x + 1 in repro nb_spaces " "
 
 let emit_vernacular ppf = function
-  | CTverbatim s            -> fprintf ppf "%s" s
+  | CTverbatim s  -> fprintf ppf  (CamlinternalFormat.format_of_string_format s "")
   | CTdefinition (s, ct, eval) ->
       emit_def ppf "" s ~eval ct
   | CTfixpoint (s, ct)   -> emit_def ppf "" s ~eval:false ct
@@ -227,7 +226,7 @@ let emit_vernacular ppf = function
       let first = ref true in
       List.iter (fun td ->
         let begin_spaces = get_begin_spaces td.name in
-        fprintf ppf "@[<hv>@[<hv2>@[<2>%sdata" begin_spaces;
+        fprintf ppf "@[<v2>@[<hv2>%sdata" begin_spaces;
         if !first then first := false
         else fprintf ppf "@]@ @[<hv2>@[<2>with"; 
         (* I dont know what the line above does yet 
@@ -241,7 +240,6 @@ let emit_vernacular ppf = function
         List.iter
           (fun (s, args, ret) ->
             fprintf ppf "@ @[<2>%s :" s;
-            
             (* let first_arrow = ref false in *)
             List.iter (print_arg_typed ppf) args;
             fprintf ppf "@ %s" (String.trim td.name);
@@ -250,14 +248,21 @@ let emit_vernacular ppf = function
             match ret with
             | None -> fprintf ppf "@]"
             | Some ret -> fprintf ppf "@ : %a@]" print_term ret)
-          td.cases)
+          td.cases;
+          fprintf ppf "@]")
         tds;
-      (* fprintf ppf ".@]@]"; *) (* There is no "." in Agda *)
-      newlines := 2
+      newlines := 1
 
+
+(*let print_newlines ppf () =
+  for _ = 1 to !newlines do pp_print_newline ppf () done; newlines := 1*)
 
 let print_newlines ppf () =
-  for _ = 1 to !newlines do pp_print_newline ppf () done; newlines := 1
+  for _ = 1 to !newlines do fprintf ppf "@,@," done; newlines := 1
+
 
 let emit_gallina _modname ppf cmds =
   pp_print_list ~pp_sep:print_newlines emit_vernacular ppf cmds
+
+
+
