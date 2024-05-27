@@ -204,7 +204,7 @@ let rec fun_arity e =
   | _ -> 0
 
 let abstract_recursive ct =
-  CTabs ("h", Some (CTid"nat"), ct)
+  CTabs ("h", Some (CTid"ℕ"), ct)
 
 let rec transl_exp ~vars e =
   let loc = e.exp_loc in
@@ -540,7 +540,7 @@ let close_top ~vars ~ce_vars pt =
     match pt.pterm with
     | CTabs (id, t, ct) when n > 0 ->
         let n' =
-          if t = Some (CTid "nat") || t = Some (CTid "ml-type") then n
+          if t = Some (CTid "ℕ") || t = Some (CTid "ml-type") then n
           else n-1 in
         let pt = push {pt with pterm = ct; pary = n'} in
         {pt with pterm = CTabs (id, t, pt.pterm);
