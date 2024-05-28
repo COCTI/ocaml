@@ -1,5 +1,5 @@
 open import Data.Nat using (ℕ; zero; suc; _∸_; _+_) renaming (_<ᵇ_ to _ℕ<?_; _≡ᵇ_ to _ℕ≡?_)
-open import Data.Integer using (ℤ; 0ℤ; -_ ; +_; _-_; _*_) renaming (_<?_ to _ℤ<?_ ;  _≟_ to _ℤ≡?_)
+open import Data.Integer using (ℤ; 0ℤ; -[1+_]; -_ ; +_; _*_) renaming (_<?_ to _ℤ<?_ ;  _≟_ to _ℤ≡?_; _+_ to _ℤ+_; _-_ to _ℤ-_)
 open import Data.Integer.DivMod using (_%_ ; _/_)
 open import Data.Float using (Float) renaming (_<ᵇ_ to _ℝ<?_ ; _≡ᵇ_ to _ℝ≡?_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
@@ -367,21 +367,22 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
 
   -- End Comparison
 
-  iter : {A : Set} (n : ℕ) (f : A → A) (x : A) → A
-  iter zero f x = x
-  iter (suc m) f x = f (iter m f x)
+  iter : {A : Set} (n : ℤ) (f : A → A) (x : A) → A
+  iter (+ 0) f x = x
+  iter (+ (suc m)) f x = f (iter (+ m) f x)
+  iter -[1+ n ] f x = x
 
-  forloop : (n1 n2 : ℕ) (b : ℕ → M ⊤) → M ⊤
-  forloop n1 n2 b = if (n2 Data.Nat.<ᵇ n1) then Ret tt else
-    let g : M ℕ → M ℕ
-        g m = Do i ← m // Do _ ← b i // Ret (i + 1) in
-          (iter (n2 ∸ n1 + 1) g (Ret n1)) >> Ret tt
+  forloop : (n1 n2 : ℤ) (b : ℤ → M ⊤) → M ⊤
+  forloop n1 n2 b = if isYes (n2 ℤ<? n1) then Ret tt else
+    let g : M ℤ → M ℤ
+        g m = Do i ← m // Do _ ← b i // Ret (i ℤ+ (+ 1)) in
+          (iter (n2 ℤ- n1 ℤ+ (+ 1)) g (Ret n1)) >> Ret tt
 
-  downforloop : (n1 n2 : ℕ) (b : ℕ → M ⊤) → M ⊤
-  downforloop n1 n2 b = if (n1 Data.Nat.<ᵇ n2) then Ret tt else
-    let g : M ℕ → M ℕ
-        g m = Do i ← m // Do _ ← b i // Ret (i ∸ 1) in
-          (iter (n1 ∸ n2 + 1) g (Ret n1)) >> Ret tt
+  downforloop : (n1 n2 : ℤ) (b : ℤ → M ⊤) → M ⊤
+  downforloop n1 n2 b = if isYes (n1 ℤ<? n2) then Ret tt else
+    let g : M ℤ → M ℤ
+        g m = Do i ← m // Do _ ← b i // Ret (i ℤ- (+ 1)) in
+          (iter (n1 ℤ- n2 ℤ+ (+ 1)) g (Ret n1)) >> Ret tt
 
   whileloop : (h : ℕ) (f : M Bool) (b : M ⊤) → M ⊤
   whileloop zero f b = FailGas
