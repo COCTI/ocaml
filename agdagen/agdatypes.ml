@@ -23,8 +23,8 @@ let rec map_snd f = function
   | (a, b) :: l -> let c = f b in (a, c) :: map_snd f l
 
 let make_tuple_type ~def ctl =
-  let unit = if def then "unit" else "ml_unit" in
-  let pair = if def then "pair" else "ml_pair" in
+  let unit = if def then "unit" else "ml-unit" in
+  let pair = if def then "pair" else "ml-pair" in
   List.fold_left
     (fun ct ct' ->
       if ct = CTid unit then ct' else CTapp (CTid pair, [ct; ct']))
@@ -60,7 +60,7 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
   | Tarrow (Nolabel, t1, t2, _) ->
       let ct1 = transl_rec t1 and ct2 = transl_rec t2 in
       if def then CTprod (None, ct1, ctapp (CTid"M") [ct2])
-      else ctapp (CTid "ml_arrow") [ct1; ct2]
+      else ctapp (CTid "ml-arrow") [ct1; ct2]
   | Tarrow _ ->
       not_allowed ~loc "labels"
   | Ttuple tl ->
@@ -82,7 +82,7 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
               transl_type ~loc ~env ~vars ~def visited ty')
       end
   | Tnil ->
-      CTid (if def then "empty" else "ml_empty")
+      CTid (if def then "empty" else "ml-empty")
   | Tobject _ | Tfield _ ->
       not_allowed ~loc "object types"
   | Tvariant _ ->
@@ -163,7 +163,7 @@ let transl_constructor ~vars (cd : Types.constructor_declaration) =
 
 let transl_typedecl ~env ~vars id td =
   let loc = td.type_loc in
-  let ml_name = fresh_name ~vars ("ml_" ^ Ident.name id) in
+  let ml_name = fresh_name ~vars ("ml-" ^ Ident.name id) in
   let name = fresh_name ~vars (Ident.name id) in
   let vars = add_reserved name vars in
   let old_tvars = get_tvars vars in
