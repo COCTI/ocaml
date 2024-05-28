@@ -173,11 +173,10 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
   | _ ->
       not_allowed ~loc "transl_pat : This pattern"
 
-let ignore _ = ()
 
-let transl_ident ~loc ~vars env desc ct ty =
+let transl_ident ~loc ~vars ~is_cons env desc ct ty =
   let f = CTid desc.ce_name in
-  if desc.ce_purary = 0 then (* toplevel value; need to rebind it outside *)
+  if desc.ce_purary = 0 then (* toplevel value; 	need to rebind it outside *)
     {pterm = f; prec = Nonrecursive; pary = 1}
   else
     let args = find_instantiation ~loc ~env ~vars desc ty in
@@ -191,9 +190,9 @@ let transl_ident ~loc ~vars env desc ct ty =
     in
     let args =
       if desc.ce_rec = Recursive then CTid"h" :: args else args in
-    ignore args;
-    let args = [] in
-    {pterm = ctapp f args; prec = desc.ce_rec; pary = desc.ce_purary}
+    if is_cons 
+    then {pterm = ctapp f []; prec = desc.ce_rec; pary = desc.ce_purary}
+    else {pterm = ctapp f args; prec = desc.ce_rec; pary = desc.ce_purary}
 
 let rec fun_arity e =
   match e.exp_desc with
@@ -216,7 +215,7 @@ let rec transl_exp ~vars e =
         with Not_found ->
           not_allowed ~loc ("Identifier " ^ Path.name path)
       in
-      transl_ident ~loc ~vars e.exp_env desc None e.exp_type
+      transl_ident ~loc ~vars ~is_cons:false e.exp_env desc None e.exp_type
   | Texp_constant cst ->
       {pterm = CTcstr (string_of_constant ~loc cst); prec = Nonrecursive;
        pary = 1 }
@@ -339,7 +338,7 @@ let rec transl_exp ~vars e =
          ce_rec = Nonrecursive;
          ce_purary = cd.cstr_arity + 1}
       in
-      transl_ident ~loc ~vars e.exp_env ce (Some ct) e.exp_type
+      transl_ident ~loc ~vars ~is_cons:true e.exp_env ce (Some ct) e.exp_type
   | Texp_construct (lid, cd, args) ->
       let ty =
         List.fold_right (fun arg -> newgenarrow arg.exp_type) args e.exp_type
