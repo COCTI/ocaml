@@ -20,62 +20,116 @@ open Coqdef
 open Coqinit
 open Coqtypes
 
+(*let path_to_str_list (p : Path.t) = List.rev (path_to_str_list_aux p)
+
+let rec path_to_str_list_aux (p : Path.t) = match p with
+  | Pident id -> (Ident.name id)
+  | Pdot (p, s) -> s :: (path_to_str_list_aux p)
+*)
 (*let counter = ref 0;;
 *)
+let dep_list_ref : string list ref = ref ["project_lib"];; (*will be updated along the way, should be re attached to the vars at some point I guess? like at the end of the transl_implementation function? or structure maybe?*)
+(*like: before the return of the transl_structure function, vars.dep_list_ref = !dep_list_ref or something of this style*)
+
+
+let update_dep_list (s : string) = if List.exists (fun x -> x = s) !dep_list_ref then !dep_list_ref else s :: (!dep_list_ref)
+(*dep_list_ref := update_dep_list s; when you need add a new element*)
+
+let overwrite_dep_list (vars : coq_env) = {vars with dep_list = !dep_list_ref}
 
 (*Path.t -> unit*)
-let print_path (p : Path.t) = Path.print Format.std_formatter p
+(*let print_path (p : Path.t) = Path.print Format.std_formatter p
+*)
 
 let env : (string, coq_type_desc Path.Map.t * coq_term_desc Path.Map.t)Hashtbl.t = Hashtbl.create 17;;
-Hashtbl.clear env;;
+(*Hashtbl.clear env;;*)
 
 let rec lizard = function
   | [] -> []
   | [_] -> []
   | x :: l -> x :: (lizard l)
 (*removes tail from the list*)
-let pathway (abs_path : string) (s : string) = String.concat "/" ((lizard (String.split_on_char '/' abs_path)) @ [s])
+let pathway (abs_path : string) (s : string) = String.concat "/" ((lizard (String.split_on_char '/' abs_path)) @ [String.uncapitalize_ascii s])
 (*removes the last element of abs_path and replaces it by s, to get the absolute path to the file*)
+(*this is to get the absolute path to the file I am opening (here the .vlib file) *)
+
+(*let remove_head = function
+    | [] -> []
+    | _ :: l -> l
+*)
 
 (*string -> string -> unit*)
 let add_env (abs_path : string) (s : string) =
   let vlib_channel = open_in ((pathway abs_path s) ^ ".vlib") in
   let type_map = input_value vlib_channel in
   let term_map = input_value vlib_channel in
-  Hashtbl.add env s (type_map, term_map); (*probably try to open the env, and then try to catch the exceptionn raise not found if it doesn't work? or maybe just handle the error myself?*)
+  Hashtbl.add env s (type_map, term_map);
   close_in vlib_channel
 
-(*let print_env () = incr counter;
-  print_endline ("call n°" ^ Int.to_string (!counter) ^ " current env : " ^
-  (String.concat "; " (List.map (fun (a, _) -> a) (Hashtbl.fold (fun k v acc -> (k, v) :: acc) env []))) ^ 
-  "end of print_env")
-*)
-
-(*string -> string -> coq_env*)
-let get_env (abs_path : string) (s : string) = try (Hashtbl.find env s) with Not_found -> 
+(*string -> string -> (coq_type_desc Path.Map.t * coq_term_desc Path.Map.ts)*)
+let get_env (abs_path : string) (s : string) = dep_list_ref := update_dep_list (String.lowercase_ascii s); try (Hashtbl.find env s) with Not_found -> 
 (*(print_string ("in get_env, tried to access with key : "^s^" "); print_env (); print_string "end of get_env"; 
 *)
-add_env abs_path s; 
-(*print_env (); 
-*)
-(*let x = *) Hashtbl.find env s (*in print_endline "tried to access again, and it DID work"; x*)
-
+  add_env abs_path s; 
+  Hashtbl.find env s
+(**gets the corresponding maps, and adds it if necessary. In both cases, calls update_dep_list to add it to the dependence list if needed.*)
 
 (*Path.t -> string, returns the name of the first module in arborescence, if we assume that there is no submodule support, this should correspond to the file we depend on*)
-let get_module_name (p : Path.t) = Ident.name (Path.head p)
-
-(*let subst (vars : coq_env) (p : Path.t) = print_path p; print_endline (String.concat "; " vars.top_exec)
+(*let get_module_name (p : Path.t) = (String.concat "." (lizard (String.split_on_char '.' (Path.name p))))
 *)
 
-(*coq_type_desc Path.Map.t -> Path.t -> coq_type_desc*)
-let find_type (type_map : coq_type_desc Path.Map.t) (p : Path.t) = List.assoc (Path.last p) (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings type_map))
-(*coq_env -> Path.t -> coq_term_desc*)
-(*let find_term (vars : coq_env) (p : Path.t) = List.assoc (Path.last p) (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings vars.term_map))*)
+(*let rec end_of_list = function
+  | [] -> ""
+  | [s] -> s
+  | _ :: l -> end_of_list l
+*)
+
+(*coq_env -> string*)
+(*let get_file_name (vars : coq_env) = end_of_list (String.split_on_char '/' vars.absolute_path)
+*)
+(**gets the name of the file from its absolute_path, weird way to do but it works...*)
+
+(*coq_type_desc Path.Map.t -> string -> coq_type_desc*)
+let find_type (type_map : coq_type_desc Path.Map.t) (s : string) = List.assoc s (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings type_map))
+(*coq_env -> string -> coq_term_desc*)
+let find_term (term_map : coq_term_desc Path.Map.t) (s : string) = List.assoc s (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings term_map))
 (**This also assumes that there is no submodule support*)
-(*these functions use strings to match the path map, since there is no way to correctly compare path here*)
+(*these functions use strings to match the path map*)
 
-(*let add_to_list (l : string list) (elt : string) = if List.exists (fun x -> x = elt) l then l else elt :: l
+(*this needs rebuilding, not necessarly now but still. For the moment, this works if concatenating the strings, but a little bit ugly*)
+
+
+let find_type_stdlib (_p : Path.t) = failwith "TODO"
+let find_term_stdlib (_p : Path.t) = failwith "TODO"
+
+(*Path.t -> string list -> coq_env -> coq_type_desc*)
+(*let rec find_types_rec (p : Path.t) (l : string list) (vars : coq_env) = match l with
+  | [] -> find_type_stdlib p
+  | s :: l -> (try
+      (find_type (fst (get_env vars.absolute_path s)) (String.concat "." l)) with Not_found -> find_types_rec p l vars)
 *)
+
+(*Path.t -> coq_env -> coq_type_desc*)
+let find_types (p : Path.t) (vars : coq_env) = 
+  try (Path.Map.find p vars.type_map)
+  with Not_found -> (match p with 
+    | Pident _ -> find_type_stdlib p
+    | Pdot (m, s) -> (try 
+      find_type (fst (get_env vars.absolute_path (Path.name m))) s
+      with Not_found -> find_type_stdlib p)
+    | _ -> assert false)
+
+
+let find_terms (p : Path.t) (vars : coq_env) = 
+  try (Path.Map.find p vars.term_map)
+  with Not_found -> (match p with 
+    | Pident _ -> find_term_stdlib p
+    | Pdot (m, s) -> (try 
+      find_term (snd (get_env vars.absolute_path (Path.name m))) s
+      with Not_found -> find_type_stdlib p)
+    | _ -> assert false)
+
+
 
 type term_props =
     { pterm: coq_term; prec: rec_flag; pary: int }
@@ -163,20 +217,23 @@ let string_of_constant ~loc = function
   | _ ->
       not_allowed ~loc "This constant"
 
+
+(*the dependency list is not important in this particular function*)
 let find_constructor ~loc ~vars cd =
-  let path, tl =
+  let path, tl = 
     match get_desc cd.cstr_res with
-    | Tconstr (path, tl, _) -> path, tl
+    | Tconstr (path, tl, _) -> path, tl (*from cd I can get the path, and from the path I can get the name of the called file. I can then update that name in the dep_list*)
     | _ -> assert false
   in
   try
     (*let mod_name = get_module_name path in*)
-    print_path path;
-    let ct = (match path with
-      | Pdot (_, _) -> (*(try*) (*(let _dep_env =*) find_type (fst (get_env vars.absolute_path (get_module_name path))) path 
+    (*print_path path;*)
+    let ct = find_types path vars in  
+    (*(match path with
+      | Pdot (_, _) -> (*(try*) (*(let _dep_env =*) find_type (fst (get_env vars.absolute_path (get_module_name path))) path
       | _ -> Path.Map.find path vars.type_map
         (*failwith "end of print";*) (*Path.Map.find path vars.type_map*)
-    ) in
+    ) in*)
     (*let ct = Path.Map.find path vars.type_map in*)
     ct, List.assoc cd.cstr_name ct.ct_constrs, tl
   with Not_found ->
@@ -192,7 +249,7 @@ let transl_exp_type ~vars pt exp =
   let cty = if pt.pary = 0 then CTapp (CTid"M", [cty]) else cty in
   {pt with pterm = CTann (pt.pterm, cty)}
 
-let add_pat_variable ~vars id ty =
+let add_pat_variable ~vars id ty = (*returns vars*)
   let name = fresh_name ~vars (Ident.name id) in
   let desc =
     { ce_name = name; ce_type = ty;
@@ -203,7 +260,7 @@ let add_pat_variable ~vars id ty =
 let is_primitive s =
   String.length s >= 2 && s.[0] = '@'
 
-let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
+let rec transl_pat : type k. vars:_ -> k general_pattern -> _ = (*returns vars*)
   fun ~vars pat ->
   let loc = pat.pat_loc in
   match pat.pat_desc with
@@ -231,6 +288,10 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
       let _ct, name, tl = find_constructor ~loc ~vars cd in
       let tl = if is_primitive name then tl else [] in
       let args = List.map (fun _ -> CTid "_") tl @ List.rev ctl in
+      (*let vars = (match get_desc cd.cstr_res with (*here : update the dep_list of vars to match the new necessary imports*) (*... should actually just do that for the terms, no need for it in the types...*)
+                  | Tconstr (path, _, _) -> {vars with dep_list = add_to_list vars.dep_list (String.concat "." (lizard (String.split_on_char '.' (Path.name path))))} (*very ugly... will handle it later I guess*) (*and in fact all of this is useless for the types... which is good!*)
+                  | _ -> assert false) in
+      *)
       (ctapp (CTcstr name) args, vars)
   | Tpat_value pat ->
       transl_pat ~vars (pat :> value general_pattern)
@@ -270,14 +331,18 @@ let rec transl_exp ~vars e =
   let loc = e.exp_loc in
   close_type e.exp_type;
   match e.exp_desc with
-  | Texp_ident (path, _, _) ->
-      print_path path;
-      let desc =
-        try Path.Map.find path vars.term_map 
-        with Not_found ->
-          not_allowed ~loc ("Identifier " ^ Path.name path)
-      in
-      transl_ident ~loc ~vars e.exp_env desc None e.exp_type
+  | Texp_ident (path, _, _) -> (*match the path somehow, same idea than above, nothing much to do*)
+      (*print_path path;*)
+    (try
+      (*desc is here a "coq_term_desc", we will probably need to add a prefix at the beginning to match name of the actual call*)
+      (let desc = find_terms path vars in
+      (*(match path with
+        | Pdot (_, _) -> find_term (snd (get_env vars.absolute_path (get_module_name path))) path (*name is very ugly, but works for the moment I guess*)
+        | _ -> Path.Map.find path vars.term_map
+      ) in*) (*and in THAT case, I should manage the dep_list, if not found do the same as above, and then probably add to the string something? maybe change the name of the variable to match the one with imports?*)
+      transl_ident ~loc ~vars e.exp_env desc None e.exp_type)
+    with Not_found ->
+      not_allowed ~loc ("Identifier " ^ Path.name path))
   | Texp_constant cst ->
       {pterm = CTcstr (string_of_constant ~loc cst); prec = Nonrecursive;
        pary = 1}
@@ -642,6 +707,7 @@ let rec transl_structure ~vars = function
              ce_type = e.exp_type; ce_vars = []} in
           let vars = add_term ~toplevel:true (Path.Pident id) desc vars in
           let cmds, vars = transl_structure ~vars rem in
+          let vars = overwrite_dep_list vars in
           (CTdefinition (name, pt.pterm, true) :: cmds, vars)
     | Tstr_value (rec_flag, [vb]) ->
         let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
@@ -667,10 +733,12 @@ let rec transl_structure ~vars = function
             then abstract_recursive pt.pterm
             else pt.pterm
           in
+          let vars' = overwrite_dep_list vars' in
           CTdefinition (name, ct, false) :: cmds, vars'
     | Tstr_type (Recursive, tds) ->
         let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
         let cmds, vars = transl_structure ~vars rem in
+        let vars = overwrite_dep_list vars in
         (def :: cmds, vars)
     | Tstr_exception tyexn ->
         let vars =

@@ -652,7 +652,7 @@ let process_action
       ccobjs := names @ !ccobjs
   | ProcessDLLs names ->
       dllibs := names @ !dllibs
-  | ProcessOtherFile name ->
+  | ProcessOtherFile name -> (* here! *)
       if Filename.check_suffix name ocaml_mod_ext
       || Filename.check_suffix name ocaml_lib_ext then
         objfiles := name :: !objfiles
@@ -665,6 +665,8 @@ let process_action
       end
       else if not !native_code && Filename.check_suffix name Config.ext_dll then
         dllibs := name :: !dllibs
+      else if Filename.check_suffix name ".vlib" then
+        vlibfiles := name :: !vlibfiles
       else
         match Compiler_pass.of_input_filename name with
         | Some start_from ->

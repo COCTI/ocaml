@@ -66,7 +66,6 @@ let emit_gallina i ct =
   Coqprint.emit_gallina i.module_name ppf ct;
   fprintf ppf "@]@.";
   close_out vfile
-
 (*let emit_gallina_lib i ct =
   let v_name = i.output_prefix ^ ".vlib" in
   let vfile = open_out v_name in
@@ -92,7 +91,7 @@ let implementation ~start_from ~source_file ~output_prefix =
     if !Clflags.compile_to_coq then 
       let gallina_lib, gallina, dep_list = to_gallina info typed in (*would be easy here to give the dependencies, like a list of strings or something, just the names of the files I want to add*)
       let lib_name = info.output_prefix ^"_lib" in
-      emit_gallina info ((List.map (fun s -> Coqdef.CTverbatim ("Require Import " ^ s ^ ".")) dep_list) @ gallina); (*adding all of the necessary dependencies at the start here*) (*probably should also add the "project_lib" file at some point?*)
+      emit_gallina info ((List.map (fun s -> Coqdef.CTverbatim ("Require Import " ^ s ^ ".")) dep_list) @ (Coqdef.CTverbatim "\n" :: gallina)); (*adding all of the necessary dependencies at the start here*) (*probably should also add the "project_lib" file at some point?*)
       emit_gallina {info with output_prefix = lib_name} gallina_lib;
     else
       let bytecode = to_bytecode info typed in

@@ -102,7 +102,8 @@ let main argv ppf =
       Compmisc.init_path ();
       Bytelink.link (Compenv.get_objfiles ~with_ocamlparam:true) target;
       Warnings.check_fatal ();
-    end;
+    end
+    else if !vlibfiles <> [] then begin Coqlink.emit_gallina !vlibfiles end;
   with
   | exception (Compenv.Exit_with_status n) ->
     n
