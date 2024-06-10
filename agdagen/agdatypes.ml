@@ -55,7 +55,7 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
   | Tvar _ | Tunivar _ ->
       let tvars = if def then vars.ctvar_map else vars.tvar_map in
       let name =
-        try TypeMap.find ty tvars with Not_found -> "Not_found" in
+        try TypeMap.find ty tvars with Not_found -> "Not-found" in
       CTid name
   | Tarrow (Nolabel, t1, t2, _) ->
       let ct1 = transl_rec t1 and ct2 = transl_rec t2 in
@@ -108,8 +108,28 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
 
 let transl_type ~loc ~env ~vars ?(def=false) =
   transl_type ~loc ~env ~vars ~def TypeSet.empty
+ 
 let transl_coq_type ~loc ~env ~vars ty =
+  (*let ct = transl_type ~loc ~env ~vars ty in
+  let rec apply_ct_deep ct monad =
+  		match ct with
+  			| CTapp ((CTid "ml-arrow"), [ct1; ct2]) -> CTprod (None, mkcoqty ct1, apply_ct_deep ct2 true)
+  			| ct -> if monad then ctapp (CTid"M") [(mkcoqty ct)] else mkcoqty ct in
+  	apply_ct_deep ct false*)
   mkcoqty (transl_type ~loc ~env ~vars ty)
+
+let transl_coq_type_purary ~loc ~env ~vars ty purary =
+  let ct = transl_type ~loc ~env ~vars ty in
+  Format.eprintf "Purary: %d " purary;
+  let rec apply_ct_deep ct pary =
+  		let impure = pary = 0 in
+  		if impure then ctapp (CTid"M") [(mkcoqty ct)] else
+  		match ct with
+  			| CTapp ((CTid "ml-arrow"), [ct1; ct2]) -> 
+  					  CTprod (None, mkcoqty ct1, apply_ct_deep ct2 (pary-1))
+  			| ct -> mkcoqty ct in
+  	apply_ct_deep ct purary
+
 
 let find_instantiation ~loc ~env ~vars edesc ty =
   if edesc.ce_vars = [] then [] else

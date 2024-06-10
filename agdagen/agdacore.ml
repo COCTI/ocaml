@@ -124,8 +124,8 @@ let transl_pat_type ~vars pat =
 
 let transl_exp_type ~vars pt exp =
   let cty =
-    transl_coq_type ~loc:exp.exp_loc ~env:exp.exp_env ~vars exp.exp_type in
-  let cty = if pt.pary = 0 then CTapp (CTid"M", [cty]) else cty in
+    transl_coq_type_purary ~loc:exp.exp_loc ~env:exp.exp_env ~vars exp.exp_type pt.pary in
+  (*let cty = if pt.pary = 0 then (CTapp (CTid"M", [cty])) else cty in*)
   {pt with pterm = CTann (pt.pterm, cty)}
 
 let add_pat_variable ~vars id ty =
@@ -176,7 +176,7 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
 
 let transl_ident ~loc ~vars ~is_cons env desc ct ty =
   let f = CTid desc.ce_name in
-  if desc.ce_purary = 0 then (* toplevel value; 	need to rebind it outside *)
+  if desc.ce_purary = 0 then (* toplevel value; need to rebind it outside *)
     {pterm = f; prec = Nonrecursive; pary = 1}
   else
     let args = find_instantiation ~loc ~env ~vars desc ty in
@@ -500,6 +500,24 @@ and transl_binding ~vars ~rec_flag vb =
     | _ -> vars
   in
   let ct = transl_exp ~vars vb.vb_expr in
+  let ct_typed = transl_exp_type ~vars ct vb.vb_expr in
+
+  let str_of_ct = function
+    CTid _ -> "CTid"
+  | CTcstr _ -> "CTcstr"
+  | CTapp _ -> "CTapp"
+  | CTabs _ -> "CTabs"
+  | CTsort _ -> "CTsort"
+  | CTprod _ -> "CTprod"
+  | CTmatch _ -> "CTmatch"
+  | CTann _ -> "CTann"
+  | CTlet _ -> "CTlet"
+  | CTif _ -> "CTif" in
+
+  let ct = (match ct.pterm with
+  	| CTabs (_,_,_) -> Format.eprintf "<- %s first case %s@.@." name (str_of_ct ct.pterm); ct
+  	| _ -> Format.eprintf "%s second case %s@.@." name (str_of_ct ct.pterm); ct_typed) in
+  
   let ct, desc, prec =
     match rec_flag with
     | Recursive ->
@@ -568,6 +586,7 @@ let rec transl_structure ~vars = function
         Ctype.unify_var e.exp_env (Ctype.newvar ()) e.exp_type;
         close_type e.exp_type;
         let pt = transl_exp ~vars e in
+        let pt = transl_exp_type ~vars pt e in
         let pt = close_top ~vars ~ce_vars:[] pt in
         if pt.pary > 0 then
           let cmds, vars = transl_structure ~vars rem in
@@ -585,6 +604,7 @@ let rec transl_structure ~vars = function
     | Tstr_value (rec_flag, [vb]) ->
         let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
         let pt = close_top ~vars ~ce_vars:desc.ce_vars pt in
+        (*let pt = if desc.ce_rec = Recursive then pt else transl_exp_type ~vars pt vb.vb_expr in (* added there jacques flag*)*)
         let desc = {desc with ce_purary = pt.pary} in
         let name, vars' =
           match id with
