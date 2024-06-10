@@ -23,6 +23,9 @@ val transl_type :
 val transl_coq_type :
   loc:Location.t ->
   env:Env.t -> vars:coq_env -> type_expr -> coq_term
+val transl_coq_type_purary :
+  loc:Location.t ->
+  env:Env.t -> vars:coq_env -> type_expr -> int -> coq_term
 
 val make_subst :
   mkcoq:('a -> coq_term) ->
