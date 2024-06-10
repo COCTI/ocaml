@@ -78,7 +78,7 @@ let init_type_map vars =
    (Predef.path_list, [],
     {ctd with ct_name = "ml-list";
      ct_arity = 1; ct_args = [0, "a"];
-     ct_constrs = [("[]", "[]"); ("::", "@cons")]; (*∷ :: ; utf-8: 0x2237 *)
+     ct_constrs = [("[]", "[]"); ("::", "_∷_")]; (* ∷ :: ; utf-8: 0x2237 , snd one: constructor for lists *)
      ct_type = CTapp (CTid "List", [CTid "a"]); ct_def = None;
      ct_maps = [1, "cast_list"];
      ct_compare = Some
@@ -212,7 +212,7 @@ let init_term_map vars =
        ce_vars = [];
        ce_rec = Nonrecursive;
        ce_purary = 3})
-    [("+", "_+_"); ("-", "_⊖_"); ("*", "_*_");
+    [("+", "_+_"); ("-", "_-_"); ("*", "_*_");
      ("/", "_/_"); ("mod", "_%_")]
   @ [
     (["~-"],
