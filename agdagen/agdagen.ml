@@ -242,7 +242,7 @@ let transl_implementation _modname st =
 @,open import Data.Bool using (true; false; Bool; if_then_else_)\
 @,open import Relation.Nullary.Decidable.Core using (_because_; isYes; Dec; yes)\
 @,open import Relation.Nullary.Reflects using (ofʸ; ofⁿ)\
-@,open import Data.String hiding (length; _<?_)\
+@,open import Data.String using (String)\
 @,open import Data.Float using (Float)\
 renaming (_+_ to _ℝ+_; _*_ to _ℝ*_; _-_ to _ℝ-_; _÷_ to _ℝ÷_; -_ to ℝ-_)\
 @,open import Data.Char using (Char)\
@@ -276,15 +276,15 @@ renaming (_+_ to _ℝ+_; _*_ to _ℝ*_; _-_ to _ℝ-_; _÷_ to _ℝ÷_; -_ to �
 @,ArrayVal : List T → array-t T@]\
 @,@,\
 @[<v2>module MLtypes-aux (M : Set → Set) where\
-@,-- Generated type definitions" :: 
+@,-- Generated type definitions\
+@,\
+loc = loc-b ml-type" :: 
   typedefs @ (* Indentation to handle *)
   CTverbatim "\
 @[<v 2>data lazy-val (a : Set) : Set where\
 @,LzVal : a → lazy-val a\
 @,LzThunk : (M a) → lazy-val a\
 @,LzExn : ml-exns → lazy-val a@]\
-@,\
-loc = loc-b ml-type\
 @,\
 @[<v 2>data lazy-t (a : Set) (a1 : ml-type) : Set where\
 @,Lval : a → lazy-t a a1\
@@ -303,7 +303,7 @@ MLtypes : MLTY\
 @,ml-type-is-eq-dec = ml-type-is-eq-dec\
 @,}@]\
 @,\
-@,open MLTY MLtypes hiding (ml-type)\
+@,open MLTY MLtypes hiding (ml-type; ml-exn)\
 @,\
 @,REFmonadML : REFmonad MLtypes\
 @,REFmonadML = record {}\
