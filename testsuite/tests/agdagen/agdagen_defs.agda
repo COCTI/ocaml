@@ -196,7 +196,7 @@ record EFmonad (EnvM : ENV) : Set₁ where
     (inj₂ (y , _)) → inj₂(y , env) ;
     _ → inj₁ tt } }
 
-  _>>=_ : {A B : Set} (f : M A) (f : A → M B) → M B
+  _>>=_ : {A B : Set} (m : M A) (f : A → M B) → M B
   m >>= f = Bind m f
 
   -- Do_←_//_ : {A B : Set} (x : A) (m : M A) (e : M B) → M B
@@ -476,4 +476,5 @@ up6-dec _ _ (no a) _ _ _ = no (λ z → a (proj₃ z))
 up6-dec _ _ _ (no a) _ _ = no (λ z → a (proj₄ z))
 up6-dec _ _ _ _ (no a) _ = no (λ z → a (proj₅ z))
 up6-dec _ _ _ _ _ (no a) = no (λ z → a (proj₆ z))
+
 
