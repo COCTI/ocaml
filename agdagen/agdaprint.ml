@@ -21,7 +21,7 @@ let priority_level = function
   | CTcstr _ -> 10
   | CTprod (None, _, _) -> 2
   | CTapp (CTid "*", [_;_]) -> 3
-  | CTapp (CTid "Bind", [_;CTabs _]) -> 0
+  | CTapp (CTid "Bind", [_;CTabs _]) -> -1
   | CTapp (CTid "@cons", [_;_;_]) -> 0
   | CTapp (CTcstr "@cons", [_;_;_]) -> 0
   | CTapp (CTcstr "|", [_;_]) -> 0
@@ -64,9 +64,9 @@ let rec print_term_rec lv ppf ty =
   else match ty with
   | CTid s | CTcstr s -> pp_print_string ppf s
   | CTprod (None, t1, t2) ->
-      fprintf ppf "@[%a ->@ %a@]" (print_term_rec 3) t1 (print_term_rec 2) t2
+      fprintf ppf "@[%a →@ %a@]" (print_term_rec 3) t1 (print_term_rec 2) t2
   | CTapp (CTid "*", [t1; t2]) ->
-      fprintf ppf "@[%a ->@ %a@]" (print_term_rec 3) t1 (print_term_rec 8) t2
+      fprintf ppf "@[%a →@ %a@]" (print_term_rec 3) t1 (print_term_rec 8) t2
   | CTapp (CTid "Bind", [ct1; CTabs (x, cto, ct2)]) ->
       fprintf ppf "@[Do %s%a ←@ %a //@ %a@]"
         x print_type_ann cto
@@ -125,16 +125,18 @@ let rec print_term_rec lv ppf ty =
       fprintf ppf "@ }@]";
 
   | CTann (ct, cty) ->
-      fprintf ppf "@[<1>(%a :@ %a)@]"
+      (*fprintf ppf "@[<1>(%a :@ %a)@]"
         print_term ct
-        print_term cty
+        print_term cty*)
+      ignore cty;
+      fprintf ppf "@[<1>(%a)@]" print_term ct
   | CTlet (x, None, ct1, ct2) ->
       fprintf ppf "let @[<2>@[<v>%s" x;
       let args, _, _ = extract_args ct1 in
       let is_a_function_def = args <> [] in
       if is_a_function_def
       then (fprintf ppf " :@[";);
-      let ct1a = print_args true ppf ct1 in
+      let ct1a = print_args is_a_function_def ~print_arrow:is_a_function_def ppf ct1 in (* if not a function defintion, i don't need not to print anything *)
       if is_a_function_def 
       then (fprintf ppf "@]@,%s@[" x;
       	  let _ = print_args ~no_types:true false ppf ct1 in ();
@@ -156,15 +158,23 @@ let rec print_term_rec lv ppf ty =
 
 and print_type_ann ppf = function
   | None -> ()
-  | Some t -> fprintf ppf "@ → %a" (print_term_rec 0) t
+  | Some t -> fprintf ppf " %a" (print_term_rec 0) t
 
 and print_term ppf = print_term_rec 0 ppf
 
-and print_args ?(no_types=false) is_def ppf ct =
+and print_args ?(s="") ?(no_types=false) ?(print_arrow=false) is_def ppf ct =
   let (args, ct, ann) = extract_args ct in
+  if is_def then (
+  Format.eprintf "name: %s@.args: " s;
+  List.iter (fun x -> let argh = fst x in List.iter (Format.eprintf "%s ")  argh) args;
+  Format.eprintf "@.returns: ";
+  if is_def then print_type_ann Format.err_formatter ann;
+    Format.eprintf "@.@.");
   let one_group = not is_def && List.length args = 1 in
-  List.iter
-    (fun (argl,cto) ->
+  let n = List.length args in
+  List.iteri
+    (fun j (argl,cto) ->
+    	let r =
       match cto with
       | None -> List.iter (fprintf ppf "@ %s") argl
       | _ when (not is_def && List.for_all ((=) "_") argl) || no_types ->
@@ -173,7 +183,9 @@ and print_args ?(no_types=false) is_def ppf ct =
           let po, pc = if one_group then "", "" else "(", ")" in
           fprintf ppf "@ @[<1>%s" po;
           List.iter (fprintf ppf "%s@ ") argl;
-          fprintf ppf ":@ %a%s@]" print_term ct pc)
+          fprintf ppf ":@ %a%s@]" print_term ct pc in
+      if j = n-1 && print_arrow then fprintf ppf "@ →";
+      r)
     args;
   (*if List.exists (fun (l,_) -> List.mem "h" l) args then
     fprintf ppf "@ {struct h}";*)
@@ -181,17 +193,17 @@ and print_args ?(no_types=false) is_def ppf ct =
   ct
   (* else may_app (fun cty ct -> CTann (ct, cty)) ann ct *)
 
-let emit_def ppf def s ~eval ct =
-  fprintf ppf "@[<2>%s%s :" def s;
-  let ct2 = print_args true ppf ct in
-  fprintf ppf "@]@,";
-  (if eval then fprintf ppf "@ Eval compute in");
-  fprintf ppf "@[<2>%s" s;
-  (*fprintf ppf "@[%s %a@ =" s (print_args ~no_types:true false) ct;*)
+let emit_def ?(ann=None) ppf def s ~eval ct =
+  ignore eval;
+  (match ct with
+  		| CTapp (CTid "Restart" , _) -> fprintf ppf "@["
+  		| _ -> fprintf ppf "@[<2>%s%s :" def s);
+  let ct2 = print_args ~s:s ~print_arrow:true true ppf ct in
+  (if ann <> None then print_type_ann ppf ann);
+  fprintf ppf "@]@,@[<2>%s" s;
   let _ = print_args ~no_types:true false ppf ct in
   fprintf ppf " =@;<1 2>";
-  fprintf ppf "%a@]" print_term ct2;
-  if eval then fprintf ppf "@ Print %s." s
+  fprintf ppf "%a@]" print_term ct2
   (*let is_it = s = "it" || String.length s >= 3 && String.sub s 0 3 = "it_" in
   if not is_it then pp_print_newline ppf ()*)
 
@@ -223,14 +235,20 @@ let get_begin_spaces name =
       	| None -> 0
       	| Some x -> x + 1 in repro nb_spaces " "
 
+let vv = ref 0
+let fresh_v () = 
+	incr vv; string_of_int !vv
+
 let emit_vernacular ppf = function
   | CTverbatim s  -> fprintf ppf  (CamlinternalFormat.format_of_string_format s "")
+  (*| CTdefinition (s, CTann(ct, cty), eval) -> emit_def ~ann:(Some cty) ppf "" s ~eval ct*)
   | CTdefinition (s, ct, eval) ->
       emit_def ppf "" s ~eval ct
-  | CTfixpoint (s, ct)   -> emit_def ppf "" s ~eval:false ct
+  | CTfixpoint (s, ct) -> emit_def ppf "" s ~eval:false ct
   | CTeval ct ->
-      fprintf ppf "@[<2>Eval compute in@ %a.@]" print_term ct;
-      newlines := 2
+      emit_def ppf "" ("-Eval" ^ fresh_v ()) ~eval:true ct
+      (*fprintf ppf "@[<2>let -A = %a@]" print_term ct;
+      newlines := 2*)
   | CTinductive tds ->
       let first = ref true in
       List.iter (fun td ->
