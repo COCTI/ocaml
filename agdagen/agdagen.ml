@@ -109,7 +109,7 @@ let make_case_ag z =
 		| ctd, Some (_, cases) ->
 			match ctd.ct_name with
 				| "ml-int" | "ml-char" | "ml-float" |
-"ml-bool" | "ml-unit" | "ml-exn" | "ml-array" |
+"ml-bool" | "ml-unit" | "ml-array" |
 "ml-list" | "ml-lazy" | "ml-string" | "ml-array-t" | 
 "ml-lazy-val" | "ml-ref" | "ml-arrow" -> ""
 				| _ -> Format.asprintf "%a@," (cr_one_type ctd.ct_name ctd.ct_arity) cases
@@ -118,7 +118,7 @@ let make_compare_rec_ag vars =
 	String.concat "" (List.map make_case_ag (Path.Map.bindings vars.type_map))
 
 let comprec_const =  
-	CTverbatim "compare-rec : (h : ℕ) {T : ml-type}\
+	CTverbatim ("compare-rec : (h : ℕ) {T : ml-type}\
 @,  → coq-type T -> coq-type T -> M comparator\
 @,compare-rec ℕ.zero {T} x y = FailGas\
 @,compare-rec (suc h) {ml-int} = λ x y →  Ret (compare-integer x y)\
@@ -126,15 +126,6 @@ let comprec_const =
 @,compare-rec (suc h) {ml-float} = λ x y → Ret (compare-float x y)\
 @,compare-rec (suc h) {ml-bool} = λ x y → Ret (compare-bool x y)\
 @,compare-rec (suc h) {ml-unit} = λ x y → Ret Eq\
-@,compare-rec (suc h) {ml-exn} = λ x y → case x , y of λ {\
-@,                  (Not-found , Not-found) → Ret Eq\
-@,                  ; (Invalid-argument x1 , Invalid-argument y1) →\
-@,                      compare-rec h x1 y1\
-@,                  ; (Failure x1 , Failure y1) → compare-rec h x1 y1\
-@,                  ; (Not-found , _) → Ret Lt\
-@,                  ; (_ , Not-found) → Ret Gt\
-@,                  ; (Invalid-argument _ , _) → Ret Lt\
-@,                  ; (_ , Invalid-argument _) → Ret Gt }\
 @,compare-rec (suc h) {ml-array T} =\
 @,  λ x y → compare-ref {ml-array-t T} {compare-rec h} x y\
 @,compare-rec (suc h) {ml-list T} =\
@@ -149,7 +140,7 @@ let comprec_const =
 @,compare-rec (suc h) {ml-ref T} =\
 @,  λ x y → compare-ref {T} {compare-rec h} x y\
 @,compare-rec (suc h) {ml-arrow T T1} =\
-@,  λ x y → Raise (Catchable (Invalid-argument \"compare\"))"
+@,  λ x y → Raise (Catchable (Invalid-argument \"compare\"))")
 
 (* ++++++++++++++++++++++++++ *)
 (* End of compare-rec section *)
@@ -243,19 +234,19 @@ let transl_implementation _modname st =
 @,open import Relation.Nullary.Decidable.Core using (_because_; isYes; Dec; yes)\
 @,open import Relation.Nullary.Reflects using (ofʸ; ofⁿ)\
 @,open import Data.String using (String)\
-@,open import Data.Float using (Float)\
-renaming (_+_ to _ℝ+_; _*_ to _ℝ*_; _-_ to _ℝ-_; _÷_ to _ℝ÷_; -_ to ℝ-_)\
+@,@[<v2>open import Data.Float using (Float)\
+@,renaming (_+_ to _ℝ+_; _*_ to _ℝ*_; _-_ to _ℝ-_; _÷_ to _ℝ÷_; -_ to ℝ-_)@]\
 @,open import Data.Char using (Char)\
 @,open import Data.Nat using (ℕ; suc) renaming (_<?_ to _ℕ<?_)\
-@,open import Data.Unit\
+@,open import Data.Unit using (⊤; tt)\
 @,open import Data.List using (List; []; length; _∷_)\
 @,open import Data.Product using (_×_ ; _,_; proj₁ ; proj₂; _,′_)\
-@,open import Data.Empty\
-@,open import Data.Maybe\
-@,open import Relation.Nullary\
-@,open import Relation.Nullary.Decidable\
-@,open import Relation.Binary.PropositionalEquality\
-@,open import Data.Integer\
+@,open import Data.Empty using (⊥)\
+@,open import Data.Maybe using (Maybe; just; nothing)\
+@,open import Relation.Nullary using (¬_)\
+@,open import Relation.Nullary.Decidable using (map′; _×-dec_; no)\
+@,open import Relation.Binary.PropositionalEquality using (inspect; [_])\
+@,open import Data.Integer using (ℤ; _+_; _-_; _*_; +_)\
 @,open import Data.Integer.DivMod using (_%%_ ; _/_)\
 @,open import Function.Base using (case_of_)\
 @,@,-- Generated representation of all ML types" :: 
@@ -335,25 +326,29 @@ ml-compare = compare-rec\
 @,ml-ge = wrap-compare (λ {Lt → false ; _ → true })\
 @,ml-le = wrap-compare (λ {Gt → false ; _ → true })" ::
   CTverbatim "-- Array operations\
-@,newarray : (T : ml-type) → ℕ → (x : coq-type T) → M (loc (ml-array-t T))\
-@,newarray T len x = cnew (ml-array-t T) (ArrayVal (ncons len x))\
+@,nat-of-int : ℤ → M ℕ\
+@,nat-of-int (+_ n) = Ret n\
+@,nat-of-int (ℤ.negsuc n) = Raise BoundedNat\
 @,\
-@,bounded : ℕ → ℕ → M ℕ\
-@,bounded m n = @[<v2>case (n ℕ<? m) of λ {\
-                   @,(yes _) → Ret n ;\
-                   @,_ → Raise BoundedNat }@]\
+@,newarray : (T : ml-type) → ℤ → (x : coq-type T) → M (loc (ml-array-t T))\
+@,newarray T len x = Do len ← nat-of-int len // cnew (ml-array-t T) (ArrayVal (ncons len x))\
 @,\
-@,getarray : (T : ml-type) → (a : coq-type (ml-array T)) → (n : ℕ) → M (coq-type T)\
+@,bounded-nat-of-int : ℕ → ℤ → M ℕ\
+@,bounded-nat-of-int m n = Do n ← nat-of-int n // case (n ℕ<? m) of λ {\
+@,                (yes _) → Ret n ;\
+@,                _ → Raise BoundedNat }\
+@,\
+@,getarray : (T : ml-type) → (a : coq-type (ml-array T)) → (n : ℤ) → M (coq-type T)\
 @,getarray T a n = Do s ← cget (ml-array-t T) a // case s of λ {\
-@,                      (ArrayVal u) → Do n ← bounded (length u) n //\
+@,                      (ArrayVal u) → Do n ← bounded-nat-of-int (length u) n //\
 @,                        case u of λ {\
 @,                          [] → raise T (Invalid-argument \"getarray\") ;\
 @,                          (x ∷ q) → Ret (nth x u n) } }\
 @,\
-@,setarray : (T : ml-type) → (a : coq-type (ml-array T)) → (n : ℕ) → (coq-type T) → M ⊤\
+@,setarray : (T : ml-type) → (a : coq-type (ml-array T)) → (n : ℤ) → (coq-type T) → M ⊤\
 @,setarray T a n x = Do s ← cget (ml-array-t T) a //\
 @,                      case s of λ {\
-@,                        (ArrayVal u) → Do n ← bounded (length u) n //\
+@,                        (ArrayVal u) → Do n ← bounded-nat-of-int (length u) n //\
 @,                          cput (ml-array-t T) a (ArrayVal (set-nth x u n x)) }\
 @,\
 @,-- Lazy values\
