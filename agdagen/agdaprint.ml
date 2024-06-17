@@ -21,7 +21,7 @@ let priority_level = function
   | CTcstr _ -> 10
   | CTprod (None, _, _) -> 2
   | CTapp (CTid "*", [_;_]) -> 3
-  | CTapp (CTid "Bind", [_;CTabs _]) -> -1
+  | CTapp (CTid "Bind", [_; CTabs _]) -> 0
   | CTapp (CTid "@cons", [_;_;_]) -> 0
   | CTapp (CTcstr "@cons", [_;_;_]) -> 0
   | CTapp (CTcstr "|", [_;_]) -> 0
@@ -30,7 +30,7 @@ let priority_level = function
   | CTabs _ -> 0
   | CTsort _ -> 10
   | CTprod _ -> 0
-  | CTmatch _ -> 10
+  | CTmatch _ -> 8
   | CTann _ -> 10
   | CTlet _ -> 0
   | CTif _ -> 0
@@ -49,9 +49,27 @@ let rec extract_args = function
       | _ -> ([x], cto) :: args, ct, ann
       end
   | CTann (ct, ann) -> ([], ct, Some ann)
+  (*| CTapp (CTid "Restart" , [prev_it ; CTann(ct, CTapp(CTid "M", [ann]))]) -> 
+  		  		([], CTapp(CTid "Restart" , [prev_it ; ct]), Some (CTapp(CTid"W",[ann])))*)
   | ct -> ([], ct, None)
 
 let ignore _ = ()
+
+let rec str_of_ct = (function
+    CTid x -> "(CTid " ^ x ^ ")"
+  | CTcstr x -> "(CTcstr " ^ x ^ ")"
+  | CTapp (ct, l) -> "CTapp (" ^ (str_of_ct ct) ^ (String.concat "\n     " (List.map str_of_ct l))
+  | CTabs (x,_,ct) -> "CTabs (" ^ x ^ ", " ^ (str_of_ct ct) ^ ")" 
+  | CTsort _ -> "CTsort"
+  | CTprod _ -> "CTprod"
+  | CTmatch (ct,_,ctcl) -> "CTmatch " ^ (str_of_ct ct) ^ " with " ^ 
+  									 (String.concat "@.\n     " 
+  									 					 (List.map (fun (u,v) -> (str_of_ct u) ^ " -> " ^ (str_of_ct v)) ctcl))
+  | CTann (ct1, ct2) -> "CTann (" ^ (str_of_ct ct1) ^ "," ^ (str_of_ct ct2) ^ ")"
+  | CTlet _ -> "CTlet"
+  | CTif _ -> "CTif")
+
+let () = ignore str_of_ct
 
 (*let is_constructor_name s =
 	let is_uppercase c = 
@@ -67,9 +85,9 @@ let rec print_term_rec lv ppf ty =
       fprintf ppf "@[%a →@ %a@]" (print_term_rec 3) t1 (print_term_rec 2) t2
   | CTapp (CTid "*", [t1; t2]) ->
       fprintf ppf "@[%a →@ %a@]" (print_term_rec 3) t1 (print_term_rec 8) t2
-  | CTapp (CTid "Bind", [ct1; CTabs (x, cto, ct2)]) ->
-      fprintf ppf "@[Do %s%a ←@ %a //@ %a@]"
-        x print_type_ann cto
+  | CTapp (CTid "Bind", [ct1; CTabs (x, _, ct2)]) ->
+      fprintf ppf "@[Do %s ←@ %a //@ %a@]"
+        x (* print_type_ann cto *)
         (print_term_rec 1) ct1
         print_term ct2
   | CTapp (CTid "S", [t1]) ->
@@ -151,7 +169,7 @@ let rec print_term_rec lv ppf ty =
         print_term ct1
         print_term ct2
   | CTif (ct1, ct2, ct3) ->
-      fprintf ppf "@[if@;<1 2>%a@ then@;<1 2>%a@ else@;<1 2>%a@]"
+      fprintf ppf "@[if@;<1 2>%a@ then@;<1 2>%a@ else (@;<1 2>%a)@]"
         print_term ct1
         print_term ct2
         print_term ct3
@@ -164,12 +182,13 @@ and print_term ppf = print_term_rec 0 ppf
 
 and print_args ?(s="") ?(no_types=false) ?(print_arrow=false) is_def ppf ct =
   let (args, ct, ann) = extract_args ct in
-  if is_def then (
+  ignore s;
+  (*if is_def then (
   Format.eprintf "name: %s@.args: " s;
   List.iter (fun x -> let argh = fst x in List.iter (Format.eprintf "%s ")  argh) args;
   Format.eprintf "@.returns: ";
   if is_def then print_type_ann Format.err_formatter ann;
-    Format.eprintf "@.@.");
+    Format.eprintf "@.@.");*)
   let one_group = not is_def && List.length args = 1 in
   let n = List.length args in
   List.iteri
@@ -193,14 +212,18 @@ and print_args ?(s="") ?(no_types=false) ?(print_arrow=false) is_def ppf ct =
   ct
   (* else may_app (fun cty ct -> CTann (ct, cty)) ann ct *)
 
-let emit_def ?(ann=None) ppf def s ~eval ct =
+
+let emit_def ppf def s ~eval ct =
   ignore eval;
+  (*Format.eprintf "<emit-def %s> : %s@." s (str_of_ct ct);*)
+  let add_new_line = ref true in
   (match ct with
-  		| CTapp (CTid "Restart" , _) -> fprintf ppf "@["
+  		| CTapp (CTid "Restart" , [_ ; _]) -> add_new_line := false; fprintf ppf "@["
   		| _ -> fprintf ppf "@[<2>%s%s :" def s);
   let ct2 = print_args ~s:s ~print_arrow:true true ppf ct in
-  (if ann <> None then print_type_ann ppf ann);
-  fprintf ppf "@]@,@[<2>%s" s;
+  fprintf ppf "@]";
+  if !add_new_line then fprintf ppf "@,";
+  fprintf ppf "@[<2>%s" s;
   let _ = print_args ~no_types:true false ppf ct in
   fprintf ppf " =@;<1 2>";
   fprintf ppf "%a@]" print_term ct2
@@ -209,7 +232,7 @@ let emit_def ?(ann=None) ppf def s ~eval ct =
 
 
 let print_arg_typed ppf (_, ct) = (* used to print the arguments of a constructor *)
-  fprintf ppf "@ @[<1>%a@]" print_term ct;
+  fprintf ppf "@ @[<1>(%a)@]" print_term ct;
   fprintf ppf "@ →"
   (* fprintf ppf "@ @[<1>(%s :@ %a)@]" s print_term ct;*)
   (* first_arrow := true *)
@@ -219,21 +242,11 @@ let print_arg_typed_data_def ppf (s, ct) = (* used to print the parameters in a 
 
 let print_arg_untyped_data ppf fs (s, _) = (* used to print the parameters in a dataype declaration *)
 	if !fs 
-	then fprintf ppf "@ @[<1>%s@]" s
+	then fprintf ppf "@ @[<1>(%s)@]" s
 	else (fprintf ppf "@ @[<1> %s@]" s; fs := false)
 
 
 let newlines = ref 1
-
-let rec repro n s = match n with
-	| 0 -> ""
-	| n -> s ^ (repro (n-1) s)
-
-let get_begin_spaces name = 
-	let indentation_opt = String.rindex_opt name ' ' in
-      let nb_spaces = match indentation_opt with
-      	| None -> 0
-      	| Some x -> x + 1 in repro nb_spaces " "
 
 let vv = ref 0
 let fresh_v () = 
@@ -252,8 +265,7 @@ let emit_vernacular ppf = function
   | CTinductive tds ->
       let first = ref true in
       List.iter (fun td ->
-        let begin_spaces = get_begin_spaces td.name in
-        fprintf ppf "@[<v2>@[<hv2>%sdata" begin_spaces;
+        fprintf ppf "@[<v2>@[<hv2>data";
         if !first then first := false
         else fprintf ppf "@]@ @[<hv2>@[<2>with"; 
         (* I dont know what the line above does yet 
