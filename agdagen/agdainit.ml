@@ -255,9 +255,23 @@ let init_term_map vars =
  )
 
 let init_reserved =
-  [ "fix"; "data"; "unit"; "bool"; "int63";
-    "M"; "Res"; "Raise"; "Fail"; "K"; "coq-type"; "S"; "Eq"; "Lt"; "Gt";
-    "nil"; "cons"; "it"; "Restart"; "T1"; "T2"; "A"; "B"; "C"; "D"; "E"; "F"; "u1"; "u2"; "u3"; "v1"; "v2"; "v3" ]
+  [ "data"; "refl"; "cong"; "DecidableEquality";
+    "Bool"; "isYes"; "Dec"; "yes"; "suc"; "tt";
+    "length"; "List"; "String"; "Float"; "Char";
+    "maybe"; "just"; "nothing"; "map′"; "no";
+    "inspect"; "case"; "size"; "rcons"; "nth";
+    "ncons"; "set-nth"; "nth-opt"; "array-t"; 
+    "comparator"; "compare-int"; "compare-bool";
+    "compare-ascii"; "compare-float"; "eq-ind"; 
+    "up3"; "up4"; "up5"; "up6";
+    "compare-integer"; "compare-string"; "W0";
+    "M0"; "ENV"; "EFmonad"; "loc-b"; "eqType"; 
+    "eqPc"; "eq-rect"; "MLTY"; "bind-ext";
+    "M"; "Res"; "Raise"; "Fail"; "K"; 
+    "coq-type"; "ml-type"; "Eq"; "Lt"; "Gt";
+    "it"; "Restart"; 
+    "T1"; "T2"; "A"; "B"; "C"; "D"; "E"; "F"; 
+    "u1"; "u2"; "u3"; "v1"; "v2"; "v3" ]
 
 let init_vars =
   init_type_map (
