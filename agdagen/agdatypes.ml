@@ -120,13 +120,12 @@ let transl_coq_type ~loc ~env ~vars ty =
 
 let transl_coq_type_purary ~loc ~env ~vars ty purary =
   let ct = transl_type ~loc ~env ~vars ty in
-  Format.eprintf "Purary: %d " purary;
   let rec apply_ct_deep ct pary =
   		let impure = pary = 0 in
   		if impure then ctapp (CTid"M") [(mkcoqty ct)] else
   		match ct with
-  			| CTapp ((CTid "ml-arrow"), [ct1; ct2]) -> 
-  					  CTprod (None, mkcoqty ct1, apply_ct_deep ct2 (pary-1))
+  			| CTapp ((CTid "ml-arrow"), [ct1; ct2]) -> let trans_ct2 = apply_ct_deep ct2 (pary-1) in
+  					  CTprod (None, mkcoqty ct1, trans_ct2)
   			| ct -> mkcoqty ct in
   	apply_ct_deep ct purary
 
