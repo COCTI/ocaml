@@ -125,10 +125,10 @@ let comprec_const =
 @,compare-rec (suc h) {ml-char} = λ x y → Ret (compare-ascii x y)\
 @,compare-rec (suc h) {ml-float} = λ x y → Ret (compare-float x y)\
 @,compare-rec (suc h) {ml-bool} = λ x y → Ret (compare-bool x y)\
-@,compare-rec (suc h) {ml-unit} = λ x y → Ret Eq\
-@,compare-rec (suc h) {ml-array T} =\
-@,  λ x y → compare-ref {ml-array-t T} {compare-rec h} x y\
-@,compare-rec (suc h) {ml-list T} =\
+@,compare-rec (suc h) {ml-unit} = λ x y → Ret Eq" ^ 
+(*@,compare-rec (suc h) {ml-array T} =\
+@,  λ x y → compare-ref {ml-array-t T} {compare-rec h} x y\*)
+"@,compare-rec (suc h) {ml-list T} =\
 @,  λ x y → compare-list {T} {compare-rec h} x y\
 @,compare-rec (suc h) {ml-lazy T} =\
 @,  λ x y → Raise (Catchable (Invalid-argument \"compare\"))\
@@ -142,10 +142,10 @@ let comprec_const =
 @,compare-rec (suc h) {ml-arrow T T1} =\
 @,  λ x y → Raise (Catchable (Invalid-argument \"compare\"))")
 
+
 (* ++++++++++++++++++++++++++ *)
 (* End of compare-rec section *)
 (* ++++++++++++++++++++++++++ *)
-
 
 
 let topo_sort (type def) (deps : def -> string * Names.t) (defs : def list) =
@@ -211,6 +211,10 @@ let indent_ctind n vernac = match vernac with
 	| CTinductive ind_list -> CTinductive(List.map (indent_induct n) ind_list)
 	| x -> x*)
 
+let remove_type path vars =
+  { vars with
+    type_map = Path.Map.remove path vars.type_map}
+
 let transl_implementation _modname st =
   let cmds, vars = transl_structure ~vars:init_vars st.str_items in
   let typedefs, cmds =
@@ -223,6 +227,7 @@ let transl_implementation _modname st =
   in
   let inductives = topo_sort deps_inductive inductives in
   let typedefs = List.map (fun gr -> (*indent_ctind 2*) (CTinductive gr)) inductives in
+  let vars_no_mlarray = remove_type Predef.path_array vars in
 
 
 
@@ -250,11 +255,11 @@ let transl_implementation _modname st =
 @,open import Data.Integer.DivMod using (_%%_ ; _/_)\
 @,open import Function.Base using (case_of_)\
 @,@,-- Generated representation of all ML types" :: 
-  make_ml_type vars ::
+  make_ml_type vars_no_mlarray ::
   CTverbatim "\
 @[<v2>variable\
 @,u1 u2 u3 u4 u5 u6 v1 v2 v3 v4 v5 v6 : ml-type@]@]@." :: (* no more boxes open so far *)
-  CTverbatim (make_proof vars) ::
+  CTverbatim (make_proof vars_no_mlarray) ::
   CTverbatim "\
 @[<v>ml-type-eq-dec : DecidableEquality ml-type\
 @,ml-type-eq-dec = eq-decc\
@@ -265,8 +270,10 @@ let transl_implementation _modname st =
 @,@,\
 @[<v2>data array-t (T : Set) : Set where\
 @,ArrayVal : List T → array-t T@]\
-@,@,\
-@[<v2>module MLtypes-aux (M : Set → Set) where\
+@,\
+@,ml-array : ml-type → ml-type\
+@,ml-array T = ml-ref (ml-array-t T)\
+@,@[<v2>module MLtypes-aux (M : Set → Set) where\
 @,-- Generated type definitions\
 @,\
 loc = loc-b ml-type" :: 
@@ -282,7 +289,7 @@ loc = loc-b ml-type" ::
 @,Lref : (loc (ml-lazy-val a1)) → lazy-t a a1@]\
 @,\
 -- Generated type translation function" ::
-  make_coq_type vars :: (* box [<v2>modules MLtypes-aux (...) closed *)
+  make_coq_type vars_no_mlarray :: (* box [<v2>modules MLtypes-aux (...) closed *)
 CTverbatim "@]\
 @,open MLtypes-aux hiding (loc; coq-type)\
 @,@,\
@@ -309,10 +316,10 @@ MLtypes : MLTY\
 @,@,\
 -- Generated comparison function\
 @,@[<v>"
-(*@,postulate compare-rec : (h : ℕ) (T : ml-type)\
+  (*@,postulate compare-rec : (h : ℕ) (T : ml-type)\
   → coq-type T -> coq-type T -> M comparator*) ::
   comprec_const :: 
-  CTverbatim (make_compare_rec_ag vars) ::
+  CTverbatim (make_compare_rec_ag vars_no_mlarray) ::
   CTverbatim "@]\
 ml-compare = compare-rec\
 @,\
