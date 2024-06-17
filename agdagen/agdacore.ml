@@ -20,6 +20,25 @@ open Agdadef
 open Agdainit
 open Agdatypes
 
+(*
+FOR DEBUG PURPOSES
+let str_of_ct ct = 
+	let rec str_of_ct = function
+    CTid x -> "CTid " ^ x
+  | CTcstr x -> "CTcstr " ^ x
+  | CTapp (ct, l) -> "CTapp (" ^ (str_of_ct ct) ^ " >> [" ^ (String.concat ",\n     " (List.map str_of_ct l)) ^ "])"
+  | CTabs (x,_,ct) -> "CTabs (" ^ x ^ ", " ^ (str_of_ct ct) ^ ")" 
+  | CTsort _ -> "CTsort"
+  | CTprod _ -> "CTprod"
+  | CTmatch (ct,_,ctcl) -> "CTmatch (" ^ (str_of_ct ct) ^ ") with " ^ 
+  									 (String.concat ",\n     | " 
+  									 					 (List.map (fun (u,v) -> (str_of_ct u) ^ " -> " ^ (str_of_ct v)) ctcl))
+  | CTann (ct1, ct2) -> "CTann (" ^ (str_of_ct ct1) ^ ", {ann: " ^ (str_of_ct ct2) ^ "})"
+  | CTlet _ -> "CTlet"
+  | CTif _ -> "CTif" in 
+  (str_of_ct ct) ^ "\n"*)
+
+
 type term_props =
     { pterm: coq_term; prec: rec_flag; pary: int }
 
@@ -33,6 +52,11 @@ let name_tuple names =
   let ctl = List.map ctid names in
   make_tuple ctl
 
+let ctRetAnn ct = 
+	match ct with
+		| CTann(c, cty) -> CTann(ctRet c, ctapp (CTid"W") [cty])
+		| c -> ctRet c
+
 let rec shrink_purary_val ~vars ~args p1 p2 ct =
   let ct1 =
     if p1 <= 1 then ctapp ct (List.rev args) else
@@ -41,7 +65,7 @@ let rec shrink_purary_val ~vars ~args p1 p2 ct =
            shrink_purary_val ~vars:(add_reserved x vars) ~args:(CTid x :: args)
              (p1-1) (p2-1) ct)
   in
-  if p2 <= 0 then ctRet ct1 else ct1
+  if p2 <= 0 then ctRetAnn ct1 else ct1
 
 let rec shrink_purary_rec ~vars p1 p2 ct =
   assert (p2 <= p1);
@@ -52,7 +76,7 @@ let rec shrink_purary_rec ~vars p1 p2 ct =
         let vars = add_reserved x vars in
         CTabs (x, t, shrink_purary_rec ~vars (p1-1) (p2-1) ct1)
       in
-      if p2 <= 0 then ctRet ct2 else ct2
+      if p2 <= 0 then ctRetAnn ct2 else ct2
   | _ ->
       shrink_purary_val ~vars ~args:[] p1 p2 ct
 
@@ -94,7 +118,7 @@ let string_of_constant ~loc = function
   | Const_float x ->
       let x = if x.[String.length x-1] = '.' then x ^ "0" else x in
       let s = x in
-      "("^s^")"
+      "(" ^ s ^ ")"
   | Const_char c ->
       let s = Char.escaped c in
       let s =
@@ -102,7 +126,7 @@ let string_of_constant ~loc = function
         Printf.sprintf "%03d" (Char.code c) in
       Printf.sprintf "'%s'" s
   | Const_string (s, _, _) ->
-      (*Printf.sprintf "\"%s\"%%string"*) "\"" ^ s ^ "\""
+      "\"" ^ s ^ "\""
   | _ ->
       not_allowed ~loc "This constant"
 
@@ -125,7 +149,6 @@ let transl_pat_type ~vars pat =
 let transl_exp_type ~vars pt exp =
   let cty =
     transl_coq_type_purary ~loc:exp.exp_loc ~env:exp.exp_env ~vars exp.exp_type pt.pary in
-  (*let cty = if pt.pary = 0 then (CTapp (CTid"M", [cty])) else cty in*)
   {pt with pterm = CTann (pt.pterm, cty)}
 
 let add_pat_variable ~vars id ty =
@@ -288,7 +311,7 @@ let rec transl_exp ~vars e =
       let ct =
         match ct.pterm with
           CTabs _ | CTann _ -> ct
-        | _ -> if ct.pary >= 2 then ct else transl_exp_type ~vars ct c_rhs
+        | _ -> if ct.pary >= 2 then (*ct*) transl_exp_type ~vars ct c_rhs else transl_exp_type ~vars ct c_rhs
       in
       {pterm = CTabs (v, Some cty, ct.pterm);
        prec  = ct.prec; pary  = ct.pary + 1}
@@ -451,7 +474,7 @@ and transl_match ~vars ?(failed=CTid"FailGas") ct cases partial =
   let ccases = List.map (transl_cases ~vars) cases in
   let lhs, ctl = List.split ccases in
   let prec =
-    if List.exists (fun ct -> ct.prec = Recursive) (ct :: ctl)
+    if List.exists (fun ct -> ct.prec = Recursive) (ct :: ctl)	
     then Recursive else Nonrecursive
   in
   let pary =
@@ -486,6 +509,7 @@ and transl_binding ~vars ~rec_flag vb =
     | Tpat_construct (_, {cstr_name="()"}, [], _) -> "_", None
     | _ -> not_allowed ~loc:vb.vb_pat.pat_loc "This pattern"
   in
+  Format.eprintf "%s@." name;
   let ty = vb.vb_expr.exp_type in
   (*Format.eprintf "exp_type=%a@." Printtyp.raw_type_expr ty;*)
   let fvars, fvar_names, vars =
@@ -502,21 +526,9 @@ and transl_binding ~vars ~rec_flag vb =
   let ct = transl_exp ~vars vb.vb_expr in
   let ct_typed = transl_exp_type ~vars ct vb.vb_expr in
 
-  let str_of_ct = function
-    CTid _ -> "CTid"
-  | CTcstr _ -> "CTcstr"
-  | CTapp _ -> "CTapp"
-  | CTabs _ -> "CTabs"
-  | CTsort _ -> "CTsort"
-  | CTprod _ -> "CTprod"
-  | CTmatch _ -> "CTmatch"
-  | CTann _ -> "CTann"
-  | CTlet _ -> "CTlet"
-  | CTif _ -> "CTif" in
-
   let ct = (match ct.pterm with
-  	| CTabs (_,_,_) -> Format.eprintf "<- %s first case %s@.@." name (str_of_ct ct.pterm); ct
-  	| _ -> Format.eprintf "%s second case %s@.@." name (str_of_ct ct.pterm); ct_typed) in
+  	| CTabs (_,_,_) -> ct
+  	| _ -> ct_typed) in
   
   let ct, desc, prec =
     match rec_flag with
@@ -531,6 +543,7 @@ and transl_binding ~vars ~rec_flag vb =
        fvar_names ct in
   let ct =
     if rec_flag = Recursive then abstract_recursive ct else ct in
+  Format.eprintf "purary after binding : %d@." desc.ce_purary;
   ((id, desc), {pterm = ct; prec; pary = desc.ce_purary})
 
 (*
@@ -538,7 +551,7 @@ let apply_recursive rec_flag ct =
   if rec_flag = Nonrecursive then ct else
   coq_term_subst (Vars.add "h" (CTid"100000") Vars.empty) ct
 *)
-
+	
 let close_top ~vars ~ce_vars pt =
   let fvars = coq_vars pt.pterm in
   let is_pure =
@@ -549,24 +562,26 @@ let close_top ~vars ~ce_vars pt =
     List.fold_left
       (fun pt v ->
         if not (Names.mem v fvars) then pt else
-        {pt with pterm =
-         ctBind (CTapp (CTid"FromW",[CTid v])) (CTabs (v, None, pt.pterm))})
+        let bound_ct = ctBind (CTapp (CTid"FromW",[CTid v])) (CTabs (v, None, pt.pterm)) in
+        let ct = match pt.pterm with
+        		| CTann(_, CTapp(CTid"W", [cty])) -> CTann( bound_ct , CTapp(CTid"M", [cty]))
+        		| _ -> bound_ct in
+        {pt with pterm = ct})
       pt vars.top_exec in
   let rec push pt =
     let n = pt.pary in
     match pt.pterm with
-    | CTabs (id, t, ct) when n > 0 ->
-        let n' =
-          if t = Some (CTid "ℕ") || t = Some (CTid "ml-type") then n
+    | CTabs (id, t, ct) when n > 0 -> let n' =
+          if t = Some (CTid "ℕ") || t = Some (CTid "ml-type") 
+          then n
           else n-1 in
         let pt = push {pt with pterm = ct; pary = n'} in
         {pt with pterm = CTabs (id, t, pt.pterm);
          pary = pt.pary + n - n'}
-    | CTann (ct1, ty) when n = 0 ->
-        let pt = push {pt with pterm = ct1} in
+    | CTann (ct1, ty) when n = 0 -> let pt = push {pt with pterm = ct1} in
         {pt with pterm = CTann (pt.pterm, ty)}
-    | _ ->
-        close (nullary ~vars pt)
+    (*| CTann _ -> Format.eprintf "BIG PURARY"; close (nullary ~vars pt)*)
+    | _ -> close (nullary ~vars pt)
   in
   let pt = push pt in
   if pt.pary > 0 then pt else
