@@ -253,3 +253,21 @@ Fixpoint iappend (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_rlist T))
     end
   else FailGas.
 
+Fixpoint nconc_aux (h : nat) (T : ml_type)
+  (l1 : coq_type (ml_ref (ml_rlist T))) (l2 : coq_type (ml_rlist T))
+  : M (coq_type ml_unit) :=
+  if h is h.+1 then
+    do v <- cget (ml_rlist T) l1;
+    match v with
+    | Nil => cput (ml_rlist T) l1 l2
+    | Cons a l1' => nconc_aux h T l1' l2
+    end
+  else FailGas.
+
+Definition nconc (h : nat) (T : ml_type) (l1 l2 : coq_type (ml_rlist T))
+  : M (coq_type (ml_rlist T)) :=
+  match l1 with
+  | Nil => Ret l2
+  | Cons _ l1' => do _ <- nconc_aux h T l1' l2; Ret l1
+  end.
+
