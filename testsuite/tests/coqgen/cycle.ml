@@ -20,3 +20,13 @@ let rec iappend l1 l2 =
   match l1 with
   | Nil -> l2
   | Cons (a, l1') -> l1' := iappend !l1' l2; l1
+
+let rec nconc_aux l1 l2 =
+  match !l1 with
+  | Nil -> l1 := l2
+  | Cons (a, l1') -> nconc_aux l1' l2
+
+let nconc l1 l2 =
+  match l1 with
+  | Nil -> l2
+  | Cons (_, l1') -> nconc_aux l1' l2; l1

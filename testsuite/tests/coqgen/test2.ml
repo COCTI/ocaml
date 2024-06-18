@@ -51,6 +51,8 @@ let fact_for63 n =
   done;
   !v;;
 
+(* let rec f l = List.map (fun x -> x) l and g () = ignore (f []);; *)
+
 (*type student = { name: string; mutable year: int }
 
 Record student_val := { name: string; year: int }.

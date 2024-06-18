@@ -150,7 +150,7 @@ let topo_sort (type def) (deps : def -> string * Names.t) (defs : def list) =
   let groups =
     List.fold_left (fun groups (id,dep) -> add id dep groups) [] edges in
   let id_defs = List.combine (List.map fst edges) defs in
-  List.map (List.map (fun id -> List.assoc id id_defs)) groups
+  List.rev_map (List.map (fun id -> List.assoc id id_defs)) groups
 
 let inductive_of_exn vars =
   let constrs =
