@@ -121,11 +121,11 @@ let added_levels = s_ref []
 let pool_of_level level =
   if level >= !last_level then !last_pool else
   try IntMap.find level !leveled_type_pool
-  with Not_found ->
-    (* Format.eprintf "@[<2>Level %d not in pool: %a@]@." level
-       (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
-       (List.map fst (IntMap.bindings !leveled_type_pool)); *)
-    invalid_arg "Btype.pool_of_level"
+  with Not_found -> !last_pool
+  (* Format.eprintf "@[<2>Level %d not in pool: %a@]@." level
+     (fun ppf -> List.iter (Format.fprintf ppf "@ %d"))
+     (!added_levels @ List.rev_map fst (IntMap.bindings !leveled_type_pool));
+   *)
 
 (* Create a new pool at given level, and use it locally.
    We need first to add the deferred levels to leveled_type_pool *)
