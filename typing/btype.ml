@@ -123,7 +123,7 @@ type pool = {level: int; mutable pool: transient_expr list; next: pool}
 (* To avoid an indirection we choose to add a dummy level at the end of
    the list. It will never be accessed, as [pool_of_level] is always called
    with [level >= 0]. *)
-let rec dummy = {level = min_int; pool = []; next = dummy}
+let rec dummy = {level = max_int; pool = []; next = dummy}
 let pool_stack = s_table (fun () -> {level = 0; pool = []; next = dummy}) ()
 
 let rec pool_of_level level pool =
@@ -137,12 +137,6 @@ let with_new_pool ~level f =
     Misc.protect_refs [ R(pool_stack, pool) ] f
   in
   (r, pool.pool)
-
-(* Since we reuse [last_pool], just add a deferred level *)
-let register_last_pool ~level:_ = ()
-
-(* Register a level locally *)
-let with_last_pool ~level:_ f = f ()
 
 let add_to_pool ~level ty =
   if level >= generic_level || level <= lowest_level then () else
