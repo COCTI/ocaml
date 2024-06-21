@@ -111,38 +111,52 @@ let lowest_level = Ident.lowest_scope
    the only function returning the contents of a pool is [with_new_pool],
    so that the initial pool can be added to, but never read from. *)
 
-type pool = {level: int; mutable pool: transient_expr list; next: pool}
-(* To avoid an indirection we choose to add a dummy level at the end of
-   the list. It will never be accessed, as [pool_of_level] is always called
-   with [level >= 0]. *)
-let rec dummy = {level = max_int; pool = []; next = dummy}
-let pool_stack = s_table (fun () -> {level = 0; pool = []; next = dummy}) ()
+type pool_tree = (* gen_level >= left_level *)
+  | Node of { gen_level: int; pool: transient_expr list ref;
+              left_level: int; left: pool_tree; right: pool_tree;
+              left_size: int; right_size: int }
+  | Empty
 
-(* Lookup in the stack is linear, but the depth is the number of nested
-   generalization points (e.g. lhs of let-definitions), which in ML is known
-   to be generally low. In most cases we are allocating in the topmost pool.
-   In [Ctype.with_local_gen], we move non-generalizable type nodes from the
-   topmost pool to one deeper in the stack, so that for each type node the
-   accumulated depth of lookups over its life is bounded by the depth of
-   the stack when it was allocated.
-   In case this linear search turns out to be costly, we could switch to
-   binary search, exploiting the fact that the levels of pools in the stack
-   are expected to grow. *)
-let rec pool_of_level level pool =
-  if level >= pool.level then pool else pool_of_level level pool.next
+let rec insert gen_level pool pt =
+  match pt with
+  | Empty ->
+      Node {gen_level; pool; left_level = gen_level;
+            left = Empty; right = Empty; left_size = 0; right_size = 0}
+  | Node n ->
+      assert (gen_level > n.gen_level);
+      if n.left_size < n.right_size then
+        let left = insert n.gen_level n.pool n.left in
+        Node {n with gen_level; pool; left;
+              left_size = n.left_size + 1}
+      else (* n.left_size = n.right_size *)
+        Node {gen_level; pool; left_level = gen_level;
+              left = Empty; right = pt;
+              left_size = 0; right_size = 2 * n.left_size + 1}
+
+let pool_stack = s_ref Empty
+
+let rec pool_of_level level pt =
+  match pt with
+  | Empty -> Empty
+  | Node n ->
+      if level >= n.gen_level then pt else
+      if level >= n.left_level then pool_of_level level n.left
+                               else pool_of_level level n.right
 
 (* Create a new pool at given level, and use it locally. *)
 let with_new_pool ~level f =
-  let pool = {level; pool = []; next = !pool_stack} in
+  let pool = ref [] in
+  let new_stack = insert level pool !pool_stack in
   let r =
-    Misc.protect_refs [ R(pool_stack, pool) ] f
+    Misc.protect_refs [ R(pool_stack, new_stack) ] f
   in
-  (r, pool.pool)
+  (r, !pool)
 
 let add_to_pool ~level ty =
   if level >= generic_level || level <= lowest_level then () else
-  let pool = pool_of_level level !pool_stack in
-  pool.pool <- ty :: pool.pool
+  match pool_of_level level !pool_stack with
+  | Empty -> ()
+  | Node {pool; _} -> pool := ty :: !pool
 
 (**** Some type creators ****)
 
