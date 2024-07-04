@@ -106,6 +106,7 @@ let make_case_ag z =
 	let (_, ctd) = z in
 	match ctd, ctd.ct_def with
 		| _, None -> ""
+		| _, Some(_, []) -> ""
 		| ctd, Some (_, cases) ->
 			match ctd.ct_name with
 				| "ml-int" | "ml-char" | "ml-float" |
@@ -172,7 +173,7 @@ let topo_sort (type def) (deps : def -> string * Names.t) (defs : def list) =
   let groups =
     List.fold_left (fun groups (id,dep) -> add id dep groups) [] edges in
   let id_defs = List.combine (List.map fst edges) defs in
-  List.map (List.map (fun id -> List.assoc id id_defs)) groups
+  List.rev_map (List.map (fun id -> List.assoc id id_defs)) groups
 
 let inductive_of_exn vars =
   let constrs =
@@ -251,8 +252,8 @@ let transl_implementation _modname st =
 @,open import Relation.Nullary using (¬_)\
 @,open import Relation.Nullary.Decidable using (map′; _×-dec_; no)\
 @,open import Relation.Binary.PropositionalEquality using (inspect; [_])\
-@,open import Data.Integer using (ℤ; _+_; _-_; _*_; +_)\
-@,open import Data.Integer.DivMod using (_%%_ ; _/_)\
+@,open import Data.Integer using (ℤ; _+_; _-_; _*_; +_; -_)\
+@,open import Data.Integer.DivMod using (_/_)\
 @,open import Function.Base using (case_of_)\
 @,@,-- Generated representation of all ML types" :: 
   make_ml_type vars_no_mlarray ::
@@ -283,7 +284,7 @@ loc = loc-b ml-type" ::
 @,LzVal : a → lazy-val a\
 @,LzThunk : (M a) → lazy-val a\
 @,LzExn : ml-exns → lazy-val a@]\
-@,\
+@,@,\
 @[<v 2>data lazy-t (a : Set) (a1 : ml-type) : Set where\
 @,Lval : a → lazy-t a a1\
 @,Lref : (loc (ml-lazy-val a1)) → lazy-t a a1@]\
