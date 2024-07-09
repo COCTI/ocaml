@@ -3,7 +3,3 @@ project_lib.v
 new_test.v
 new_test_2.v
 
--R . coqgen
-./coqgen_defs.v
-./project_lib.v
-./new_test.v

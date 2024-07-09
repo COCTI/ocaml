@@ -1,2 +1,2 @@
-val emit_gallina :
-  string list -> unit
+
+val emit_gallina : string list -> unit

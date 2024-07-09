@@ -206,7 +206,7 @@ let emit_vernacular ppf = function
 let print_newlines ppf () =
   for _ = 1 to !newlines do pp_print_newline ppf () done; newlines := 1
 
-let emit_gallina _modname ppf cmds =
-  let cmds = Coqdef.CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
-  \nRequire Import PrimInt63 Ascii String Floats coqgen_defs." :: cmds in
+let emit_gallina modname ppf cmds =
+  let cmds = Coqdef.CTverbatim ("From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+  \nRequire Import PrimInt63 Ascii String Floats coqgen_defs" ^ (if modname = "Project_lib" then "" else " project_lib") ^ ".") :: cmds in
   pp_print_list ~pp_sep:print_newlines emit_vernacular ppf cmds

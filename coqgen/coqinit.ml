@@ -20,7 +20,9 @@ open Coqdef
 
 let stdlib = Path.Pident (Ident.create_persistent "Stdlib")
 let coqgen = Path.Pident (Ident.create_persistent "coqgen")
+
 let stdlib_ref = Path.Pdot (stdlib, "ref")
+
 let newgenconstr p tl = newgenty (Tconstr (p, tl, ref Mnil))
 let newgenarrow t1 t2 = newgenty (Tarrow (Nolabel, t1, t2, Cok))
 let ident_empty = Ident.create_predef "empty"
@@ -28,9 +30,11 @@ let path_empty = Path.Pident ident_empty
 
 let xy = [CTid"x"; CTid"y"]
 
+
 let ctd = { ct_name = ""; ct_arity = 0; ct_args = []; ct_mlargs = [];
             ct_type = CTid ""; ct_def = None; ct_constrs = [];
             ct_compare = None; ct_maps = []; ct_coqdef = [] }
+
 
 let init_type_map vars =
   List.fold_left
@@ -110,7 +114,7 @@ let init_type_map vars =
      ct_constrs = [("ArrayVal", "ArrayVal")];
      ct_type = CTapp (CTid"array_t", [CTid"a"]);
      ct_def = Some (["a"], ["ArrayVal", [CTapp(CTid"ml_list", [CTid "a"])]])});
-   (Predef.path_exn, [],
+   (*(Predef.path_exn, [],
     {ctd with ct_name = "ml_exn";
      ct_type = CTid "ml_exns";
      ct_constrs = List.map (fun x -> (x,x))
@@ -118,7 +122,7 @@ let init_type_map vars =
      ct_coqdef = ["Invalid_argument", [CTid"string"];
                   "Failure", [CTid"string"]; "Not_found", []];
      ct_def = Some ([], ["Invalid_argument", [CTid"ml_string"];
-                         "Failure", [CTid"ml_string"]; "Not_found", []])});
+                         "Failure", [CTid"ml_string"]; "Not_found", []])});*)
    (coqgen, ["arrow"],
     {ctd with ct_name = "ml_arrow";
      ct_arity = 2; ct_args = [0, "a"; 1, "b"];
@@ -263,9 +267,19 @@ let init_reserved =
     "M"; "Res"; "Raise"; "Fail"; "K"; "coq_type"; "S"; "Eq"; "Lt"; "Gt";
     "nil"; "cons"; "it"; "Restart"; "T1"; "T2" ]
 
-let init_vars =
+let lib_vars = (*our equivalent of stdlib, represents all of the already defined types*)
   init_type_map (
   init_term_map {empty_vars with
                  coq_names = Names.of_list init_reserved;
                  top_exec = ["it"]}
 )
+let init_vars = add_type Predef.path_exn (*the version of type given to every file at the beginning of translation*)
+  {ctd with ct_name = "ml_exn";
+  ct_type = CTid "ml_exns";
+  ct_constrs = List.map (fun x -> (x,x))
+   ["Invalid_argument"; "Failure"; "Not_found"];
+  ct_coqdef = ["Invalid_argument", [CTid"string"];
+              "Failure", [CTid"string"]; "Not_found", []];
+  ct_def = Some ([], ["Invalid_argument", [CTid"ml_string"];
+                     "Failure", [CTid"ml_string"]; "Not_found", []])} 
+  empty_vars

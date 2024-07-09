@@ -15,4 +15,5 @@
 
 val newgenconstr : Path.t -> Types.type_expr list -> Types.type_expr
 val newgenarrow : Types.type_expr -> Types.type_expr -> Types.type_expr
+val lib_vars : Coqdef.coq_env
 val init_vars : Coqdef.coq_env

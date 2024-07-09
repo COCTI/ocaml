@@ -219,6 +219,7 @@ try if true then failwith "a" else "b" with Failure x -> x;;
 (fun x -> raise x) (Failure "Hello");;
 
 exception Restart of (unit -> int);;
+exception New_test of (unit -> int);;
 
 try id (raise (Restart (fun x -> 3))) with Restart f -> f ();;
 

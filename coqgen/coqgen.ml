@@ -22,7 +22,7 @@ let rec iota m n = if n <= 0 then [] else m :: iota (m+1) (n-1)
 let iota_names m n t =
   List.map (fun i -> t ^ string_of_int i) (iota m n)
 
-let make_ml_type (*vars*)type_map =
+let make_ml_type (*vars*)type_map (*type_list*) =
   let cases =
     List.map
       (fun (_, ctd) ->
@@ -30,13 +30,19 @@ let make_ml_type (*vars*)type_map =
         List.map (fun _ -> "_", ml_tid) (iota 0 ctd.ct_arity),
         None)
       (Path.Map.bindings (*vars.*)type_map)
+    (*List.map 
+      (fun ctd -> 
+        ctd.ct_name,
+        List.map (fun _ -> "_", ml_tid) (iota 0 ctd.ct_arity),
+        None) 
+      type_list*)
   in
   CTinductive [{ name = ml_type; args = []; kind = CTsort Set; cases }]
 
 let make_subst = Coqtypes.make_subst ~mkcoq:mkcoqty ~mkml:(fun x -> x)
 
-let make_coq_type (*vars*)type_map =
-  let make_case (_, ctd) =
+let make_coq_type (*vars*)type_map (*type_list*) =
+  let make_case (_, ctd) (*ctd*) =
     let constr = CTid ctd.ct_name in
     let names = iota_names 1 ctd.ct_arity "T" in
     let types = List.map ctid names in
@@ -46,15 +52,15 @@ let make_coq_type (*vars*)type_map =
       coq_term_subst subs ctd.ct_type
     in lhs, rhs
   in
-  let cases = List.map make_case (Path.Map.bindings (*vars.*)type_map) in
+  let cases = List.map make_case (Path.Map.bindings (*vars.*)type_map) (*type_list*) in
   CTfixpoint ("coq_type",
               CTabs ("T", Some ml_tid,
                      CTann (CTmatch (CTid "T", None, cases), CTsort Type)))
 
 let retEq = ctRet (CTid "Eq")
 
-let make_compare_rec (*vars*)type_map =
-  let make_case (_, ctd) =
+let make_compare_rec (*vars*)type_map (*type_list*) =
+  let make_case (_, ctd) (*ctd*) =
     let constr = CTid ctd.ct_name in
     let names = iota_names 1 ctd.ct_arity "T" in
     let types = List.map ctid names in
@@ -118,7 +124,7 @@ let make_compare_rec (*vars*)type_map =
                                None, mkcoqty (CTid "T"), CTprod (
                                None, mkcoqty (CTid "T"),
                                CTapp (CTid"M", [CTid "comparison"])))),
-               List.map make_case (Path.Map.bindings (*vars.*)type_map)));
+               List.map make_case (Path.Map.bindings (*vars.*)type_map) (*type_list*)));
                CTid "_", CTabs ("_", None, CTabs ("_", None, CTid "FailGas"))]
              ), CTprod (
                      None, mkcoqty (CTid "T"), CTprod (
@@ -150,7 +156,7 @@ let topo_sort (type def) (deps : def -> string * Names.t) (defs : def list) =
   let groups =
     List.fold_left (fun groups (id,dep) -> add id dep groups) [] edges in
   let id_defs = List.combine (List.map fst edges) defs in
-  List.map (List.map (fun id -> List.assoc id id_defs)) groups
+  List.rev_map (List.map (fun id -> List.assoc id id_defs)) groups
 
 let inductive_of_exn vars =
   let constrs =
@@ -191,8 +197,8 @@ let make_vlib vars typedefs =
 (* this function should write in a vlib file the end vars and end typedefs...*)
 
 (*Coqdef.vernacular list -> Path.Map.t coq_type_desc -> Coqdef.vernacular list*)
-let make_v type_map (*vars*)typedefs = (CTverbatim "\n\n(* Generated representation of all ML types *)" ::
-  make_ml_type (*vars*)type_map ::
+let make_v type_map(*type_list*) (*vars.*)typedefs = (CTverbatim "\n\n(* Generated representation of all ML types *)" ::
+  make_ml_type (*vars.*)type_map (*type_list*) ::
   CTverbatim "(* Module argument for monadic functor *)\
 \nModule MLtypes.\
 \nDefinition ml_type_eq_dec (T1 T2 : ml_type) : {T1=T2}+{T1<>T2}.\
@@ -222,7 +228,7 @@ let make_v type_map (*vars*)typedefs = (CTverbatim "\n\n(* Generated representat
 \nInductive lazy_t a a1 := Lval of a | Lref of (loc (ml_lazy_val a1)).\
 \n\
 \nLocal (* Generated type translation function *)" ::
-  make_coq_type (*vars*)type_map ::
+  make_coq_type (*vars.*)type_map (*type_list*) ::
   CTverbatim "End with_monad.\
 \nLocal Definition ml_exn := ml_exn.\
 \nEnd MLtypes.\
@@ -235,7 +241,7 @@ let make_v type_map (*vars*)typedefs = (CTverbatim "\n\n(* Generated representat
 \nDefinition empty_env := mkEnv nil.\
 \nDefinition it : W unit := inr (inr tt, empty_env).\
 \n\n(* Generated comparison function *)" ::
-  make_compare_rec (*vars*)type_map ::
+  make_compare_rec (*vars.*)type_map (*type_list*) ::
   CTverbatim "Definition ml_compare := compare_rec.\
 \n\
   Definition failwith T (s : string) : M (coq_type T) := raise T (Failure s).\
@@ -293,6 +299,7 @@ let make_v type_map (*vars*)typedefs = (CTverbatim "\n\n(* Generated representat
 *)
 
 let transl_implementation path_name st = 
+  
   (*if true then (failwith ("modname :"^_modname)) else*) 
   (*here I should reset dep_list_ref? 'Coqcore.dep_list_ref := ["project_lib"]' *)
   let cmds, vars = transl_structure ~vars:{init_vars with absolute_path = path_name} st.str_items in
@@ -307,4 +314,4 @@ let transl_implementation path_name st =
   let inductives = topo_sort deps_inductive inductives in
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in 
   make_vlib vars typedefs;
-  ((make_v vars.type_map typedefs), cmds, vars.dep_list)
+  ((*(make_v vars.type_map typedefs),*) cmds, vars.dep_list)

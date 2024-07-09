@@ -17,6 +17,13 @@ open Asttypes
 open Types
 open Btype
 open Coqdef
+open Coqlib
+
+let rec path_to_str_list_aux (p : Path.t) = match p with
+  | Pident id -> [(Ident.name id)]
+  | Pdot (p, s) -> s :: (path_to_str_list_aux p)
+  | _ -> assert false (*there should not be any Papply for the moment*)
+let path_to_str_list (p : Path.t) = List.rev (path_to_str_list_aux p)
 
 let rec map_snd f = function
     [] -> []
@@ -66,7 +73,7 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
   | Ttuple tl ->
       make_tuple_type ~def (List.map transl_rec tl)
   | Tconstr (p, tl, _) ->
-      begin match Path.Map.find p vars.type_map with
+      begin match (*Path.Map.find p vars.type_map*) find_types p vars with
         desc ->
           if def then
             let mkml = transl_type ~loc ~env ~vars ~def:false visited in
@@ -75,7 +82,8 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
           else
             ctapp (CTid desc.ct_name) (List.map transl_rec tl)
       | exception Not_found ->
-          with_snapshot ~vars
+        print_endline ("trying to access : " ^ String.concat "." (path_to_str_list p));
+        with_snapshot ~vars
             (fun () -> Ctype.expand_head env ty)
             (fun ~vars ty' ->
               if eq_type ty ty' then not_allowed ~loc "This type";
@@ -163,8 +171,9 @@ let transl_constructor ~vars (cd : Types.constructor_declaration) =
 
 let transl_typedecl ~env ~vars id td =
   let loc = td.type_loc in
-  let ml_name = fresh_name ~vars ("ml_" ^ Ident.name id) in
-  let name = fresh_name ~vars (Ident.name id) in
+  let filename_prefix = (Filename.basename vars.absolute_path) ^ "_" in 
+  let ml_name = fresh_name ~vars ("ml_" ^ filename_prefix ^ Ident.name id) in
+  let name = fresh_name ~vars (filename_prefix ^ Ident.name id) in
   let vars = add_reserved name vars in
   let old_tvars = get_tvars vars in
   let params, vars = enter_tvars ~loc ~vars ~def:true td.type_params in
@@ -215,7 +224,7 @@ let transl_typedecl ~env ~vars id td =
       let coq_def_arg = transl_type ~loc ~env ~vars ~def:true in
       let cmp_cases =
         List.map snd ml_params0, map_snd (List.map cmp_arg) names_types
-      and ct_constrs =
+      and ct_constrs = (*so ct_constrs is a list of couples*)
         List.map2 (fun cd (cname, _) -> (Ident.name cd.cd_id, cname))
           cl names_types
       and cases =
