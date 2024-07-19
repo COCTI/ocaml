@@ -455,7 +455,7 @@ let rec transl_exp ~vars e =
         (fun ct (v,arg) ->
           {ct with pterm = ctBind arg (CTabs (v,None,ct.pterm))})
         (nullary ~vars ct) binds
-  | Texp_construct (_, cd, []) -> (*in this case*)
+  | Texp_construct (_, cd, []) -> (*we should rename the constructor in this case basically*)
       let ct, name, tl = find_constructor ~loc ~vars cd in 
       let ce =
         {ce_name = name;
@@ -465,7 +465,7 @@ let rec transl_exp ~vars e =
          ce_purary = cd.cstr_arity + 1}
       in
       transl_ident ~loc ~vars e.exp_env ce (Some ct) e.exp_type
-  | Texp_construct (lid, cd, args) -> (*and this case, we should change the name of the constructor*)
+  | Texp_construct (lid, cd, args) -> (*this part will always end up calling the "base case" above*)
       let ty =
         List.fold_right (fun arg -> newgenarrow arg.exp_type) args e.exp_type
       in

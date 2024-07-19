@@ -159,7 +159,7 @@ let enter_tvars ~loc ~vars ~def tvl =
 let transl_constructor ~vars (cd : Types.constructor_declaration) =
   let loc = cd.cd_loc in
   if cd.cd_res <> None then not_allowed ~loc "GADT";
-  let cname = fresh_name ~vars (Ident.name cd.cd_id) in
+  let cname = fresh_name ~vars ((Filename.basename vars.absolute_path) ^ "_" ^ Ident.name cd.cd_id) in
   let vars = add_reserved cname vars in
   let args =
     match cd.cd_args with

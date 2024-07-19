@@ -186,6 +186,7 @@ let rec uncapitalize_list l = match l with
   | [s] -> [String.uncapitalize_ascii s]
   | x :: l -> x :: (uncapitalize_list l)
 
+(*Coqdef.coq_env -> (Coqdef.vernacular list) -> unit*)
 let make_vlib vars typedefs = 
   let abs_path = String.concat "/" (uncapitalize_list (String.split_on_char '/' vars.absolute_path)) in
   let vlib_channel = open_out (abs_path ^ ".vlib") in 
