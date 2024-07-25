@@ -15,6 +15,12 @@
 
 # general patterns
 
+*.vo
+*.vos
+*.vok
+*.glob
+*.vlib
+*.aux
 *.o
 *.a
 *.so
