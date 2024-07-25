@@ -188,10 +188,21 @@ let rec uncapitalize_list l = match l with
 
 (*Coqdef.coq_env -> (Coqdef.vernacular list) -> unit*)
 let make_vlib vars typedefs = 
+  
+  let module_name = String.capitalize_ascii (Filename.basename vars.absolute_path) in
+  let id = Ident.create_persistent module_name in
+  let s = Path.Map.fold 
+    (fun key _ -> match key with
+      | Path.Pident i -> Subst.add_type i (Path.Pdot (Path.Pident id, Ident.name i))
+      | _ -> assert false)
+    vars.type_map Subst.identity in
+  let term_map = Path.Map.map (fun desc -> {desc with ce_type = Subst.type_expr s desc.ce_type}) vars.term_map in
+
+  
   let abs_path = String.concat "/" (uncapitalize_list (String.split_on_char '/' vars.absolute_path)) in
   let vlib_channel = open_out (abs_path ^ ".vlib") in 
   output_value vlib_channel vars.type_map; 
-  output_value vlib_channel vars.term_map; 
+  output_value vlib_channel term_map; 
   output_value vlib_channel typedefs; (*maybe add a dependancy list at the end of the vlib?*)
   close_out vlib_channel (*open file given by the absolute path, and write typedefs in it*)
 

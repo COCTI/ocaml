@@ -23,12 +23,13 @@ let rec concat_lists l1 l2 = match l2 with
 *)
 
 (*vernacular -> unit*)
-let _print_vernacular = function 
-  | CTdefinition _ -> print_endline "CTdefinition"
-  | CTfixpoint _ -> print_endline "CTfixpoint"
-  | CTeval _ -> print_endline "CTeval"
-  | CTinductive _ -> print_endline "CTinductive"
-  | CTverbatim _ -> print_endline "CTverbatim"
+(*let print_vernacular = function 
+    | CTdefinition _ -> print_endline "CTdefinition"
+    | CTfixpoint _ -> print_endline "CTfixpoint"
+    | CTeval _ -> print_endline "CTeval"
+    | CTinductive _ -> print_endline "CTinductive"
+    | CTverbatim _ -> print_endline "CTverbatim"
+*)
 (*useful for tests*)
 
 (* vernacular list -> vernacular list -> vernacular*)

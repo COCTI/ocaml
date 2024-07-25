@@ -138,6 +138,7 @@ LAMBDA = \
   lambda/runtimedef.cmo \
   coqgen/coqdef.cmo \
   coqgen/coqinit.cmo \
+  coqgen/coqlib.cmo \
   coqgen/coqtypes.cmo \
   coqgen/coqcore.cmo \
   coqgen/coqgen.cmo \

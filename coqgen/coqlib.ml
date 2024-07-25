@@ -90,6 +90,11 @@ let find_types (p : Path.t) (vars : coq_env) =
       with Not_found -> find_type_stdlib p)
     | _ -> assert false)
 
+(*Idea : handling lists instead of the maps. Do you think there will be any problem with that?
+- The goal is to just extract the bindings, and only handle the paths. But I would have a problem with the exceptions then. Since I need to modify typedefs right? No I don't.*)
+(*look at how the exceptions are defined, Do I need the existance of ml_exns to handle the exceptions? I don't think so, I think no one verifies if the "ml_" version of a type exists...*)
+(**)
+
 (*Path.t -> coq_env -> coq_term_desc*)
 let find_terms (p : Path.t) (vars : coq_env) = 
   try (Path.Map.find p vars.term_map)
