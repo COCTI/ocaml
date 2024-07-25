@@ -82,7 +82,7 @@ let main argv ppf =
           revd (extracted_output));
       Warnings.check_fatal ();
     end
-    else if not !Compenv.stop_early && !objfiles <> [] then begin
+    else if not !Compenv.stop_early && !objfiles <> [] && not !Clflags.compile_to_coq then begin
       let target =
         if !output_c_object && not !output_complete_executable then
           let s = Compenv.extract_output !output_name in
@@ -103,7 +103,7 @@ let main argv ppf =
       Bytelink.link (Compenv.get_objfiles ~with_ocamlparam:true) target;
       Warnings.check_fatal ();
     end
-    else if !vlibfiles <> [] then begin Coqlink.emit_gallina !vlibfiles end;
+    else if not !Compenv.stop_early && !vlibfiles <> [] then begin Coqlink.emit_gallina !vlibfiles end;
   with
   | exception (Compenv.Exit_with_status n) ->
     n

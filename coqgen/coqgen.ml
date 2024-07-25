@@ -200,7 +200,9 @@ let make_vlib vars typedefs =
 
   
   let abs_path = String.concat "/" (uncapitalize_list (String.split_on_char '/' vars.absolute_path)) in
-  let vlib_channel = open_out (abs_path ^ ".vlib") in 
+  let vlib_file = abs_path ^ ".vlib" in
+  Clflags.vlibfiles := vlib_file :: !Clflags.vlibfiles;
+  let vlib_channel = open_out vlib_file in 
   output_value vlib_channel vars.type_map; 
   output_value vlib_channel term_map; 
   output_value vlib_channel typedefs; (*maybe add a dependancy list at the end of the vlib?*)
