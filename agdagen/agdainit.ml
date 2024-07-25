@@ -30,7 +30,8 @@ let xy = [CTid"x"; CTid"y"]
 
 let ctd = { ct_name = ""; ct_arity = 0; ct_args = []; ct_mlargs = [];
             ct_type = CTid ""; ct_def = None; ct_constrs = [];
-            ct_compare = None; ct_maps = []; ct_coqdef = [] }
+            ct_compare = None; ct_maps = []; ct_coqdef = [];
+            ct_isgadt = false }
 
 let init_type_map vars =
   List.fold_left
@@ -78,7 +79,7 @@ let init_type_map vars =
    (Predef.path_list, [],
     {ctd with ct_name = "ml-list";
      ct_arity = 1; ct_args = [0, "a"];
-     ct_constrs = [("[]", "[]"); ("::", "_∷_")]; (* ∷ :: ; utf-8: 0x2237 , snd one: constructor for lists *)
+     ct_constrs = [("[]", "[]"); ("::", "@cons")]; (* ∷ :: ; utf-8: 0x2237 , snd one: constructor for lists *)
      ct_type = CTapp (CTid "List", [CTid "a"]); ct_def = None;
      ct_maps = [1, "cast_list"];
      ct_compare = Some
@@ -260,18 +261,18 @@ let init_reserved =
     "length"; "List"; "String"; "Float"; "Char";
     "maybe"; "just"; "nothing"; "map′"; "no";
     "inspect"; "case"; "size"; "rcons"; "nth";
-    "ncons"; "set-nth"; "nth-opt"; "array-t"; 
+    "ncons"; "set-nth"; "nth-opt"; "array-t";
     "comparator"; "compare-int"; "compare-bool";
-    "compare-ascii"; "compare-float"; "eq-ind"; 
+    "compare-ascii"; "compare-float"; "eq-ind";
     "up3"; "up4"; "up5"; "up6";
     "compare-integer"; "compare-string"; "W0";
-    "M0"; "ENV"; "EFmonad"; "loc-b"; "eqType"; 
+    "M0"; "ENV"; "EFmonad"; "loc-b"; "eqType";
     "eqPc"; "eq-rect"; "MLTY"; "bind-ext";
-    "M"; "Res"; "Raise"; "Fail"; "K"; 
+    "M"; "Res"; "Raise"; "Fail"; "K";
     "coq-type"; "ml-type"; "Eq"; "Lt"; "Gt";
-    "it"; "Restart"; 
-    "T1"; "T2"; "A"; "B"; "C"; "D"; "E"; "F"; 
-    "u1"; "u2"; "u3"; "v1"; "v2"; "v3" ]
+    "it"; "Restart";
+    "T1"; "T2"; "T3"; "T4"; "T5"; "T6"; "A"; "B"; "C"; "D"; "E"; "F";
+    "u1"; "u2"; "u3"; "v1"; "v2"; "v3"; "T"]
 
 let init_vars =
   init_type_map (

@@ -23,14 +23,23 @@ let rec iota m n = if n <= 0 then [] else m :: iota (m+1) (n-1)
 let iota_names m n t =
   List.map (fun i -> t ^ string_of_int i) (iota m n)
 
+let get_type_bindings vars =
+  let ty_map = Path.Map.bindings vars.type_map in
+  let rec remove_gadts tys = match tys with
+    | [] -> []
+    | (a, ctd) :: q -> if ctd.ct_isgadt
+        then remove_gadts q
+        else (a, ctd) :: remove_gadts q
+  in remove_gadts ty_map
+
 let make_ml_type vars =
   let cases =
     List.map
       (fun (_, ctd) ->
-        ctd.ct_name,
-        List.map (fun _ -> "_", ml_tid) (iota 0 ctd.ct_arity),
-        None)
-      (Path.Map.bindings vars.type_map)
+         ctd.ct_name,
+         List.map (fun _ -> "_", ml_tid) (iota 0 ctd.ct_arity),
+         None)
+      (get_type_bindings vars)
   in
   CTinductive [{ name = ml_type; args = []; kind = CTsort Set; cases }]
 
@@ -47,7 +56,7 @@ let make_coq_type vars =
       coq_term_subst subs ctd.ct_type
     in lhs, rhs
   in
-  let cases = List.map make_case (Path.Map.bindings vars.type_map) in
+  let cases = List.map make_case (get_type_bindings vars) in
   CTfixpoint ("coq-type",
               CTabs ("T", Some ml_tid,
                      CTann (CTmatch (CTid "T", None, cases), CTsort Type)))
@@ -60,8 +69,8 @@ let make_coq_type vars =
 let cis c i = if i <= 0 then "" else " " ^ String.concat " " (iota_names 1 i c)
 
 let rec repro n s = match n with
-	| 0 -> ""
-	| n -> s ^ repro (n-1) s
+  | 0 -> ""
+  | n -> s ^ repro (n-1) s
 
 let xyi i = let i_str = string_of_int i in Format.sprintf "x%s y%s" i_str i_str
 
@@ -69,56 +78,56 @@ let xis = cis "x"
 let yis = cis "y"
 let ais = cis "a"
 
-let cons_eq ppf arity = 
-	let rec cons_eq_aux arity ppf i = match arity with
-		| 0 -> Format.fprintf ppf "Ret Eq"
-		| 1 -> Format.fprintf ppf "@[compare-rec h %s@]" (xyi i)
-		| n -> Format.fprintf ppf "@,@[<v1>lexi-compare (compare-rec h %s)@,@[<v2>(Delay (%a))@]@]" 
-				 (xyi i) (cons_eq_aux (n-1)) (i+1) in
-	Format.fprintf ppf "%a" (cons_eq_aux arity) 1
+let cons_eq ppf arity =
+  let rec cons_eq_aux arity ppf i = match arity with
+    | 0 -> Format.fprintf ppf "Ret Eq"
+    | 1 -> Format.fprintf ppf "@[compare-rec h %s@]" (xyi i)
+    | n -> Format.fprintf ppf "@,@[<v1>lexi-compare (compare-rec h %s)@,@[<v2>(Delay (%a))@]@]"
+	     (xyi i) (cons_eq_aux (n-1)) (i+1) in
+  Format.fprintf ppf "%a" (cons_eq_aux arity) 1
 
-let make_one_line arity ppf name = 
-	let xs = xis arity in
-	let ys = yis arity in
-	Format.fprintf ppf "@[<v2>(%s%s , %s%s) → %a@]" name xs name ys cons_eq arity
+let make_one_line arity ppf name =
+  let xs = xis arity in
+  let ys = yis arity in
+  Format.fprintf ppf "@[<v2>(%s%s , %s%s) → %a@]" name xs name ys cons_eq arity
 
-let cons_not_eq arity ppf name = 
-	Format.fprintf ppf "@[<v>; (%s%s , _) → Ret Lt@,; (_ , %s%s) → Ret Gt@]" name (repro arity " _") name (repro arity " _")
+let cons_not_eq arity ppf name =
+  Format.fprintf ppf "@[<v>; (%s%s , _) → Ret Lt@,; (_ , %s%s) → Ret Gt@]" name (repro arity " _") name (repro arity " _")
 
 let cr_left typ_arity ppf typ_name =
-	Format.fprintf ppf "compare-rec (suc h) {%s%s} =@,@[<v2>λ x y → case x , y of λ {@," typ_name (ais typ_arity)
+  Format.fprintf ppf "compare-rec (suc h) {%s%s} =@,@[<v2>λ x y → case x , y of λ {@," typ_name (ais typ_arity)
 
-let cr_one_type typ_name typ_arity ppf cases = 
-	Format.fprintf ppf "@[<v2>%a@[<v>" (cr_left typ_arity) typ_name;
-	let sep = ref "" in
-	let size = List.length cases in
-	let _ = List.mapi
-	(fun i (name, args) ->
-		let arity = List.length args in
-			Format.fprintf ppf "%s%a@," !sep (make_one_line arity) name;
-			if i <> (size - 1) then (* for the last constructor these lines would result in unreachable clauses *)
-				(sep := "; ";
-				Format.fprintf ppf "%a@," (cons_not_eq arity) name))
-	cases in
-	Format.fprintf ppf "}@]@]@]"
+let cr_one_type typ_name typ_arity ppf cases =
+  Format.fprintf ppf "@[<v2>%a@[<v>" (cr_left typ_arity) typ_name;
+  let sep = ref "" in
+  let size = List.length cases in
+  let _ = List.mapi
+      (fun i (name, args) ->
+	 let arity = List.length args in
+	 Format.fprintf ppf "%s%a@," !sep (make_one_line arity) name;
+	 if i <> (size - 1) then (* for the last constructor these lines would result in unreachable clauses *)
+	   (sep := "; ";
+	    Format.fprintf ppf "%a@," (cons_not_eq arity) name))
+      cases in
+  Format.fprintf ppf "}@]@]@]"
 
-let make_case_ag z = 
-	let (_, ctd) = z in
-	match ctd, ctd.ct_def with
-		| _, None -> ""
-		| _, Some(_, []) -> ""
-		| ctd, Some (_, cases) ->
-			match ctd.ct_name with
-				| "ml-int" | "ml-char" | "ml-float" |
-"ml-bool" | "ml-unit" | "ml-array" |
-"ml-list" | "ml-lazy" | "ml-string" | "ml-array-t" | 
-"ml-lazy-val" | "ml-ref" | "ml-arrow" -> ""
-				| _ -> Format.asprintf "%a@," (cr_one_type ctd.ct_name ctd.ct_arity) cases
+let make_case_ag z =
+  let (_, ctd) = z in
+  match ctd, ctd.ct_def with
+  | _, None -> ""
+  | _, Some(_, []) -> ""
+  | ctd, Some (_, cases) ->
+      match ctd.ct_name with
+      | "ml-int" | "ml-char" | "ml-float" |
+        "ml-bool" | "ml-unit" | "ml-array" |
+        "ml-list" | "ml-lazy" | "ml-string" | "ml-array-t" |
+        "ml-lazy-val" | "ml-ref" | "ml-arrow" -> ""
+      | _ -> Format.asprintf "%a@," (cr_one_type ctd.ct_name ctd.ct_arity) cases
 
-let make_compare_rec_ag vars = 
-	String.concat "" (List.map make_case_ag (Path.Map.bindings vars.type_map))
+let make_compare_rec_ag vars =
+  String.concat "" (List.map make_case_ag (get_type_bindings vars))
 
-let comprec_const =  
+let comprec_const =
 	CTverbatim ("compare-rec : (h : ℕ) {T : ml-type}\
 @,  → coq-type T -> coq-type T -> M comparator\
 @,compare-rec ℕ.zero {T} x y = FailGas\
@@ -196,15 +205,15 @@ let deps_inductive ind =
   let vars = List.map coq_vars types in
   (ind.name, List.fold_left Names.union Names.empty vars)
 
-let make_proof vars = 
-	let rec get_names_and_arities ctds = match ctds with
-		| [] -> []
-		| ( _, x ) :: q -> (x.ct_name, x.ct_arity) :: (get_names_and_arities q) in
-	let ctds = Path.Map.bindings vars.type_map in
-	let ctdN_ctdA_list = get_names_and_arities ctds in
-	gen_proof ctdN_ctdA_list
+let make_proof vars =
+  let rec get_names_and_arities ctds = match ctds with
+    | [] -> []
+    | ( _, x ) :: q -> (x.ct_name, x.ct_arity) :: (get_names_and_arities q) in
+  let ctds = get_type_bindings vars in
+  let ctdN_ctdA_list = get_names_and_arities ctds in
+  gen_proof ctdN_ctdA_list
 
-(*let indent_induct n induct = let space = repro n " " in 
+(*let indent_induct n induct = let space = repro n " " in
 	{name = space ^ (induct.name); args = induct.args; kind = induct.kind;
       cases = List.map (fun (s, l1, cto) -> (space ^ s), l1, cto) (induct.cases)}
 
@@ -216,12 +225,12 @@ let remove_type path vars =
   { vars with
     type_map = Path.Map.remove path vars.type_map}
 
-let transl_implementation _modname st =
-  let cmds, vars = transl_structure ~vars:init_vars st.str_items in
+let transl_implementation _modname st  =
+  let cmds, vars = transl_structure ~vars:init_vars st.str_items ~final_env: st.str_final_env in
   let typedefs, cmds =
     List.partition (function CTinductive _ -> true | _ -> false) cmds
   in
-  let typedefs = typedefs @ [inductive_of_exn vars] in 
+  let typedefs = typedefs @ [inductive_of_exn vars] in
   let inductives =
     List.flatten
       (List.map (function CTinductive ind -> ind | _ -> assert false) typedefs)
@@ -255,7 +264,7 @@ let transl_implementation _modname st =
 @,open import Data.Integer using (ℤ; _+_; _-_; _*_; +_; -_)\
 @,open import Data.Integer.DivMod using (_/_)\
 @,open import Function.Base using (case_of_)\
-@,@,-- Generated representation of all ML types" :: 
+@,@,-- Generated representation of all ML types" ::
   make_ml_type vars_no_mlarray ::
   CTverbatim "\
 @[<v2>variable\
@@ -277,7 +286,7 @@ let transl_implementation _modname st =
 @,@[<v2>module MLtypes-aux (M : Set → Set) where\
 @,-- Generated type definitions\
 @,\
-loc = loc-b ml-type" :: 
+loc = loc-b ml-type" ::
   typedefs @ (* Indentation to handle *)
   CTverbatim "\
 @[<v 2>data lazy-val (a : Set) : Set where\
@@ -319,13 +328,14 @@ MLtypes : MLTY\
 @,@[<v>"
   (*@,postulate compare-rec : (h : ℕ) (T : ml-type)\
   → coq-type T -> coq-type T -> M comparator*) ::
-  comprec_const :: 
+  comprec_const ::
   CTverbatim (make_compare_rec_ag vars_no_mlarray) ::
   CTverbatim "@]\
 ml-compare = compare-rec\
 @,\
 @,wrap-compare : (comparator → Bool) → (h : ℕ) → (T : ml-type) → coq-type T → coq-type T → M Bool\
-@,wrap-compare wrap h T x y = Do c ← compare-rec h {T} x y // Ret (wrap c)\
+@,wrap-compare wrap h T x y = do c ← compare-rec h {T} x y\
+@,                               Ret (wrap c)\
 @,\
 @,ml-eq = wrap-compare (λ {Eq → true ; _ → false })\
 @,ml-lt = wrap-compare (λ {Lt → true ; _ → false })\
@@ -339,43 +349,47 @@ ml-compare = compare-rec\
 @,nat-of-int (ℤ.negsuc n) = Raise BoundedNat\
 @,\
 @,newarray : (T : ml-type) → ℤ → (x : coq-type T) → M (loc (ml-array-t T))\
-@,newarray T len x = Do len ← nat-of-int len // cnew (ml-array-t T) (ArrayVal (ncons len x))\
+@,newarray T len x = do len ← nat-of-int len\
+@,                      cnew (ml-array-t T) (ArrayVal (ncons len x))\
 @,\
 @,bounded-nat-of-int : ℕ → ℤ → M ℕ\
-@,bounded-nat-of-int m n = Do n ← nat-of-int n // case (n ℕ<? m) of λ {\
-@,                (yes _) → Ret n ;\
-@,                _ → Raise BoundedNat }\
+@,bounded-nat-of-int m n = do n ← nat-of-int n\
+@,                            case (n ℕ<? m) of λ {\
+@,                              (yes _) → Ret n ;\
+@,                              _ → Raise BoundedNat }\
 @,\
 @,getarray : (T : ml-type) → (a : coq-type (ml-array T)) → (n : ℤ) → M (coq-type T)\
-@,getarray T a n = Do s ← cget (ml-array-t T) a // case s of λ {\
-@,                      (ArrayVal u) → Do n ← bounded-nat-of-int (length u) n //\
-@,                        case u of λ {\
-@,                          [] → raise T (Invalid-argument \"getarray\") ;\
-@,                          (x ∷ q) → Ret (nth x u n) } }\
+@,getarray T a n = do s ← cget (ml-array-t T) a\
+@,                    case s of λ {\
+@,                      (ArrayVal u) → do n ← bounded-nat-of-int (length u) n\
+@,                                        case u of λ {\
+@,                                          [] → raise T (Invalid-argument \"getarray\") ;\
+@,                                          (x ∷ q) → Ret (nth x u n) } }\
 @,\
 @,setarray : (T : ml-type) → (a : coq-type (ml-array T)) → (n : ℤ) → (coq-type T) → M ⊤\
-@,setarray T a n x = Do s ← cget (ml-array-t T) a //\
+@,setarray T a n x = do s ← cget (ml-array-t T) a\
 @,                      case s of λ {\
-@,                        (ArrayVal u) → Do n ← bounded-nat-of-int (length u) n //\
-@,                          cput (ml-array-t T) a (ArrayVal (set-nth x u n x)) }\
+@,                        (ArrayVal u) → do n ← bounded-nat-of-int (length u) n\
+@,                                          cput (ml-array-t T) a (ArrayVal (set-nth x u n x)) }\
 @,\
 @,-- Lazy values\
 @,force : (a : ml-type) → (lz : coq-type (ml-lazy a)) → M (coq-type a)\
 @,force a (Lval x) = Ret x\
-@,force a (Lref r) = Do r' ← cget (ml-lazy-val a) r //\
-@,                           (case r' of λ {\
-@,                               (LzVal x) → Ret x ;\
-@,                               (LzExn e) → raise _ e ;\
-@,                               (LzThunk f) → let ff : M (coq-type a)\
-@,                                                 ff = f in\
-@,                                                    handle _ (Do x ← ff //\
-@,                                                       Do _ ← cput (ml-lazy-val a) r (LzVal x) //\
-@,                                                       Ret x)\
-@,                                                       (λ e → Do _ ← cput _ r (LzExn e) //\
-@,                                                              raise _ e) })\
+@,force a (Lref r) = do r' ← cget (ml-lazy-val a) r\
+@,                      (case r' of λ {\
+@,                         (LzVal x) → Ret x ;\
+@,                         (LzExn e) → raise _ e ;\
+@,                         (LzThunk f) → let ff : M (coq-type a)\
+@,                                           ff = f in\
+@,                                              handle _ (do x ← ff\
+@,                                                           do _ ← cput (ml-lazy-val a) r (LzVal x)\
+@,                                                              Ret x)\
+@,                                                       (λ e → do _ ← cput _ r (LzExn e)\
+@,                                                                 raise _ e) })\
 @,\
 @,make-lazy : (a : ml-type) (b : M (coq-type a)) → M (coq-type (ml-lazy a))\
-@,make-lazy a b = Do x ← cnew (ml-lazy-val a) (LzThunk b) // Ret (Lref x)\
+@,make-lazy a b = do x ← cnew (ml-lazy-val a) (LzThunk b)\
+@,                   Ret (Lref x)\
 @,\
 @,make-lazy-val : (a : ml-type) (b : coq-type a) → coq-type (ml-lazy a)\
 @,make-lazy-val a b = Lval b\

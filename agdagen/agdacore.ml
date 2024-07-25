@@ -114,7 +114,7 @@ let rec insert_guard ct =
 let string_of_constant ~loc = function
   | Const_int x ->
       let s = string_of_int (abs x) in
-      if x < 0 then "(- " ^ s ^ ")" else "(+ " ^ s ^")"
+      if x < 0 then "(-(+ " ^ s ^ "))" else "(+ " ^ s ^")"
   | Const_float x ->
       let x = if x.[String.length x-1] = '.' then x ^ "0" else x in
       let s = x in
@@ -213,14 +213,14 @@ let transl_ident ~loc ~vars ~is_cons env desc ct ty =
     in
     let args =
       if desc.ce_rec = Recursive then CTid"h" :: args else args in
-    if is_cons 
+    if is_cons
     then {pterm = ctapp f []; prec = desc.ce_rec; pary = desc.ce_purary}
     else {pterm = ctapp f args; prec = desc.ce_rec; pary = desc.ce_purary}
 
 let rec fun_arity e =
   match e.exp_desc with
   | Texp_function
-    {cases=[{c_lhs={pat_desc=(Tpat_var _|Tpat_any)};c_guard=None;c_rhs}]} ->
+      {cases=[{c_lhs={pat_desc=(Tpat_var _|Tpat_any)};c_guard=None;c_rhs}]} ->
       1 + fun_arity c_rhs
   | Texp_function _ -> 1
   | _ -> 0
@@ -228,9 +228,31 @@ let rec fun_arity e =
 let abstract_recursive ct =
   CTabs ("h", Some (CTid"ℕ"), ct)
 
+
+
 let rec transl_exp ~vars e =
   let loc = e.exp_loc in
   close_type e.exp_type;
+  let vars = List.fold_left
+      (fun vs extra -> match extra with
+         | (Texp_newtype id, _, _) ->
+             let tvars = vs.tvar_map in
+             let _, name =
+               try Btype.TypeMap.find_first (fun ty -> match get_desc (Transient_expr.type_expr ty) with
+                   | Tvar (Some name) -> name = Ident.name id
+                   | _ -> false) tvars
+               with Not_found -> not_allowed ~loc
+                                   ("This newtype " ^ Ident.name id ^ "is not abstracted, this is") in
+             let ctd = { ct_name = name; ct_arity = 0; ct_args = [];
+                         ct_mlargs = []; ct_coqdef = []; ct_type = CTid name;
+                         ct_def = None; ct_compare = None; ct_constrs = [];
+                         ct_maps = []; ct_isgadt = false } in
+             add_type (Path.Pident id) ctd vs
+         | _ -> vs)
+      vars
+      e.exp_extra in
+  (* list.fold_left vars
+     pour chaque element dans e.exp_extra, s'il y a une string dedans, on crée une coq_type_desc avec cette variable comme nom *)
   match e.exp_desc with
   | Texp_ident (path, _, _) ->
       let desc =
@@ -250,13 +272,13 @@ let rec transl_exp ~vars e =
       let vars =
         List.fold_right
           (fun (id, desc) vars ->
-            match id with
-            | Some id ->
-                let desc =
-                  if desc.ce_purary = 0 then {desc with ce_purary = 1}
-                  else desc in
-                add_term (Path.Pident id) desc vars
-            | None -> vars)
+             match id with
+             | Some id ->
+                 let desc =
+                   if desc.ce_purary = 0 then {desc with ce_purary = 1}
+                   else desc in
+                 add_term (Path.Pident id) desc vars
+             | None -> vars)
           id_descs
           vars
       in
@@ -278,14 +300,14 @@ let rec transl_exp ~vars e =
             let pbody =
               List.fold_right
                 (fun (_,{ce_name; ce_purary}) pbody ->
-                  if ce_purary <> 0 then pbody else
-                  {pbody with pterm =
-                   ctBind (CTid ce_name) (CTabs (ce_name, None, pbody.pterm))})
+                   if ce_purary <> 0 then pbody else
+                     {pbody with pterm =
+                                   ctBind (CTid ce_name) (CTabs (ce_name, None, pbody.pterm))})
                 id_descs pbody in
             let v = fresh_name ~vars "v" in
             {pbody with pterm =
-             ctBind ct (CTabs (v, None,
-                               CTmatch (CTid v, None, [pat, pbody.pterm])))}
+                          ctBind ct (CTabs (v, None,
+                                            CTmatch (CTid v, None, [pat, pbody.pterm])))}
           else
             {pbody with pterm = CTmatch (ct, None, [pat, pbody.pterm])}
       end
@@ -328,30 +350,30 @@ let rec transl_exp ~vars e =
       let args, binds, vars =
         List.fold_right
           (fun ct (args, binds, vars) ->
-            if ct.pary >= 1 then
-              ((shrink_purary ~vars ct 1).pterm :: args, binds, vars)
-            else
-              let v = fresh_name ~vars "v" in
-              (CTid v :: args, (v, ct.pterm) :: binds, add_reserved v vars))
+             if ct.pary >= 1 then
+               ((shrink_purary ~vars ct 1).pterm :: args, binds, vars)
+             else
+               let v = fresh_name ~vars "v" in
+               (CTid v :: args, (v, ct.pterm) :: binds, add_reserved v vars))
           ctl ([],[],vars)
       in
       let ct =
         if ct.pary >= List.length args then
           {pterm = ctapp ct.pterm args; prec; pary = ct.pary - List.length args}
         else let args1, args2 = cut ct.pary args in
-        let ct1 = ctapp ct.pterm args1 in
-        {pterm =
-         List.fold_left (fun ct1 arg -> CTapp (CTid"AppM", [ct1; arg]))
-           ct1 args2;
-         prec; pary = 0}
+          let ct1 = ctapp ct.pterm args1 in
+          {pterm =
+             List.fold_left (fun ct1 arg -> CTapp (CTid"AppM", [ct1; arg]))
+               ct1 args2;
+           prec; pary = 0}
       in
       if binds = [] then ct else
-      List.fold_left
-        (fun ct (v,arg) ->
-          {ct with pterm = ctBind arg (CTabs (v,None,ct.pterm))})
-        (nullary ~vars ct) binds
+        List.fold_left
+          (fun ct (v,arg) ->
+             {ct with pterm = ctBind arg (CTabs (v,None,ct.pterm))})
+          (nullary ~vars ct) binds
   | Texp_construct (_, cd, []) ->
-     let ct, name, tl = find_constructor ~loc ~vars cd in
+      let ct, name, tl = find_constructor ~loc ~vars cd in
       (*let ct, name, _ = find_constructor ~loc ~vars cd in*)
       let ce =
         {ce_name = name;
@@ -390,7 +412,7 @@ let rec transl_exp ~vars e =
         let ct1 = nullary ~vars ct1
         and ct2 = nullary ~vars ct2 in
         {pterm =
-         ctBind ct.pterm (CTabs (v, None, CTif (CTid v, ct1.pterm, ct2.pterm)));
+           ctBind ct.pterm (CTabs (v, None, CTif (CTid v, ct1.pterm, ct2.pterm)));
          pary = 0; prec}
       else
         let pary = min ct1.pary ct2.pary in
@@ -403,54 +425,54 @@ let rec transl_exp ~vars e =
       let ct = nullary ~vars ct
       and ct1 = nullary ~vars ct1  in
       {pterm =
-        ctapp (CTid "whileloop") [CTid "h";ct.pterm; ct1.pterm];
-        prec = Recursive; pary = 0}
+         ctapp (CTid "whileloop") [CTid "h";ct.pterm; ct1.pterm];
+       prec = Recursive; pary = 0}
   | Texp_for (pram, _, low, high, dir, body) ->
-    let ct = transl_exp ~vars low
-    and ct1 = transl_exp ~vars high in
-    let ti = Ctype.generic_instance Predef.type_int in
-    let (name, vars) = add_pat_variable ~vars pram ti in
-    let ct2 = transl_exp ~vars body in
-    let ct = nullary ~vars ct
-    and ct1 = nullary ~vars ct1
-    and ct2 = nullary ~vars ct2 in
-    let u = fresh_name ~vars "u" in
-    let vars = add_reserved u vars in
-    let v = fresh_name ~vars "v" in
-    let x = if dir = Upto then "forloop" else "downforloop" in
+      let ct = transl_exp ~vars low
+      and ct1 = transl_exp ~vars high in
+      let ti = Ctype.generic_instance Predef.type_int in
+      let (name, vars) = add_pat_variable ~vars pram ti in
+      let ct2 = transl_exp ~vars body in
+      let ct = nullary ~vars ct
+      and ct1 = nullary ~vars ct1
+      and ct2 = nullary ~vars ct2 in
+      let u = fresh_name ~vars "u" in
+      let vars = add_reserved u vars in
+      let v = fresh_name ~vars "v" in
+      let x = if dir = Upto then "forloop" else "downforloop" in
       {pterm =
-        ctBind ct.pterm (CTabs (u, None,
-        ctBind ct1.pterm (CTabs (v, None,
-          ctapp (CTid x) [CTid u; CTid v;
-                          CTabs (name, None, ct2.pterm)]))));
-        prec = ct2.prec; pary = 0}
+         ctBind ct.pterm (CTabs (u, None,
+                                 ctBind ct1.pterm (CTabs (v, None,
+                                                          ctapp (CTid x) [CTid u; CTid v;
+                                                                          CTabs (name, None, ct2.pterm)]))));
+       prec = ct2.prec; pary = 0}
   | Texp_lazy e ->
-    let ct = transl_exp ~vars e in
-    let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in
-    if ct.pary = 0 then 
-      {ct with pterm = ctapp (CTid "make-lazy") [cty; ct.pterm]}
-    else
-      let ct = shrink_purary ~vars ct 1 in
-      {pterm = ctapp (CTid "make-lazy-val") [cty; ct.pterm];
-       pary = 1; prec = ct.prec}
+      let ct = transl_exp ~vars e in
+      let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in
+      if ct.pary = 0 then
+        {ct with pterm = ctapp (CTid "make-lazy") [cty; ct.pterm]}
+      else
+        let ct = shrink_purary ~vars ct 1 in
+        {pterm = ctapp (CTid "make-lazy-val") [cty; ct.pterm];
+         pary = 1; prec = ct.prec}
   | Texp_match (e, cases, partial) ->
       let ct = transl_exp ~vars e in
       transl_match ~vars ct cases partial
   | Texp_try (e1, cases) ->
       let ct = transl_exp ~vars e1 in
       if ct.pary > 0 then ct else
-      let v = fresh_name ~vars "v" in
-      let vars = add_reserved v vars in
-      let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in
-      let failed = ctapp (CTid"raise") [cty; CTid "v"] in
-      let ct1 = {pterm = CTid v; prec = Nonrecursive; pary = 1} in
-      let cases =
-        List.map (fun c -> {c with c_lhs = as_computation_pattern c.c_lhs})
-          cases in
-      let cm = transl_match ~vars ~failed ct1 cases Partial in
-      let prec = if ct.prec = Recursive then Recursive else cm.prec in
-      {prec; pary = 0;
-       pterm = ctapp (CTid"handle") [cty; ct.pterm; CTabs (v, None, cm.pterm)]}
+        let v = fresh_name ~vars "v" in
+        let vars = add_reserved v vars in
+        let cty = transl_type ~loc ~env:e.exp_env ~vars e.exp_type in
+        let failed = ctapp (CTid"raise") [cty; CTid "v"] in
+        let ct1 = {pterm = CTid v; prec = Nonrecursive; pary = 1} in
+        let cases =
+          List.map (fun c -> {c with c_lhs = as_computation_pattern c.c_lhs})
+            cases in
+        let cm = transl_match ~vars ~failed ct1 cases Partial in
+        let prec = if ct.prec = Recursive then Recursive else cm.prec in
+        {prec; pary = 0;
+         pterm = ctapp (CTid"handle") [cty; ct.pterm; CTabs (v, None, cm.pterm)]}
   | Texp_function {arg_label = Nolabel; param; cases; partial} ->
       let pat, exp =
         match cases with
@@ -474,12 +496,12 @@ and transl_match ~vars ?(failed=CTid"FailGas") ct cases partial =
   let ccases = List.map (transl_cases ~vars) cases in
   let lhs, ctl = List.split ccases in
   let prec =
-    if List.exists (fun ct -> ct.prec = Recursive) (ct :: ctl)	
+    if List.exists (fun ct -> ct.prec = Recursive) (ct :: ctl)
     then Recursive else Nonrecursive
   in
   let pary =
     if partial = Partial then 0 else
-    List.fold_left (fun pary ct -> min pary ct.pary) ct.pary ctl in
+      List.fold_left (fun pary ct -> min pary ct.pary) ct.pary ctl in
   let ctl =
     List.map2 (fun (_, vars) ct -> (shrink_purary ~vars ct pary).pterm)
       lhs ctl
@@ -502,6 +524,7 @@ and transl_cases ~vars case =
   ((ct_lhs, vars), ct_rhs)
 
 and transl_binding ~vars ~rec_flag vb =
+  let open Format in
   let name, id =
     match vb.vb_pat.pat_desc with
       Tpat_any -> "_", None
@@ -527,9 +550,9 @@ and transl_binding ~vars ~rec_flag vb =
   let ct_typed = transl_exp_type ~vars ct vb.vb_expr in
 
   let ct = (match ct.pterm with
-  	| CTabs (_,_,_) -> ct
-  	| _ -> ct_typed) in
-  
+      | CTabs (_,_,_) -> eprintf "@.ICI:[%s]@." name; ct
+      | _ -> eprintf "@.LA: [%s]@." name; ct_typed) in
+
   let ct, desc, prec =
     match rec_flag with
     | Recursive ->
@@ -539,8 +562,8 @@ and transl_binding ~vars ~rec_flag vb =
         ct.pterm, {desc with ce_purary = ct.pary}, ct.prec
   in
   let ct =
-     List.fold_right (fun tv ct -> CTabs (tv, Some ml_tid, ct))
-       fvar_names ct in
+    List.fold_right (fun tv ct -> CTabs (tv, Some ml_tid, ct))
+      fvar_names ct in
   let ct =
     if rec_flag = Recursive then abstract_recursive ct else ct in
   Format.eprintf "purary after binding : %d@." desc.ce_purary;
@@ -551,50 +574,50 @@ let apply_recursive rec_flag ct =
   if rec_flag = Nonrecursive then ct else
   coq_term_subst (Vars.add "h" (CTid"100000") Vars.empty) ct
 *)
-	
+
 let close_top ~vars ~ce_vars pt =
   let fvars = coq_vars pt.pterm in
   let is_pure =
     pt.pary > 0 && Names.disjoint fvars (Names.of_list vars.top_exec) in
   if is_pure then pt else
-  let fvars = coq_vars pt.pterm in
-  let close pt =
-    List.fold_left
-      (fun pt v ->
-        if not (Names.mem v fvars) then pt else
-        let bound_ct = ctBind (CTapp (CTid"FromW",[CTid v])) (CTabs (v, None, pt.pterm)) in
-        let ct = match pt.pterm with
-        		| CTann(_, CTapp(CTid"W", [cty])) -> CTann( bound_ct , CTapp(CTid"M", [cty]))
-        		| _ -> bound_ct in
-        {pt with pterm = ct})
-      pt vars.top_exec in
-  let rec push pt =
-    let n = pt.pary in
-    match pt.pterm with
-    | CTabs (id, t, ct) when n > 0 -> let n' =
-          if t = Some (CTid "ℕ") || t = Some (CTid "ml-type") 
-          then n
-          else n-1 in
-        let pt = push {pt with pterm = ct; pary = n'} in
-        {pt with pterm = CTabs (id, t, pt.pterm);
-         pary = pt.pary + n - n'}
-    | CTann (ct1, ty) when n = 0 -> let pt = push {pt with pterm = ct1} in
-        {pt with pterm = CTann (pt.pterm, ty)}
-    (*| CTann _ -> Format.eprintf "BIG PURARY"; close (nullary ~vars pt)*)
-    | _ -> close (nullary ~vars pt)
-  in
-  let pt = push pt in
-  if pt.pary > 0 then pt else
-  (* need to execute *)
-  let pt =
-    if ce_vars = [] then pt else
-    {pt with pterm =
-     ctapp pt.pterm (List.map (fun _ -> CTid "ml-empty") ce_vars)}
-  in
-  let it = List.hd vars.top_exec in
-  {pt with pterm = ctapp (CTid "Restart") [CTid it; pt.pterm]}
+    let fvars = coq_vars pt.pterm in
+    let close pt =
+      List.fold_left
+        (fun pt v ->
+           if not (Names.mem v fvars) then pt else
+             let bound_ct = ctBind (CTapp (CTid"FromW",[CTid v])) (CTabs (v, None, pt.pterm)) in
+             let ct = match pt.pterm with
+               | CTann(_, CTapp(CTid"W", [cty])) -> CTann( bound_ct , CTapp(CTid"M", [cty]))
+               | _ -> bound_ct in
+             {pt with pterm = ct})
+        pt vars.top_exec in
+    let rec push pt =
+      let n = pt.pary in
+      match pt.pterm with
+      | CTabs (id, t, ct) when n > 0 -> let n' =
+                                          if t = Some (CTid "ℕ") || t = Some (CTid "ml-type")
+                                          then n
+                                          else n-1 in
+          let pt = push {pt with pterm = ct; pary = n'} in
+          {pt with pterm = CTabs (id, t, pt.pterm);
+                   pary = pt.pary + n - n'}
+      | CTann (ct1, ty) when n = 0 -> let pt = push {pt with pterm = ct1} in
+          {pt with pterm = CTann (pt.pterm, ty)}
+      (*| CTann _ -> Format.eprintf "BIG PURARY"; close (nullary ~vars pt)*)
+      | _ -> close (nullary ~vars pt)
+    in
+    let pt = push pt in
+    if pt.pary > 0 then pt else
+      (* need to execute *)
+      let pt =
+        if ce_vars = [] then pt else
+          {pt with pterm =
+                     ctapp pt.pterm (List.map (fun _ -> CTid "ml-empty") ce_vars)}
+      in
+      let it = List.hd vars.top_exec in
+      {pt with pterm = ctapp (CTid "Restart") [CTid it; pt.pterm]}
 
-let rec transl_structure ~vars = function
+let rec transl_structure ~vars ~final_env = function
     [] -> ([], vars)
   | it :: rem -> match it.str_desc with
     | Tstr_eval (e, _) ->
@@ -604,7 +627,7 @@ let rec transl_structure ~vars = function
         let pt = transl_exp_type ~vars pt e in
         let pt = close_top ~vars ~ce_vars:[] pt in
         if pt.pary > 0 then
-          let cmds, vars = transl_structure ~vars rem in
+          let cmds, vars = transl_structure ~vars ~final_env rem in
           (CTeval pt.pterm :: cmds, vars)
         else
           let name = fresh_name ~vars "it" in
@@ -614,12 +637,12 @@ let rec transl_structure ~vars = function
             {ce_name = name; ce_rec = Nonrecursive; ce_purary = 0;
              ce_type = e.exp_type; ce_vars = []} in
           let vars = add_term ~toplevel:true (Path.Pident id) desc vars in
-          let cmds, vars = transl_structure ~vars rem in
+          let cmds, vars = transl_structure ~vars ~final_env rem in
           (CTdefinition (name, pt.pterm, true) :: cmds, vars)
     | Tstr_value (rec_flag, [vb]) ->
         let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
         let pt = close_top ~vars ~ce_vars:desc.ce_vars pt in
-        (*let pt = if desc.ce_rec = Recursive then pt else transl_exp_type ~vars pt vb.vb_expr in (* added there jacques flag*)*)
+        (*let pt = if desc.ce_rec = Recursive then pt else transl_exp_type ~vars pt vb.vb_expr in *)
         let desc = {desc with ce_purary = pt.pary} in
         let name, vars' =
           match id with
@@ -629,7 +652,7 @@ let rec transl_structure ~vars = function
               desc.ce_name, add_term ~toplevel:true (Path.Pident id) desc vars
           | None -> assert false
         in
-        let cmds, vars' = transl_structure ~vars:vars' rem in
+        let cmds, vars' = transl_structure ~vars:vars' ~final_env rem in
         if desc.ce_rec = Recursive then
           if pt.pary = 0 then
             not_allowed ~loc:it.str_loc "This recursive definition"
@@ -643,13 +666,13 @@ let rec transl_structure ~vars = function
           in
           CTdefinition (name, ct, false) :: cmds, vars'
     | Tstr_type (Recursive, tds) ->
-        let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
-        let cmds, vars = transl_structure ~vars rem in
+        let def, vars = transl_typedecls ~env:final_env ~vars tds in
+        let cmds, vars = transl_structure ~vars ~final_env rem in
         (def :: cmds, vars)
     | Tstr_exception tyexn ->
         let vars =
           transl_exception ~loc:tyexn.tyexn_loc ~env:it.str_env ~vars
             tyexn.tyexn_constructor in
-        transl_structure ~vars rem
+        transl_structure ~vars ~final_env rem
     | _ ->
         not_allowed ~loc:it.str_loc "This structure item"

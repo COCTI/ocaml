@@ -20,5 +20,5 @@ type term_props = {
 }
 
 val transl_structure :
-  vars:Agdadef.coq_env ->
-  Typedtree.structure_item list -> Agdadef.vernacular list * Agdadef.coq_env
+  vars:Agdadef.coq_env -> final_env:Env.t ->
+  Typedtree.structure_item list -> Agdadef.vernacular list * Agdadef.coq_env 

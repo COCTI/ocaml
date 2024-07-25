@@ -155,6 +155,7 @@ type coq_type_desc = {
     ct_constrs: (string * string) list;
     ct_compare: coq_term option;
     ct_maps: (int * string) list;
+    ct_isgadt: bool;
   }
 
 type coq_term_desc =
@@ -253,7 +254,8 @@ let set_tvars vars (tvars, ctvars) =
   { vars with tvar_map = tvars; ctvar_map = ctvars; coq_names }
 
 let replace_8t_by_6t s =
-	String.concat "-" (String.split_on_char '_' s)
+  (* replaces OCaml's hyphen (_) by Agda's hyphen (-) *)
+  String.concat "-" (String.split_on_char '_' s)
 
 let fresh_name ~vars name =
   let name = replace_8t_by_6t name in

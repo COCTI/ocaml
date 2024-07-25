@@ -71,6 +71,7 @@ type coq_type_desc = {
     ct_constrs: (string * string) list;
     ct_compare: coq_term option;
     ct_maps: (int * string) list;
+    ct_isgadt: bool
   }
 
 type coq_term_desc = {
