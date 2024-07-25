@@ -14,7 +14,7 @@
 (**************************************************************************)
 
 val make_v :
-  Coqdef.coq_type_desc Path.Map.t (*Coqdef.coq_type_desc list*) -> Coqdef.vernacular list -> Coqdef.vernacular list 
+  (*Coqdef.coq_type_desc Path.Map.t*) Coqdef.coq_type_desc list -> Coqdef.vernacular list -> Coqdef.vernacular list 
 
 val transl_implementation :
   string -> Typedtree.structure -> (*Coqdef.vernacular list * *)Coqdef.vernacular list * string list (*the string list corresponds to the dependence list of the translated file*)

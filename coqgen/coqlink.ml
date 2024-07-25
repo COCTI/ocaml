@@ -4,11 +4,13 @@ open Coqdef
 let open_vlib (s : string) = 
   let vlib_channel = open_in s in 
   let type_map = input_value vlib_channel in
+  let type_list = List.map snd (Path.Map.bindings type_map) in
+  let type_list = List.filter (fun ctd -> ctd.ct_name <> "ml_exn") type_list in
   let _ = input_value vlib_channel in
   let typedefs = input_value vlib_channel in 
   (*let type_list = List.map (fun (_, x) -> x) (Path.Map.bindings) in*)
   close_in vlib_channel;
-  (type_map, typedefs)
+  (type_list, typedefs)
 (*just opens "s.vlib" and gets the type_map and typedefs stored in it*)
 
 let _print_inductive (i : inductive) = print_endline ("inductive : "^i.name);;
@@ -73,7 +75,7 @@ let concat_vlib (m1, t1) (m2, t2) =
   let m1 = Path.Map.remove Predef.path_exn m1 in
   let m2 = Path.Map.remove Predef.path_exn m2 in
   *)
-  let m = Path.Map.union (fun _ a _ -> Some a) m1 m2 in (*this is a source of bug, since when two types have the same name, but in different files, we might want to keep the two arguments...*)
+  let m = m1 @ m2 in (*this is a source of bug, since when two types have the same name, but in different files, we might want to keep the two arguments...*)
   (*since we made modifications on the stdlib access, there should not be any conflict anymore*)
   (*let type_list = List.map (fun (_, x) -> x) (Path.Map.bindings m) in*)
 
@@ -88,12 +90,13 @@ let concat_vlib (m1, t1) (m2, t2) =
 
 (*string list -> (Coqdef.coq_type_desc Path.Map.t) * (Coqdef.vernacular list)*)
 let rec merge_vlibs = function (*could have used fold_left here*)
-  | [] -> (Path.Map.empty, [])
+  | [] -> ([], [])
   | s :: l -> concat_vlib (open_vlib s) (merge_vlibs l)
 (*string list -> Coqdef.vernacular list*)
 let to_gallina vlib_list =
-  match (merge_vlibs vlib_list) with
-  | (type_map, typedefs) -> Coqgen.make_v (Path.Map.union (fun _ a _ -> Some a) Coqlib.lib_vars.type_map type_map) typedefs 
+  let type_list, typedefs = merge_vlibs vlib_list in
+  let std_types = List.map snd (Path.Map.bindings Coqlib.lib_vars.type_map) in
+  Coqgen.make_v (std_types @ type_list) typedefs 
 
 (*string list -> unit*)
 let emit_gallina vlib_list = 

@@ -9,24 +9,25 @@ Inductive ml_type :=
   | ml_float
   | ml_bool
   | ml_unit
-  | ml_exn
   | ml_array (_ : ml_type)
   | ml_list (_ : ml_type)
   | ml_lazy (_ : ml_type)
   | ml_string
   | ml_empty
   | ml_array_t (_ : ml_type)
+  | ml_lazy_val (_ : ml_type)
+  | ml_ref (_ : ml_type)
+  | ml_arrow (_ : ml_type) (_ : ml_type)
+  | ml_pair (_ : ml_type) (_ : ml_type)
   | ml_C_point (_ : ml_type)
+  | ml_B_point
+  | ml_A_point
   | ml_A_t1
   | ml_A_t2
   | ml_A_t3
   | ml_A_t4
   | ml_A_t5
-  | ml_A_t6
-  | ml_lazy_val (_ : ml_type)
-  | ml_ref (_ : ml_type)
-  | ml_arrow (_ : ml_type) (_ : ml_type)
-  | ml_pair (_ : ml_type) (_ : ml_type).
+  | ml_A_t6.
 
 (* Module argument for monadic functor *)
 Module MLtypes.
@@ -84,24 +85,25 @@ Fixpoint coq_type (T : ml_type) : Type :=
   | ml_float => float
   | ml_bool => bool
   | ml_unit => unit
-  | ml_exn => ml_exns
   | ml_array T1 => loc (ml_array_t T1)
   | ml_list T1 => list (coq_type T1)
   | ml_lazy T1 => lazy_t (coq_type T1) T1
   | ml_string => String.string
   | ml_empty => empty
   | ml_array_t T1 => array_t (coq_type T1)
+  | ml_lazy_val T1 => lazy_val (coq_type T1)
+  | ml_ref T1 => loc T1
+  | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
+  | ml_pair T1 T2 => prod (coq_type T1) (coq_type T2)
   | ml_C_point T1 => C_point (coq_type T1)
+  | ml_B_point => B_point
+  | ml_A_point => A_point
   | ml_A_t1 => A_t1
   | ml_A_t2 => A_t2
   | ml_A_t3 => A_t3
   | ml_A_t4 => A_t4
   | ml_A_t5 => A_t5
   | ml_A_t6 => A_t6
-  | ml_lazy_val T1 => lazy_val (coq_type T1)
-  | ml_ref T1 => loc T1
-  | ml_arrow T1 T2 => coq_type T1 -> M (coq_type T2)
-  | ml_pair T1 T2 => prod (coq_type T1) (coq_type T2)
   end.
 
 End with_monad.
@@ -127,18 +129,6 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_float => fun x y => Ret (compare_float x y)
     | ml_bool => fun x y => Ret (Bool.compare x y)
     | ml_unit => fun x y => Ret Eq
-    | ml_exn =>
-      fun x y =>
-        match x, y with
-        | Not_found, Not_found => Ret Eq
-        | Invalid_argument x1, Invalid_argument y1 =>
-          compare_rec ml_string x1 y1
-        | Failure x1, Failure y1 => compare_rec ml_string x1 y1
-        | Not_found, _ => Ret Lt
-        | _, Not_found => Ret Gt
-        | Invalid_argument _, _ => Ret Lt
-        | _, Invalid_argument _ => Ret Gt
-        end
     | ml_array T1 => fun x y => compare_ref compare_rec (ml_array_t T1) x y
     | ml_list T1 => fun x y => compare_list compare_rec T1 x y
     | ml_lazy T1 =>
@@ -150,11 +140,32 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
         match x, y with
         | ArrayVal x1, ArrayVal y1 => compare_rec (ml_list T1) x1 y1
         end
+    | ml_lazy_val T1 =>
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
+    | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
+    | ml_arrow T1 T2 =>
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
+    | ml_pair T1 T2 =>
+      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     | ml_C_point T1 =>
       fun x y =>
         match x, y with
         | C_Point x1 x2, C_Point y1 y2 =>
           lexi_compare (compare_rec T1 x1 y1) (Delay (compare_rec T1 x2 y2))
+        end
+    | ml_B_point =>
+      fun x y =>
+        match x, y with
+        | B_Point x1 x2, B_Point y1 y2 =>
+          lexi_compare (compare_rec ml_float x1 y1)
+            (Delay (compare_rec ml_float x2 y2))
+        end
+    | ml_A_point =>
+      fun x y =>
+        match x, y with
+        | A_Point x1 x2, A_Point y1 y2 =>
+          lexi_compare (compare_rec ml_int x1 y1)
+            (Delay (compare_rec ml_int x2 y2))
         end
     | ml_A_t1 =>
       fun x y =>
@@ -174,13 +185,6 @@ Fixpoint compare_rec (h : nat) (T : ml_type)
     | ml_A_t6 =>
       fun x y =>
         match x, y with | A_T6 x1, A_T6 y1 => compare_rec ml_A_t3 x1 y1 end
-    | ml_lazy_val T1 =>
-      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
-    | ml_ref T1 => fun x y => compare_ref compare_rec T1 x y
-    | ml_arrow T1 T2 =>
-      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
-    | ml_pair T1 T2 =>
-      fun x y => Raise (Catchable (Invalid_argument "compare"%string))
     end
   else fun _ _ => FailGas.
 
