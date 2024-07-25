@@ -6,7 +6,7 @@ exception T of t
 
 type t0 = O | T1 of t1
 and t1 = T2 of t2
-and t2 = T0 of t0
+and t2 = T0 of t0;;
 
 let x = T0 O;;
 
@@ -50,6 +50,9 @@ let fact_for63 n =
     v := !v * i
   done;
   !v;;
+
+let c = 3 mod 0;;
+
 
 (*type student = { name: string; mutable year: int }
 
