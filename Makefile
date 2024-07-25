@@ -43,7 +43,7 @@ ARCHES=amd64 i386 arm arm64 power s390x riscv
 INCLUDES=-I utils -I parsing -I typing -I bytecomp -I file_formats \
         -I lambda -I middle_end -I middle_end/closure \
         -I middle_end/flambda -I middle_end/flambda/base_types \
-        -I asmcomp -I coqgen \
+        -I asmcomp -I coqgen -I agdagen \
         -I driver -I toplevel
 
 COMPFLAGS=-strict-sequence -principal -absname \
@@ -393,6 +393,7 @@ endif
 	   bytecomp/*.cmi \
 	   file_formats/*.cmi \
 	   coqgen/*.cmi \
+	   agdagen/*.cmi \
 	   lambda/*.cmi \
 	   driver/*.cmi \
 	   toplevel/*.cmi \
@@ -407,6 +408,7 @@ ifeq "$(INSTALL_SOURCE_ARTIFACTS)" "true"
 	   typing/*.cmt typing/*.cmti typing/*.mli \
 	   file_formats/*.cmt file_formats/*.cmti file_formats/*.mli \
 	   coqgen/*.cmt \
+	   agdagen/*.cmt \
 	   lambda/*.cmt lambda/*.cmti lambda/*.mli \
 	   bytecomp/*.cmt bytecomp/*.cmti bytecomp/*.mli \
 	   driver/*.cmt driver/*.cmti driver/*.mli \
@@ -561,6 +563,7 @@ endif
 	$(INSTALL_DATA) \
 	   utils/*.cmx parsing/*.cmx typing/*.cmx bytecomp/*.cmx \
 	   file_formats/*.cmx coqgen/*.cmx \
+	   file_formats/*.cmx agdagen/*.cmx \
 	   lambda/*.cmx \
 	   driver/*.cmx asmcomp/*.cmx middle_end/*.cmx \
            middle_end/closure/*.cmx \
@@ -592,6 +595,7 @@ ifeq "$(INSTALL_SOURCE_ARTIFACTS)" "true"
 	$(INSTALL_DATA) \
 	   utils/*.ml parsing/*.ml typing/*.ml bytecomp/*.ml driver/*.ml \
            file_formats/*.ml coqgen/*.ml \
+	   file_formats/*.ml agdagen/*.ml \
            lambda/*.ml \
 	   toplevel/*.ml toplevel/byte/*.ml \
 	   middle_end/*.ml middle_end/closure/*.ml \
@@ -1116,6 +1120,7 @@ endif
 partialclean::
 	for d in utils parsing typing bytecomp asmcomp middle_end file_formats \
            lambda coqgen middle_end/closure middle_end/flambda \
+	   lambda agdagen middle_end/closure middle_end/flambda \
            middle_end/flambda/base_types \
            driver toplevel toplevel/byte toplevel/native tools; do \
 	  rm -f $$d/*.cm[ioxt] $$d/*.cmti $$d/*.annot $$d/*.s $$d/*.asm \
@@ -1126,6 +1131,7 @@ partialclean::
 depend: beforedepend
 	(for d in utils parsing typing bytecomp asmcomp middle_end \
          lambda file_formats coqgen middle_end/closure middle_end/flambda \
+	 lambda file_formats agdagen middle_end/closure middle_end/flambda \
          middle_end/flambda/base_types \
          driver toplevel toplevel/byte toplevel/native; \
 	 do \

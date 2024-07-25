@@ -84,6 +84,9 @@ let mk_config_var f =
 let mk_coq f =
   "-coq", Arg.Unit f, " Output Coq code"
 
+let mk_agda f = (* AJOUTE - jacques_d *)
+	"-agda", Arg.Unit f, " Output Agda code" (* AJOUTE - jacques_d *)
+
 let mk_custom f =
   "-custom", Arg.Unit f, " Link in custom mode"
 ;;
@@ -1032,6 +1035,7 @@ module type Bytecomp_options = sig
   include Compiler_options
   val _compat_32 : unit -> unit
   val _coq : unit -> unit
+  val _agda : unit -> unit (* AJOUTE - jacques_d *)
   val _custom : unit -> unit
   val _no_check_prims : unit -> unit
   val _dllib : string -> unit
@@ -1165,6 +1169,7 @@ struct
     mk_config F._config;
     mk_config_var F._config_var;
     mk_coq F._coq;
+    mk_agda F._agda; (* AJOUTE - jacques_d *)
     mk_custom F._custom;
     mk_dllib F._dllib;
     mk_dllpath F._dllpath;
@@ -1991,6 +1996,7 @@ third-party libraries such as Lwt, but with a different API."
     include Compiler
     let _compat_32 = set bytecode_compatible_32
     let _coq = set compile_to_coq
+    let _agda = set compile_to_agda (* AJOUTE - jacques_d *)
     let _custom = set custom_runtime
     let _dcamlprimc = set keep_camlprimc_file
     let _dinstr = set dump_instr

@@ -3815,7 +3815,7 @@ and type_expect_
          any new extra node in the typed AST. *)
       rue { body with exp_loc = loc; exp_type = ety;
             exp_extra =
-            (Texp_newtype name, loc, sexp.pexp_attributes) :: body.exp_extra }
+            (Texp_newtype id, loc, sexp.pexp_attributes) :: body.exp_extra }
   | Pexp_pack m ->
       let (p, fl) =
         match get_desc (Ctype.expand_head env (instance ty_expected)) with

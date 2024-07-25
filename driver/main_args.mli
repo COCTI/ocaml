@@ -146,6 +146,7 @@ module type Bytecomp_options = sig
   include Compiler_options
   val _compat_32 : unit -> unit
   val _coq : unit -> unit
+  val _agda : unit -> unit (* AJOUTE - jacques_d *)
   val _custom : unit -> unit
   val _no_check_prims : unit -> unit
   val _dllib : string -> unit

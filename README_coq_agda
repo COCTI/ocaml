@@ -1,0 +1,66 @@
+                             +--------------------+
+                             |   jacques dreyfus  |
+                             |     25/07/24       |
+                             |  agdagen | coqgen  |
+                             +--------------------+
+
+  Agdagen is a compiler backend to translate OCaml files into Agda. The
+original project to which it was added is coqgen, which was making the
+translation of OCaml into Coq. The scripts below should work for both.
+  Let's call OCAML_PATH the absolute path to the ocaml folder on your computer,
+the root folder of both projects.
+  The first time you install agdagen, assuming you are in <OCAML_PATH> and coqc
+is in your path, you will need to do, in the following order:
+
+$> ./configure
+$> make core
+$> coqc -R testsuite/tests/coqgen coqgen testsuite/tests/coqgen/coqgen_defs.v
+
+Then, if you have a "test.ml" file that you want to translate, you can either :
+ - put it in testsuite/tests/coqgen and run
+  $> ./boot/ocamlrun ./ocamlc -I stdlib -c -coq testsuite/tests/coqgen/test.ml
+to generate a test.v file (in testsuite/tests/coqgen) that you can then run;
+ - put it in testsuite/tests/agdagen and run
+  $> ./boot/ocamlrun ./ocamlc -I stdlib -c -agda testsuite/tests/agdagen/test.ml
+to generate a test.agda file (in testsuite/tests/agdagen) that you can then run;
+
+  Here are some bash scripts to make the use of coqgen and agdagen easier. You
+can for instance add them to your .bashrc (don't forget to change OCAML_PATH by
+its actual value).
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+run() { oo=<OCAML_PATH>
+        if [ "$1" == agda ]; then
+                ext=agda
+        else
+                ext=v
+        fi
+        echo Running the command
+        echo .../ocaml/boot/ocamlrun .../ocaml/ocamlc -I .../ocaml/stdlib -c -"$1" .../ocaml/testsuite/tests/"$1"gen/"$2".ml
+        echo cat .../ocaml/testsuite/tests/"$1"gen/"$2"."$ext"
+
+        if "$oo"/boot/ocamlrun "$oo"/ocamlc -I "$oo"/stdlib -c -"$1" "$oo"/testsuite/tests/"$1"gen/"$2".ml ; then
+            cat "$oo"/testsuite/tests/"$1"gen/"$2"."$ext";
+        fi }
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+out() { oo=<OCAML_PATH>
+        if [ "$1" == agda ]; then
+                ext=agda
+        else
+                ext=v
+        fi
+        emacs "$oo"/testsuite/tests/"$1"gen/"$2"."$ext"; }
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+To translate a .ml file, run:
+$> run <1> <2>
+
+To display the generated code:
+$> out <1> <2>
+
+<1> : agda / coq
+<2> : name of the .ml file (without the extension)
+
+Example: "Translate "example.ml" to Agda and display the generated code"
+$> run agda example
+$> out example
