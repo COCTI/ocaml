@@ -1,6 +1,6 @@
 open import Data.Nat using (ℕ; zero; suc; _∸_; _+_) renaming (_<ᵇ_ to _ℕ<?_; _≡ᵇ_ to _ℕ≡?_)
-open import Data.Integer using (ℤ; 0ℤ; -[1+_]; -_ ; +_; _*_) renaming (_<?_ to _ℤ<?_ ;  _≟_ to _ℤ≡?_; _+_ to _ℤ+_; _-_ to _ℤ-_)
-open import Data.Integer.DivMod using (_%_ ; _/_)
+open import Data.Integer using (ℤ; 0ℤ; -[1+_]; -_ ; +_; _*_; ∣_∣; NonZero) renaming (_<?_ to _ℤ<?_ ;  _≟_ to _ℤ≡?_; _+_ to _ℤ+_; _-_ to _ℤ-_)
+open import Data.Integer.DivMod using (_/_) renaming (_%_ to _ℕ%_)
 open import Data.Float using (Float) renaming (_<ᵇ_ to _ℝ<?_ ; _≡ᵇ_ to _ℝ≡?_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
 open import Data.String renaming (_++_ to _cat_; length to Slength; _<?_ to _s<?_; _≈?_ to _s≡?_)
@@ -50,6 +50,13 @@ nth x (y ∷ s) (suc n) = nth x s n
 ncons : {A : Set} → ℕ → A → List A
 ncons zero x = []
 ncons (suc n) x = x ∷ ncons n x
+
+int-of-nat : ℕ → ℤ
+int-of-nat x = (+ x)
+
+_%_ : ℤ → (y : ℤ) → .{{_ : NonZero y}} → ℤ
++_ n % y = int-of-nat ((+ n) ℕ% y)
+ℤ.negsuc n % y = int-of-nat (ℤ.negsuc n ℕ% y) ℤ- int-of-nat(∣ y ∣)
 
 -- set_nth x0 s i y == s where item i has been changed to y;
 -- if s does not have an item i, it is first padded with copies
@@ -211,28 +218,35 @@ record EFmonad (EnvM : ENV) : Set₁ where
   m >> f = Bind m (λ _ → f)
 
   Delay : {A : Set} (f : M A) → M A
-  Delay f = (Ret tt >> f)
+  Delay f = do Ret tt
+               f
 
   App : {A B : Set} (f : M (A → M B)) (x : M A) → M B
-  App f x = Do y ← x // Do g ← f // g y
-  -- App f x = Bind x (λ y → Bind f (λ g → g y))
+  App f x = do y ← x
+               do g ← f
+                  g y
 
 
   AppM : {A B : Set} (f : M (A → M B)) (x : A) → M B
-  AppM f x =  Do f ← f // f x
+  AppM f x =  do f ← f
+                 f x
 
 
   AppM2 : {A B C : Set} (f : M (A → M (B → M C))) (x : A) (y : B) → M C
-  AppM2 f x y = Do f ← f // Do f ← f x // f y
+  AppM2 f x y = do f ← f
+                   do f ← f x
+                      f y
 
 
-data loc-b (ml-type : Set) : ml-type → Set where
-  mkloc : (T : ml-type) (n : ℕ) → loc-b ml-type T
+--data loc-b (ml-type : Set) : ml-type → Set where
+--  mkloc : (T : ml-type) (n : ℕ) → loc-b ml-type T
 
+data loc-b (ml-type : Set) (T : ml-type) : Set where
+  mkloc : (n : ℕ) → loc-b ml-type T
 
 -- Equality
 
-record eqType (A : Set) : Set₁ where
+record eqType (A : Set) : Set where
   field
     eq-dec : DecidableEquality A
   compareb : (x y : A) → Bool
@@ -273,7 +287,6 @@ interleaved mutual
 
   {-# NO_POSITIVITY_CHECK #-}
   data Env-ext {ml-type : Set} (binder : (Set → Set) → Set) (coq-type : (Set → Set) → ml-type → Set) (ml-exn : ml-type) : Set
-  {-# NO_POSITIVITY_CHECK #-}
   data Exn-ext {ml-type : Set} (binder : (Set → Set) → Set) (coq-type : (Set → Set) → ml-type → Set) (ml-exn : ml-type) : Set
 
   data Env-ext binder coq-type ml-exn where
@@ -308,11 +321,11 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
   loc = loc-b ml-type
 
   loc-id : {T : ml-type} (l : loc T) → ℕ
-  loc-id (mkloc x n) = n
+  loc-id (mkloc n) = n
 
   cnew : (T : ml-type) (v : coq-type T) → M (loc T)
   cnew T v st = case st of λ {
-                  (mkEnv l) → inj₂ (inj₂ (mkloc T (size l)), mkEnv (rcons l (mkbind T v))) }
+                  (mkEnv l) → inj₂ (inj₂ (mkloc (size l)), mkEnv (rcons l (mkbind T v))) }
 
   coerce : (T1 T2 : ml-type) (v : coq-type T1) → Maybe (coq-type T2)
   coerce T1 T2 v = case (eqPc ml-type T1 T2) of λ {
@@ -321,10 +334,10 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
 
   cget : (T : ml-type) (r : loc T) → M (coq-type T)
   cget T r (mkEnv x) = case nth-opt x (loc-id r) of λ {
-                         (just (mkbind T2 v)) → case coerce _ T v of λ {
+                         (just (mkbind T2 v)) → case coerce T2 T v of λ {
                                                   (just u) → inj₂ (inj₂ u , mkEnv x)
-                                                  ; _ → inj₁ tt }
-                         ; _ → inj₁ tt }
+                                                  ; nothing → inj₁ tt }
+                         ; nothing → inj₁ tt }
 
   cput : (T : ml-type) (r : loc T) → (v : coq-type T) → M ⊤
   cput T r v (mkEnv x) =  let n : ℕ
@@ -349,9 +362,10 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
 
   -- Section Comparison
   lexi-compare : (cmp1 cmp2 : M comparator) → M comparator
-  lexi-compare cmp1 cmp2 = Do x ← cmp1 // case x of λ {
-                                            Eq → cmp2
-                                            ; _ → Ret x }
+  lexi-compare cmp1 cmp2 = do x ← cmp1
+                              case x of λ {
+                                Eq → cmp2
+                                ; _ → Ret x }
 
   --variable
   --compare-rec : {T : ml-type} → coq-type T → coq-type T → M comparator
@@ -363,7 +377,9 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
   compare-list {T} {compare-rec} (a1 ∷ t1) (a2 ∷ t2) = lexi-compare (compare-rec a1 a2) (Delay (compare-list {T} {compare-rec} t1 t2))
 
   compare-ref : {T : ml-type} → {compare-rec : coq-type T → coq-type T → M comparator} → (r1 r2 : loc T) → M comparator
-  compare-ref {T} {compare-rec} r1 r2 = Do x ← cget T r1 // Do y ← cget T r2 // compare-rec x y
+  compare-ref {T} {compare-rec} r1 r2 = do x ← cget T r1
+                                           do y ← cget T r2
+                                              compare-rec x y
 
   -- End Comparison
 
@@ -375,18 +391,29 @@ record REFmonad (MLtypes : MLTY) : Set₁ where
   forloop : (n1 n2 : ℤ) (b : ℤ → M ⊤) → M ⊤
   forloop n1 n2 b = if isYes (n2 ℤ<? n1) then Ret tt else
     let g : M ℤ → M ℤ
-        g m = Do i ← m // Do _ ← b i // Ret (i ℤ+ (+ 1)) in
-          (iter (n2 ℤ- n1 ℤ+ (+ 1)) g (Ret n1)) >> Ret tt
+        g m = do i ← m
+                 do _ ← b i
+                    Ret (i ℤ+ (+ 1)) in
+          do (iter (n2 ℤ- n1 ℤ+ (+ 1)) g (Ret n1))
+             Ret tt
 
   downforloop : (n1 n2 : ℤ) (b : ℤ → M ⊤) → M ⊤
   downforloop n1 n2 b = if isYes (n1 ℤ<? n2) then Ret tt else
     let g : M ℤ → M ℤ
-        g m = Do i ← m // Do _ ← b i // Ret (i ℤ- (+ 1)) in
-          (iter (n1 ℤ- n2 ℤ+ (+ 1)) g (Ret n1)) >> Ret tt
+        g m = do i ← m
+                 do _ ← b i
+                    Ret (i ℤ- (+ 1)) in
+          do iter (n1 ℤ- n2 ℤ+ (+ 1)) g (Ret n1)
+             Ret tt
 
   whileloop : (h : ℕ) (f : M Bool) (b : M ⊤) → M ⊤
   whileloop zero f b = FailGas
-  whileloop (suc h) f b = Do v ← f // (if v then (Do _ ← b // whileloop h f b) else Ret tt)
+  whileloop (suc h) f b = do v ← f
+                             if v
+                              then
+                               (do _ ← b
+                                   whileloop h f b)
+                              else Ret tt
 
   cast-empty : (T : ml-type) (v : ⊥) → coq-type T
   cast-empty T ()
