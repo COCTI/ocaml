@@ -1,6 +1,5 @@
 coqgen_defs.v
-test2.v
-fact.v
-cyclic.v
+project_lib.v
+new_test.v
+new_test_2.v
 
--R . coqgen

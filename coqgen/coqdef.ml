@@ -172,6 +172,8 @@ type coq_env =
       ctvar_map: string TypeMap.t;
       top_exec: string list;
       coq_names: Names.t;
+      absolute_path: string;
+      dep_list: string list; (*list of all the files it depends on*)
     }
 
 let empty_vars =
@@ -181,6 +183,8 @@ let empty_vars =
     ctvar_map = TypeMap.empty;
     top_exec = [];
     coq_names = Names.empty;
+    absolute_path = "";
+    dep_list = [];
   }
 
 let add_type path td vars =

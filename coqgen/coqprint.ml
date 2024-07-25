@@ -187,8 +187,8 @@ let emit_vernacular ppf = function
       List.iter (fun td ->
         if !first then first := false
         else fprintf ppf "@]@ @[<hv2>@[<2>with";
-        fprintf ppf " %s" td.name;
-        List.iter (print_arg_typed ppf) td.args;
+        fprintf ppf " %s" td.name; (*here, there should be the name of the origin file*)
+        List.iter (print_arg_typed ppf) td.args; 
         fprintf ppf "@ :=@]";
         let bar = if List.length td.cases = 1 then "" else "| " in
         List.iter
@@ -206,5 +206,7 @@ let emit_vernacular ppf = function
 let print_newlines ppf () =
   for _ = 1 to !newlines do pp_print_newline ppf () done; newlines := 1
 
-let emit_gallina _modname ppf cmds =
+let emit_gallina modname ppf cmds =
+  let cmds = Coqdef.CTverbatim ("From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+  \nRequire Import PrimInt63 Ascii String Floats coqgen_defs" ^ (if modname = "Project_lib" then "" else " project_lib") ^ ".") :: cmds in
   pp_print_list ~pp_sep:print_newlines emit_vernacular ppf cmds

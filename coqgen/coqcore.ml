@@ -19,6 +19,124 @@ open Typedtree
 open Coqdef
 open Coqinit
 open Coqtypes
+open Coqlib
+
+(*let lib_vars = Coqinit.lib_vars;;*)
+
+(*
+let rec path_to_str_list_aux (p : Path.t) = match p with
+  | Pident id -> [(Ident.name id)]
+  | Pdot (p, s) -> s :: (path_to_str_list_aux p)
+  | _ -> assert false (*there should not be any Papply for the moment*)
+let path_to_str_list (p : Path.t) = List.rev (path_to_str_list_aux p)
+*)
+(*useful for tests*)
+
+(*let dep_list_ref : string list ref = ref []*)
+(*is updated whenever a new dependence is needed.
+vars.dep_list is overwritten before every return of transl_structure to makes sure it stays up to date for "coqgen.ml".*)
+
+
+
+(*let update_dep_list (s : string) = if List.exists (fun x -> x = s) !dep_list_ref then !dep_list_ref else s :: (!dep_list_ref)
+*)
+(*dep_list_ref := update_dep_list s; when you need add a new element*)
+
+(*let overwrite_dep_list (vars : coq_env) = {vars with dep_list = !dep_list_ref}
+*)
+(*called at the end of any return in transl_structure*)
+
+(*Path.t -> unit*)
+let _print_path (p : Path.t) = Path.print Format.std_formatter p
+(*useful for tests*)
+
+(*let env : (string, coq_type_desc Path.Map.t * coq_term_desc Path.Map.t)Hashtbl.t = Hashtbl.create 42;;
+*)
+(*table linking the name of files with their ".vlib".
+used to do separate compilation*)
+
+let _print_env () = print_string "current env : "; Hashtbl.iter (fun x _ -> print_string (x ^ "; ")) env; print_string "\n"
+(*useful for tests*)
+
+(*Path.t -> string list*)
+(*
+let rec split_path_aux (p : Path.t) = match p with
+    | Pident i -> [(Ident.name i)]
+    | Pdot (m, s) -> s :: (split_path_aux m)
+    | _ -> assert false
+*)
+
+(*Path.t -> string * string list*)
+(*let split_path (p : Path.t) = 
+    let l =  List.rev (split_path_aux p) in
+    (match l with 
+    | file_name :: elt -> file_name, elt 
+    | _ -> assert false)
+*)
+(*separated the path into the corresponding (file_name * (submodule arborescence list))*)
+
+(*
+(*string -> unit*)
+let add_env (file_name : string) =
+  (*print_endline (String.concat "; " (Load_path.get_paths ()));*)
+  let vlib_channel = open_in (Load_path.find_uncap ((file_name) ^ ".vlib")) in
+  let type_map = input_value vlib_channel in
+  let term_map = input_value vlib_channel in
+  Hashtbl.add env file_name (type_map, term_map);
+  close_in vlib_channel
+(*adds the "file_name.vlib" maps to the environment*)
+
+(*string -> (coq_type_desc Path.Map.t * coq_term_desc Path.Map.ts)*)
+let get_env (file_name : string) = 
+  dep_list_ref := update_dep_list (String.lowercase_ascii file_name); 
+  try (Hashtbl.find env file_name) with Not_found -> 
+    add_env file_name;
+    Hashtbl.find env file_name
+(*gets the corresponding maps, and adds it if necessary. In both cases, calls update_dep_list to add it to the dependence list.*)
+
+(*coq_type_desc Path.Map.t -> string -> coq_type_desc*)
+let find_type (type_map : coq_type_desc Path.Map.t) (elt : string list) = 
+  (*print_endline ("current type_map : "); List.iter print_endline (List.map (fun (a, _) -> Path.name a) (Path.Map.bindings type_map));*)
+  List.assoc (String.concat "." elt) (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings type_map))
+(*coq_env -> string -> coq_term_desc*)
+let find_term (term_map : coq_term_desc Path.Map.t) (elt : string list) = 
+  List.assoc (String.concat "." elt) (List.map (fun (a, b) -> (Path.name a, b)) (Path.Map.bindings term_map))
+(*these functions use strings to match the path map*)
+(*compares the path name and the string list corresponding to a "module path". raises Not_found if it doesn't find the element.*)
+
+(*Path.t -> coq_type_desc*)
+let find_type_stdlib (p : Path.t) = Path.Map.find p lib_vars.type_map
+(*Path.t -> coq_term_desc*)
+let find_term_stdlib (p : Path.t) = Path.Map.find p lib_vars.term_map
+(*not written yet, should look at the translated stdlib folder for the moment*)
+  
+(*Path.t -> coq_env -> coq_type_desc*)
+let find_types (p : Path.t) (vars : coq_env) = 
+  try (Path.Map.find p vars.type_map)
+  with Not_found -> (match p with 
+    | Pident _ -> find_type_stdlib p
+    | Pdot _ -> (try 
+      let file_name, elt = split_path p in
+      find_type (fst (get_env file_name)) elt 
+      with Not_found -> find_type_stdlib p)
+    | _ -> assert false)
+
+(*Path.t -> coq_env -> coq_term_desc*)
+let find_terms (p : Path.t) (vars : coq_env) = 
+  try (Path.Map.find p vars.term_map)
+  with Not_found -> (match p with 
+    | Pident _ -> find_term_stdlib p
+    | Pdot _ -> (try 
+      let file_name, elt = split_path p in
+      {(find_term (snd (get_env file_name)) elt) with ce_name = (String.uncapitalize_ascii (Path.name p))} (*probably add "file_name." at the beginning, to avoid ambiguity *)
+      with Not_found -> find_term_stdlib p)
+    | _ -> assert false)
+(*both functions follow the following algorithm:
+  - look in current environment
+  - if not found, look in the environment of the corresponding first module
+  - if not found, look in standard library
+  - if not found, raise Not_found*)
+*)
 
 type term_props =
     { pterm: coq_term; prec: rec_flag; pary: int }
@@ -106,14 +224,23 @@ let string_of_constant ~loc = function
   | _ ->
       not_allowed ~loc "This constant"
 
+
 let find_constructor ~loc ~vars cd =
-  let path, tl =
+  let path, tl = 
     match get_desc cd.cstr_res with
-    | Tconstr (path, tl, _) -> path, tl
+    | Tconstr (path, tl, _) -> path, tl (*from cd I can get the path, and from the path I can get the name of the called file. I can then update that name in the dep_list*)
     | _ -> assert false
   in
   try
-    let ct = Path.Map.find path vars.type_map in
+    (*let mod_name = get_module_name path in*)
+    (*print_path path;*)
+    let ct = find_types path vars in  
+    (*(match path with
+      | Pdot (_, _) -> (*(try*) (*(let _dep_env =*) find_type (fst (get_env vars.absolute_path (get_module_name path))) path
+      | _ -> Path.Map.find path vars.type_map
+        (*failwith "end of print";*) (*Path.Map.find path vars.type_map*)
+    ) in*)
+    (*let ct = Path.Map.find path vars.type_map in*)
     ct, List.assoc cd.cstr_name ct.ct_constrs, tl
   with Not_found ->
     not_allowed ~loc
@@ -128,7 +255,7 @@ let transl_exp_type ~vars pt exp =
   let cty = if pt.pary = 0 then CTapp (CTid"M", [cty]) else cty in
   {pt with pterm = CTann (pt.pterm, cty)}
 
-let add_pat_variable ~vars id ty =
+let add_pat_variable ~vars id ty = (*returns vars*)
   let name = fresh_name ~vars (Ident.name id) in
   let desc =
     { ce_name = name; ce_type = ty;
@@ -139,7 +266,7 @@ let add_pat_variable ~vars id ty =
 let is_primitive s =
   String.length s >= 2 && s.[0] = '@'
 
-let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
+let rec transl_pat : type k. vars:_ -> k general_pattern -> _ = (*returns vars*)
   fun ~vars pat ->
   let loc = pat.pat_loc in
   match pat.pat_desc with
@@ -173,7 +300,7 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
   | _ ->
       not_allowed ~loc "transl_pat : This pattern"
 
-let transl_ident ~loc ~vars env desc ct ty =
+let transl_ident ~loc ~vars env desc ct ty = 
   let f = CTid desc.ce_name in
   if desc.ce_purary = 0 then (* toplevel value; need to rebind it outside *)
     {pterm = f; prec = Nonrecursive; pary = 1}
@@ -206,16 +333,20 @@ let rec transl_exp ~vars e =
   let loc = e.exp_loc in
   close_type e.exp_type;
   match e.exp_desc with
-  | Texp_ident (path, _, _) ->
-      let desc =
-        try Path.Map.find path vars.term_map
-        with Not_found ->
-          not_allowed ~loc ("Identifier " ^ Path.name path)
-      in
-      transl_ident ~loc ~vars e.exp_env desc None e.exp_type
+  | Texp_ident (path, _, _) -> (*match the path somehow, same idea as above, nothing much to do*)
+    (try
+      (*desc is here a "coq_term_desc", we will probably need to add a prefix at the beginning to match name of the actual call*)
+      (let desc = find_terms path vars in
+      (*(match path with
+        | Pdot (_, _) -> find_term (snd (get_env vars.absolute_path (get_module_name path))) path (*name is very ugly, but works for the moment I guess*)
+        | _ -> Path.Map.find path vars.term_map
+      ) in*) (*and in THAT case, I should manage the dep_list, if not found do the same as above, and then probably add to the string something? maybe change the name of the variable to match the one with imports?*)
+      transl_ident ~loc ~vars e.exp_env desc None e.exp_type)
+    with Not_found ->
+      not_allowed ~loc ("Identifier " ^ Path.name path))
   | Texp_constant cst ->
       {pterm = CTcstr (string_of_constant ~loc cst); prec = Nonrecursive;
-       pary = 1 }
+       pary = 1}
   | Texp_let (Nonrecursive, vbl, body) ->
       let ctl =
         List.map (transl_binding ~vars ~rec_flag:Nonrecursive) vbl in
@@ -324,8 +455,8 @@ let rec transl_exp ~vars e =
         (fun ct (v,arg) ->
           {ct with pterm = ctBind arg (CTabs (v,None,ct.pterm))})
         (nullary ~vars ct) binds
-  | Texp_construct (_, cd, []) ->
-      let ct, name, tl = find_constructor ~loc ~vars cd in
+  | Texp_construct (_, cd, []) -> (*we should rename the constructor in this case basically*)
+      let ct, name, tl = find_constructor ~loc ~vars cd in 
       let ce =
         {ce_name = name;
          ce_type = List.fold_right newgenarrow cd.cstr_args cd.cstr_res;
@@ -334,7 +465,7 @@ let rec transl_exp ~vars e =
          ce_purary = cd.cstr_arity + 1}
       in
       transl_ident ~loc ~vars e.exp_env ce (Some ct) e.exp_type
-  | Texp_construct (lid, cd, args) ->
+  | Texp_construct (lid, cd, args) -> (*this part will always end up calling the "base case" above*)
       let ty =
         List.fold_right (fun arg -> newgenarrow arg.exp_type) args e.exp_type
       in
@@ -423,6 +554,7 @@ let rec transl_exp ~vars e =
       let prec = if ct.prec = Recursive then Recursive else cm.prec in
       {prec; pary = 0;
        pterm = ctapp (CTid"handle") [cty; ct.pterm; CTabs (v, None, cm.pterm)]}
+  | Texp_tuple exp_list -> {pterm = make_tuple (List.map (fun tp -> (transl_exp ~vars tp).pterm) exp_list); prec = Nonrecursive; pary = 1}
   | Texp_function {arg_label = Nolabel; param; cases; partial} ->
       let pat, exp =
         match cases with
@@ -576,6 +708,7 @@ let rec transl_structure ~vars = function
              ce_type = e.exp_type; ce_vars = []} in
           let vars = add_term ~toplevel:true (Path.Pident id) desc vars in
           let cmds, vars = transl_structure ~vars rem in
+          let vars = overwrite_dep_list vars in
           (CTdefinition (name, pt.pterm, true) :: cmds, vars)
     | Tstr_value (rec_flag, [vb]) ->
         let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
@@ -601,10 +734,12 @@ let rec transl_structure ~vars = function
             then abstract_recursive pt.pterm
             else pt.pterm
           in
+          let vars' = overwrite_dep_list vars' in
           CTdefinition (name, ct, false) :: cmds, vars'
     | Tstr_type (Recursive, tds) ->
         let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
         let cmds, vars = transl_structure ~vars rem in
+        let vars = overwrite_dep_list vars in
         (def :: cmds, vars)
     | Tstr_exception tyexn ->
         let vars =
