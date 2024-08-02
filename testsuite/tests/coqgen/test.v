@@ -48,26 +48,26 @@ Section with_monad.
 Context [M : Type -> Type].
 
 (* Generated type definitions *)
-Inductive color := | Red | Green | Blue.
-
-Inductive tree (a : Type) (b : Type) :=
-  | Leaf (_ : a)
-  | Node (_ : tree a b) (_ : b) (_ : tree a b).
-
-Inductive point := Point (_ : loc ml_int) (_ : loc ml_int).
-
-Inductive ref_vals (a : Type) (a_1 : ml_type) :=
-  RefVal (_ : loc a_1) (_ : list a).
-
-Inductive endo (a : Type) := Endo (_ : a -> M a).
-
-Inductive option (a : Type) := | Some (_ : a) | None.
-
 Inductive ml_exns :=
   | Restart_1 (_ : unit -> M PrimInt63.int)
   | Invalid_argument (_ : string)
   | Failure (_ : string)
   | Not_found.
+
+Inductive option (a : Type) := | Some (_ : a) | None.
+
+Inductive endo (a : Type) := Endo (_ : a -> M a).
+
+Inductive ref_vals (a : Type) (a_1 : ml_type) :=
+  RefVal (_ : loc a_1) (_ : list a).
+
+Inductive point := Point (_ : loc ml_int) (_ : loc ml_int).
+
+Inductive tree (a : Type) (b : Type) :=
+  | Leaf (_ : a)
+  | Node (_ : tree a b) (_ : b) (_ : tree a b).
+
+Inductive color := | Red | Green | Blue.
 
 
 Inductive lazy_val (a : Type) :=

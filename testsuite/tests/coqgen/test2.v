@@ -46,16 +46,16 @@ Section with_monad.
 Context [M : Type -> Type].
 
 (* Generated type definitions *)
+Inductive t2 := T0 (_ : t0)
+with t0 := | O | T1_1 (_ : t1)
+with t1 := T2_1 (_ : t2).
+
 Inductive ml_exns :=
   | T (_ : t)
   | Invalid_argument (_ : string)
   | Failure (_ : string)
   | Not_found
 with t := E (_ : ml_exns).
-
-Inductive t2 := T0 (_ : t0)
-with t0 := | O | T1_1 (_ : t1)
-with t1 := T2_1 (_ : t2).
 
 
 Inductive lazy_val (a : Type) :=

@@ -43,14 +43,14 @@ Section with_monad.
 Context [M : Type -> Type].
 
 (* Generated type definitions *)
-Inductive rlist (a : Type) (a_1 : ml_type) :=
-  | Nil
-  | Cons (_ : a) (_ : loc (ml_rlist a_1)).
-
 Inductive ml_exns :=
   | Invalid_argument (_ : string)
   | Failure (_ : string)
   | Not_found.
+
+Inductive rlist (a : Type) (a_1 : ml_type) :=
+  | Nil
+  | Cons (_ : a) (_ : loc (ml_rlist a_1)).
 
 
 Inductive lazy_val (a : Type) :=
