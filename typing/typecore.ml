@@ -445,20 +445,20 @@ let unify_pat_types loc env ty ty' =
 
 (* GADT unification inside solve_Ppat_construct and check_counter_example_pat *)
 let nothing_equated = TypePairs.create 0
-let unify_pat_types_return_equated_pairs ~refine loc penv ty ty' =
+let unify_pat_types_return_equated_pairs ~refine loc penv ~pat ty' =
   try
-    if refine then unify_gadt penv ty ty'
-    else (unify !!penv ty ty'; nothing_equated)
+    if refine then unify_gadt penv ~pat ty'
+    else (unify !!penv pat ty'; nothing_equated)
   with
   | Unify err ->
       raise(Error(loc, !!penv, Pattern_type_clash(err, None)))
   | Tags(l1,l2) ->
       raise(Typetexp.Error(loc, !!penv, Typetexp.Variant_tags (l1, l2)))
 
-let unify_pat_types_refine ~refine loc penv ty ty' =
+let unify_pat_types_refine ~refine loc penv ~pat ty' =
   (* [refine=true] only in calls originating from [check_counter_example_pat],
      which in turn may contain only non-leaking type variables *)
-  ignore (unify_pat_types_return_equated_pairs ~refine loc penv ty ty')
+  ignore (unify_pat_types_return_equated_pairs ~refine loc penv ~pat ty')
 
 (** [sdesc_for_hint] is used by error messages to report literals in their
     original formatting *)
@@ -472,7 +472,7 @@ let unify_head_only ~refine loc penv ty constr =
   let path = cstr_res_type_path constr in
   let decl = Env.find_type path !!penv in
   let ty' = Ctype.newconstr path (Ctype.instance_list decl.type_params) in
-  unify_pat_types_refine ~refine loc penv ty' ty
+  unify_pat_types_refine ~refine loc penv ~pat:ty' ty
 
 (* Creating new conjunctive types is not allowed when typing patterns *)
 (* make all Reither present in open variants *)
@@ -815,7 +815,7 @@ let solve_Ppat_tuple (type a) ~refine loc env (args : a list) expected_ty =
   let vars = List.map (fun _ -> newgenvar ()) args in
   let ty = newgenty (Ttuple vars) in
   let expected_ty = generic_instance expected_ty in
-  unify_pat_types_refine ~refine loc env ty expected_ty;
+  unify_pat_types_refine ~refine loc env ~pat:ty expected_ty;
   vars
 
 let solve_constructor_annotation
@@ -927,7 +927,8 @@ let solve_Ppat_construct ~refine tps penv loc constr no_existentials
       refine || constr.cstr_generalized && no_existentials = None in
     (* Here [ty_res] contains only fresh (non-leaking) type variables,
        so the requirement of [unify_gadt] is fulfilled. *)
-    unify_pat_types_return_equated_pairs ~refine loc penv ty_res expected_ty
+    unify_pat_types_return_equated_pairs ~refine loc penv
+      ~pat:ty_res expected_ty
   in
 
   let ty_args, equated_types, existential_ctyp =
@@ -990,7 +991,7 @@ let solve_Ppat_record_field ~refine loc penv label label_lid record_ty =
   with_local_level_generalize_structure begin fun () ->
     let (_, ty_arg, ty_res) = instance_label ~fixed:false label in
     begin try
-      unify_pat_types_refine ~refine loc penv ty_res (instance record_ty)
+      unify_pat_types_refine ~refine loc penv ~pat:ty_res (instance record_ty)
     with Error(_loc, _env, Pattern_type_clash(err, _)) ->
       raise(Error(label_lid.loc, !!penv,
                   Label_mismatch(label_lid.txt, err)))
@@ -1005,12 +1006,12 @@ let solve_Ppat_array ~refine loc env expected_ty =
   | None ->
       let ty_elt = newgenvar() in
       unify_pat_types_refine ~refine
-        loc env (Predef.type_array ty_elt) expected_ty;
+        loc env ~pat:(Predef.type_array ty_elt) expected_ty;
       ty_elt
 
 let solve_Ppat_lazy ~refine loc env expected_ty =
   let nv = newgenvar () in
-  unify_pat_types_refine ~refine loc env (Predef.type_lazy_t nv)
+  unify_pat_types_refine ~refine loc env ~pat:(Predef.type_lazy_t nv)
     (generic_instance expected_ty);
   nv
 
@@ -1035,7 +1036,8 @@ let solve_Ppat_variant ~refine loc env tag no_arg expected_ty =
   (* PR#7404: allow some_private_tag blindly, as it would not unify with
      the abstract row variable *)
   if tag <> Parmatch.some_private_tag then
-    unify_pat_types_refine ~refine loc env (newgenty(Tvariant row)) expected_ty;
+    unify_pat_types_refine ~refine loc env ~pat:(newgenty(Tvariant row))
+      expected_ty;
   (arg_type, make_row (newvar ()), instance expected_ty)
 
 (* Building the or-pattern corresponding to a polymorphic variant type *)
@@ -2390,7 +2392,7 @@ let rec check_counter_example_pat
   let loc = tp.pat_loc in
   let refine = true in
   let solve_expected (x : pattern) : pattern =
-    unify_pat_types_refine ~refine x.pat_loc penv x.pat_type
+    unify_pat_types_refine ~refine x.pat_loc penv ~pat:x.pat_type
       (instance expected_ty);
     x
   in

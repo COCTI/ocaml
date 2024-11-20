@@ -3257,7 +3257,7 @@ let unify uenv ty1 ty2 =
       undo_compress snap;
       raise (Unify (expand_to_unification_error (get_env uenv) trace))
 
-let unify_gadt (penv : Pattern_env.t) ty1 ty2 =
+let unify_gadt (penv : Pattern_env.t) ~pat:ty1 ty2 =
   let equated_types = TypePairs.create 0 in
   let do_unify_gadt () =
     let uenv = Pattern

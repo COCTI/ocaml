@@ -272,8 +272,8 @@ val get_new_abstract_name : Env.t -> string -> string
 val unify: Env.t -> type_expr -> type_expr -> unit
         (* Unify the two types given. Raise [Unify] if not possible. *)
 val unify_gadt:
-        Pattern_env.t -> type_expr -> type_expr -> Btype.TypePairs.t
-        (* [unify_gadt penv ty1 ty2] unifies [ty1] and [ty2] in
+        Pattern_env.t -> pat:type_expr -> type_expr -> Btype.TypePairs.t
+        (* [unify_gadt penv ~pat:ty1 ty2] unifies [ty1] and [ty2] in
            [Pattern] mode, possible adding local constraints to the
            environment in [penv]. Raises [Unify] if not possible.
            Returns the pairs of types that have been equated.
