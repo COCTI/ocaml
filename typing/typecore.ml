@@ -2244,13 +2244,13 @@ let add_pattern_variables ?check ?check_as env pv =
     )
     pv env
 
-let copy_pattern_variables ~old_env env pvs =
+let update_pattern_variables env pvs =
   List.fold_right begin fun {pv_id} env ->
     let desc =
-      try Env.find_value (Path.Pident pv_id) old_env
+      try Env.find_value (Path.Pident pv_id) env
       with Not_found -> assert false
     in
-    Env.add_value pv_id
+    Env.update_value pv_id
       {desc with val_bound_type_vars = generic_free_variables desc.val_type}
       env
   end pvs env
@@ -6354,7 +6354,7 @@ and type_let ?check ?check_strict
   let attrs_list = List.map fst spatl in
   let is_recursive = (rec_flag = Recursive) in
 
-  let (pat_list, exp_list, old_env, mvs, pvs) =
+  let (pat_list, exp_list, new_env, mvs, pvs) =
     with_local_level_generalize begin fun () ->
       if existential_context = At_toplevel then Typetexp.TyVarEnv.reset ();
       let (pat_list, new_env, force, pvs, mvs) =
@@ -6487,8 +6487,8 @@ and type_let ?check ?check_strict
         check_partial_application ~statement:false
           vb.vb_expr.qexp_expr
     ) l;
+  let new_env = update_pattern_variables new_env pvs in
   (* See Note [add_module_variables after checking expressions] *)
-  let new_env = copy_pattern_variables ~old_env env pvs in
   let new_env = add_module_variables new_env mvs in
   (l, new_env)
 
