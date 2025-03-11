@@ -227,7 +227,7 @@ let apply_type_function params args body =
 
 
 (* Similar to [Ctype.nondep_type_rec]. *)
-let rec typexp ?(force_dup=false) copy_scope s ty =
+let rec typexp copy_scope s ty =
   let desc = get_desc ty in
   match desc with
     Tvar _ | Tunivar _ ->
@@ -268,7 +268,7 @@ let rec typexp ?(force_dup=false) copy_scope s ty =
         | _ -> assert false
       else match desc with
       | Tconstr (p, args, _abbrev) ->
-         let args = List.map (typexp ~force_dup copy_scope s) args in
+         let args = List.map (typexp copy_scope s) args in
          begin match Path.Map.find p s.types with
          | exception Not_found -> Tconstr(type_path s p, args, ref Mnil)
          | Path _ -> Tconstr(type_path s p, args, ref Mnil)
@@ -277,16 +277,16 @@ let rec typexp ?(force_dup=false) copy_scope s ty =
          end
       | Tpackage(p, fl) ->
           Tpackage(modtype_path s p,
-                    List.map (fun (n, ty) -> (n, typexp ~force_dup copy_scope s ty)) fl)
+                    List.map (fun (n, ty) -> (n, typexp copy_scope s ty)) fl)
       | Tobject (t1, name) ->
-          let t1' = typexp ~force_dup copy_scope s t1 in
+          let t1' = typexp copy_scope s t1 in
           let name' =
             match !name with
             | None -> None
             | Some (p, tl) ->
                 if to_subst_by_type_function s p
                 then None
-                else Some (type_path s p, List.map (typexp ~force_dup copy_scope s) tl)
+                else Some (type_path s p, List.map (typexp copy_scope s) tl)
           in
           Tobject (t1', ref name')
       | Tvariant row ->
@@ -303,12 +303,12 @@ let rec typexp ?(force_dup=false) copy_scope s ty =
           | _ ->
               let dup =
                 s.for_saving || get_level more = generic_level ||
-                static_row row || is_Tconstr more || force_dup in
+                static_row row || is_Tconstr more in
               (* Various cases for the row variable *)
               let more' =
                 match mored with
                   Tsubst (ty, None) -> ty
-                | Tconstr _ | Tnil -> typexp ~force_dup copy_scope s more
+                | Tconstr _ | Tnil -> typexp copy_scope s more
                 | Tunivar _ | Tvar _ ->
                     if s.for_saving then newpersty (norm mored)
                     else if dup && is_Tvar more then newgenty mored
@@ -321,7 +321,7 @@ let rec typexp ?(force_dup=false) copy_scope s ty =
               (* TODO: check if more' can be eliminated *)
               (* Return a new copy *)
               let row =
-                copy_row (typexp ~force_dup copy_scope s) true row (not dup) more' in
+                copy_row (typexp copy_scope s) true row (not dup) more' in
               match row_name row with
               | Some (p, tl) ->
                   let name =
@@ -333,8 +333,8 @@ let rec typexp ?(force_dup=false) copy_scope s ty =
                   Tvariant row
           end
       | Tfield(_label, kind, _t1, t2) when field_kind_repr kind = Fabsent ->
-          Tlink (typexp ~force_dup copy_scope s t2)
-      | _ -> copy_type_desc (typexp ~force_dup copy_scope s) desc
+          Tlink (typexp copy_scope s t2)
+      | _ -> copy_type_desc (typexp copy_scope s) desc
     in
     Transient_expr.set_stub_desc ty' desc;
     ty'
@@ -407,19 +407,22 @@ let type_declaration s decl =
   For_copy.with_scope (fun copy_scope -> type_declaration' copy_scope s decl)
 
 let class_signature copy_scope s sign =
-  { csig_self = typexp copy_scope s sign.csig_self;
-    csig_self_row = typexp copy_scope s sign.csig_self_row;
-    csig_vars =
-      Vars.map
-        (function (m, v, t) -> (m, v, typexp copy_scope s t))
-        sign.csig_vars;
-    csig_meths =
-      Meths.map
-        (function (p, v, t) -> (p, v, typexp copy_scope s t))
-        sign.csig_meths;
-    csig_bound_type_vars =
-      List.map (typexp copy_scope s) sign.csig_bound_type_vars;
-  }
+  let csig_self = typexp copy_scope s sign.csig_self
+  and csig_self_row = typexp copy_scope s sign.csig_self_row
+  and csig_vars =
+    Vars.map
+      (function (m, v, t) -> (m, v, typexp copy_scope s t))
+      sign.csig_vars
+  and csig_meths =
+    Meths.map
+      (function (p, v, t) -> (p, v, typexp copy_scope s t))
+      sign.csig_meths
+  in
+  (* Must be executed last *)
+  let csig_bound_type_vars =
+    List.map (typexp copy_scope s) sign.csig_bound_type_vars
+  in
+  { csig_self; csig_self_row; csig_vars; csig_meths; csig_bound_type_vars }
 
 let rec class_type copy_scope s = function
   | Cty_constr (p, tyl, cty) ->
@@ -468,15 +471,16 @@ let class_type s cty =
   For_copy.with_scope (fun copy_scope -> class_type copy_scope s cty)
 
 let value_description' copy_scope s descr =
+  let val_type = typexp copy_scope s descr.val_type in
   let val_bound_type_vars =
-    List.map (typexp ~force_dup:true copy_scope s) descr.val_bound_type_vars
-  in
-  { val_type = typexp copy_scope s descr.val_type;
+    List.map (typexp copy_scope s) descr.val_bound_type_vars in
+  { val_type;
     val_kind = descr.val_kind;
     val_loc = loc s descr.val_loc;
     val_attributes = attrs s descr.val_attributes;
     val_uid = descr.val_uid;
-    val_bound_type_vars }
+    val_bound_type_vars;
+   }
 
 let value_description s descr =
   For_copy.with_scope (fun copy_scope -> value_description' copy_scope s descr)
