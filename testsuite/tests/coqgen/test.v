@@ -1,4 +1,5 @@
 From mathcomp Require Import ssreflect ssrnat eqtype seq.
+From HB Require Import structures.
 Require Import PrimInt63 Ascii String Floats coqgen_defs.
 
 (* Generated representation of all ML types *)
@@ -38,10 +39,10 @@ revert T2; induction T1; destruct T2;
     right; injection; intros; contradiction.
 Defined.
 
-Definition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).
-Canonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.
+Definition ml_type_eq_mixin := hasDecEq.Build _ (comparePc _ ml_type_eq_dec).
+HB.instance Definition ml_type_eqType := ml_type_eq_mixin.
 
-Local Definition ml_type := ml_type_eqType.
+Local Definition ml_type : eqType := ml_type.
 Local Notation loc := (@loc ml_type).
 
 Section with_monad.

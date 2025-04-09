@@ -187,6 +187,7 @@ let transl_implementation _modname st =
   let typedefs = List.map (fun gr -> CTinductive gr) inductives in
 
   CTverbatim "From mathcomp Require Import ssreflect ssrnat eqtype seq.\
+\nFrom HB Require Import structures.\
 \nRequire Import PrimInt63 Ascii String Floats coqgen_defs.\
 \n\n(* Generated representation of all ML types *)" ::
   make_ml_type vars ::
@@ -203,10 +204,10 @@ let transl_implementation _modname st =
 \n    right; injection; intros; contradiction.\
 \nDefined.\
 \n\
-\nDefinition ml_type_eq_mixin := EqMixin (comparePc _ ml_type_eq_dec).\
-\nCanonical ml_type_eqType := Eval hnf in EqType _ ml_type_eq_mixin.\
+\nDefinition ml_type_eq_mixin := hasDecEq.Build _ (comparePc _ ml_type_eq_dec).\
+\nHB.instance Definition ml_type_eqType := ml_type_eq_mixin.\
 \n\
-\nLocal Definition ml_type := ml_type_eqType.\
+\nLocal Definition ml_type : eqType := ml_type.\
 \nLocal Notation loc := (@loc ml_type).\
 \n\
 \nSection with_monad.\

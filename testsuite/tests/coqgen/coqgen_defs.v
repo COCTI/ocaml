@@ -1,4 +1,5 @@
 From mathcomp Require Import all_ssreflect.
+From HB Require Import structures.
 Require Sint63.
 Require Import PrimInt63 BinNums Ascii String ZArith Floats.
 #[global] Arguments eqVneq {T} x y.
@@ -14,7 +15,7 @@ Definition comparePc x y :=
   | right b => ReflectF (x = y) b
   end.
 Definition eqPc (E : eqType) : Equality.axiom (@eq_op E) :=
-  match E with EqType sort (EqMixin op a) => a end.
+  hasDecEq.eqP (Equality.class E).
 End eqtype.
 
 (* Extra predefined types *)
