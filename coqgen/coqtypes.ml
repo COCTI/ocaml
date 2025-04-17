@@ -64,7 +64,7 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
   | Tarrow _ ->
       not_allowed ~loc "labels"
   | Ttuple tl ->
-      make_tuple_type ~def (List.map transl_rec tl)
+      make_tuple_type ~def (List.map (fun (_,t) -> transl_rec t) tl)
   | Tconstr (p, tl, _) ->
       begin match Path.Map.find p vars.type_map with
         desc ->
@@ -115,9 +115,10 @@ let find_instantiation ~loc ~env ~vars edesc ty =
   if edesc.ce_vars = [] then [] else
   let open Ctype in
   let ty0, ivars =
-    let ty1 = newgenty (Ttuple (edesc.ce_type :: edesc.ce_vars)) in
+    let tys = List.map (fun t -> (None, t)) (edesc.ce_type :: edesc.ce_vars) in
+    let ty1 = newgenty (Ttuple tys) in
     match get_desc (generic_instance ty1) with
-      Ttuple (ty0 :: vars) -> ty0, vars
+      Ttuple ((None, ty0) :: vars) -> ty0, List.map snd vars
     | _ -> assert false
   in
   with_snapshot ~vars

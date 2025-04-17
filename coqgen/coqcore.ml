@@ -15,6 +15,7 @@
 
 open Asttypes
 open Types
+open Data_types
 open Typedtree
 open Coqdef
 open Coqinit
@@ -151,9 +152,9 @@ let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
       (CTcstr (string_of_constant ~loc cst), vars)
   | Tpat_tuple [] ->
       (CTcstr "()", vars)
-  | Tpat_tuple (pat1 :: patl) ->
+  | Tpat_tuple ((_, pat1) :: patl) ->
       List.fold_left
-        (fun (ctt, vars) pat ->
+        (fun (ctt, vars) (_, pat) ->
           let (ct, vars) = transl_pat ~vars pat in (ctpair ctt ct, vars))
         (transl_pat ~vars pat1) patl
   | Tpat_construct (_, cd, patl, _) ->
@@ -338,9 +339,9 @@ let rec transl_exp ~vars e =
       in
       {pterm;  prec = ct.prec; pary = ct.pary + List.length args}
   | Texp_apply (f, args)
-    when List.for_all (function (Nolabel,Some _) -> true | _ -> false) args ->
+    when List.for_all (function (Nolabel,Arg _) -> true | _ -> false) args ->
       let args =
-        List.map (function (_,Some arg) -> arg | _ -> assert false) args in
+        List.map (function (_,Arg arg) -> arg | _ -> assert false) args in
       let ct = transl_exp ~vars f in
       let ctl = List.map (transl_exp ~vars) args in
       let prec =
@@ -388,7 +389,7 @@ let rec transl_exp ~vars e =
       in
       let constr =
         {e with exp_desc = Texp_construct (lid, cd, []); exp_type = ty} in
-      let args = List.map (fun e -> (Nolabel, Some e)) args in
+      let args = List.map (fun e -> (Nolabel, Arg e)) args in
       let app = {e with exp_desc = Texp_apply (constr, args)} in
       begin match transl_exp ~vars app with
       | {pterm = CTapp (CTapp (f, args1), args2)} as ct ->
