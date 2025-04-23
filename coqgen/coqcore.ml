@@ -455,7 +455,7 @@ let rec transl_exp ~vars e =
       {pterm = ctapp (CTid "make_lazy_val") [cty; ct.pterm];
        pary = 1; prec = ct.prec}
   | Texp_match (e, cases, [], partial) ->
-      let ct = transl_exp ~vars e in
+      let ct = transl_exp ~vars e.qexp_expr in
       transl_match ~vars ct cases partial
   | Texp_try (e1, cases, []) ->
       let ct = transl_exp ~vars e1 in
@@ -514,20 +514,20 @@ and transl_binding ~vars ~rec_flag vb =
     | Tpat_construct (_, {cstr_name="()"}, [], _) -> "_", None
     | _ -> not_allowed ~loc:vb.vb_pat.pat_loc "This pattern"
   in
-  let ty = vb.vb_expr.exp_type in
+  let ty = vb.vb_expr.qexp_expr.exp_type in
   (*Format.eprintf "exp_type=%a@." Printtyp.raw_type_expr ty;*)
   let fvars, fvar_names, vars =
     enter_free_variables ~loc:vb.vb_loc ~vars ty in
   let desc =
     {ce_name = name; ce_type = ty; ce_vars = fvars;
-     ce_rec = rec_flag; ce_purary = fun_arity vb.vb_expr}
+     ce_rec = rec_flag; ce_purary = fun_arity vb.vb_expr.qexp_expr}
   in
   let vars =
     match rec_flag, id with
     | Recursive, Some id -> add_term (Path.Pident id) desc vars
     | _ -> vars
   in
-  let ct = transl_exp ~vars vb.vb_expr in
+  let ct = transl_exp ~vars vb.vb_expr.qexp_expr in
   let ct, desc, prec =
     match rec_flag with
     | Recursive ->
