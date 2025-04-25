@@ -132,8 +132,8 @@ let transl_exp_type ~vars pt exp =
 let add_pat_variable ~vars id ty =
   let name = fresh_name ~vars (Ident.name id) in
   let desc =
-    { ce_name = name; ce_type = ty;
-      ce_vars = []; ce_rec = Nonrecursive; ce_purary = 1 } in
+    { ce_name = name; ce_type = {sch_type = ty; sch_vars = []};
+      ce_rec = Nonrecursive; ce_purary = 1 } in
   let vars = add_term (Path.Pident id) desc vars in
   (name, vars)
 
@@ -179,7 +179,7 @@ let transl_ident ~loc ~vars env desc ct ty =
   if desc.ce_purary = 0 then (* toplevel value; need to rebind it outside *)
     {pterm = f; prec = Nonrecursive; pary = 1}
   else
-    let args = find_instantiation ~loc ~env ~vars desc ty in
+    let args = find_instantiation ~loc ~env ~vars desc.ce_type ty in
     let args =
       match ct with
       | Some ct ->
@@ -377,8 +377,9 @@ let rec transl_exp ~vars e =
       let ct, name, tl = find_constructor ~loc ~vars cd in
       let ce =
         {ce_name = name;
-         ce_type = List.fold_right newgenarrow cd.cstr_args cd.cstr_res;
-         ce_vars = tl;
+         ce_type =
+         {sch_type = List.fold_right newgenarrow cd.cstr_args cd.cstr_res;
+          sch_vars = tl};
          ce_rec = Nonrecursive;
          ce_purary = cd.cstr_arity + 1}
       in
@@ -514,12 +515,13 @@ and transl_binding ~vars ~rec_flag vb =
     | Tpat_construct (_, {cstr_name="()"}, [], _) -> "_", None
     | _ -> not_allowed ~loc:vb.vb_pat.pat_loc "This pattern"
   in
-  let ty = vb.vb_expr.qexp_expr.exp_type in
+  let qexp = vb.vb_expr in
+  let sch = {sch_type = qexp.qexp_expr.exp_type; sch_vars = qexp.qexp_vars} in
   (*Format.eprintf "exp_type=%a@." Printtyp.raw_type_expr ty;*)
-  let fvars, fvar_names, vars =
-    enter_free_variables ~loc:vb.vb_loc ~vars ty in
+  let fvar_names, vars =
+    enter_free_variables ~loc:vb.vb_loc ~vars sch in
   let desc =
-    {ce_name = name; ce_type = ty; ce_vars = fvars;
+    {ce_name = name; ce_type = sch;
      ce_rec = rec_flag; ce_purary = fun_arity vb.vb_expr.qexp_expr}
   in
   let vars =
@@ -606,13 +608,13 @@ let rec transl_structure ~vars = function
           (* dummy descriptor *)
           let desc =
             {ce_name = name; ce_rec = Nonrecursive; ce_purary = 0;
-             ce_type = e.exp_type; ce_vars = []} in
+             ce_type = {sch_type = e.exp_type; sch_vars = []}} in
           let vars = add_term ~toplevel:true (Path.Pident id) desc vars in
           let cmds, vars = transl_structure ~vars rem in
           (CTdefinition (name, pt.pterm, true) :: cmds, vars)
     | Tstr_value (rec_flag, [vb]) ->
         let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
-        let pt = close_top ~vars ~ce_vars:desc.ce_vars pt in
+        let pt = close_top ~vars ~ce_vars:desc.ce_type.sch_vars pt in
         let desc = {desc with ce_purary = pt.pary} in
         let name, vars' =
           match id with

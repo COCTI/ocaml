@@ -33,7 +33,7 @@ val find_instantiation :
   loc:Location.t ->
   env:Env.t ->
   vars:coq_env ->
-  coq_term_desc -> type_expr -> coq_term list
+  type_scheme -> type_expr -> coq_term list
 
 val transl_typedecls :
   env:Env.t ->
@@ -51,5 +51,4 @@ val close_type : type_expr -> unit
 val enter_free_variables :
   loc:Location.t ->
   vars:coq_env ->
-  type_expr ->
-  type_expr list * Names.elt list * coq_env
+  type_scheme -> Names.elt list * coq_env

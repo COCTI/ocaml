@@ -157,10 +157,12 @@ type coq_type_desc = {
     ct_maps: (int * string) list;
   }
 
+type type_scheme =
+    { sch_type: type_expr; sch_vars: type_expr list }
+
 type coq_term_desc =
     { ce_name: string;
-      ce_type: type_expr;
-      ce_vars: type_expr list;
+      ce_type: type_scheme;
       ce_rec: rec_flag;
       ce_purary: int; (* pure arity: number of application before monad *)
     }

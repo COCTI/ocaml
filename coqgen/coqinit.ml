@@ -139,68 +139,69 @@ let init_term_map vars =
   [
    (["*h"],
     {ce_name = "h";
-     ce_type = Predef.type_int;
-     ce_vars = [];
+     ce_type = {sch_type = Predef.type_int; sch_vars = []};
      ce_rec = Nonrecursive;
      ce_purary = 1});
    (["ref"],
     let tv = newgenvar () in
     {ce_name = "cnew";
-     ce_type = newgenarrow tv (newgenconstr stdlib_ref [tv]);
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow tv (newgenconstr stdlib_ref [tv]);
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 1});
    (["!"],
     let tv = newgenvar () in
     {ce_name = "cget";
-     ce_type = newgenarrow (newgenconstr stdlib_ref [tv]) tv;
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow (newgenconstr stdlib_ref [tv]) tv;
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 1});
    ([":="],
     let tv = newgenvar () in
     {ce_name = "cput";
-     ce_type = newgenarrow (newgenconstr stdlib_ref [tv])
-       (newgenarrow tv Predef.type_unit);
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow (newgenconstr stdlib_ref [tv])
+                  (newgenarrow tv Predef.type_unit);
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 2});
    (["Array";"make"],
     let tv = newgenvar () in
     {ce_name = "newarray";
-     ce_type = newgenarrow Predef.type_int
-       (newgenarrow tv (Predef.type_array tv));
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow Predef.type_int
+                  (newgenarrow tv (Predef.type_array tv));
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 2});
    (["Array";"get"],
     let tv = newgenvar () in
     {ce_name = "getarray";
-     ce_type = newgenarrow (Predef.type_array tv)
-       (newgenarrow Predef.type_int tv);
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow (Predef.type_array tv)
+                  (newgenarrow Predef.type_int tv);
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 2});
    (["Array";"set"],
     let tv = newgenvar () in
     {ce_name = "setarray";
-     ce_type = newgenarrow (Predef.type_array tv)
-       (newgenarrow Predef.type_int (newgenarrow tv Predef.type_unit));
-     ce_vars = [tv];
+     ce_type = {sch_type =
+                newgenarrow (Predef.type_array tv)
+                  (newgenarrow Predef.type_int
+                     (newgenarrow tv Predef.type_unit));
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 3});
    (["raise"],
     let tv = newgenvar () in
     {ce_name = "raise";
-     ce_type = newgenarrow Predef.type_exn tv;
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow Predef.type_exn tv;
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 1});
    (["Lazy";"force"],
     let tv = newgenvar () in
     {ce_name = "force";
-     ce_type = newgenarrow (Predef.type_lazy_t tv) tv;
-     ce_vars = [tv];
+     ce_type = {sch_type = newgenarrow (Predef.type_lazy_t tv) tv;
+                sch_vars = [tv]};
      ce_rec = Nonrecursive;
      ce_purary = 1});
   ] @
@@ -208,8 +209,8 @@ let init_term_map vars =
     (fun (ml, coq) ->
       [ml],
       {ce_name = coq;
-       ce_type = int_to_int_to_int;
-       ce_vars = [];
+       ce_type = {sch_type = int_to_int_to_int;
+                  sch_vars = []};
        ce_rec = Nonrecursive;
        ce_purary = 3})
     [("+", "PrimInt63.add"); ("-", "PrimInt63.sub"); ("*", "PrimInt63.mul");
@@ -217,8 +218,8 @@ let init_term_map vars =
   @ [
     (["~-"],
      {ce_name = "PrimInt63.opp";
-      ce_type = int_to_int;
-      ce_vars = [];
+      ce_type = {sch_type = int_to_int;
+                 sch_vars = []};
       ce_rec = Nonrecursive;
       ce_purary = 2})
   ] @
@@ -226,8 +227,8 @@ let init_term_map vars =
     (fun (ml, coq) ->
       [ml],
       {ce_name = coq^"%float";
-       ce_type = float_to_float_to_float;
-       ce_vars = [];
+       ce_type = {sch_type = float_to_float_to_float;
+                  sch_vars = []};
        ce_rec = Nonrecursive;
        ce_purary = 3})
     [("+.", "add"); ("-.", "sub"); ("*.", "mul");
@@ -235,8 +236,8 @@ let init_term_map vars =
   @ [
     (["~-."],
      {ce_name = "opp";
-      ce_type = float_to_float;
-      ce_vars = [];
+      ce_type = {sch_type = float_to_float;
+                 sch_vars = []};
       ce_rec = Nonrecursive;
       ce_purary = 2})
   ] @
@@ -245,8 +246,8 @@ let init_term_map vars =
       [ml],
       let tv = newgenvar () in
       {ce_name = coq;
-       ce_vars = [tv];
-       ce_type = newgenarrow tv (newgenarrow tv Predef.type_bool);
+       ce_type = {sch_type = newgenarrow tv (newgenarrow tv Predef.type_bool);
+                  sch_vars = [tv]};
        ce_rec = Recursive;
        ce_purary = 2})
     [("=", "ml_eq"); ("<>", "ml_ne");

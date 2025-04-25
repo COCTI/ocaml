@@ -73,10 +73,12 @@ type coq_type_desc = {
     ct_maps: (int * string) list;
   }
 
+type type_scheme =
+    { sch_type: Types.type_expr; sch_vars: Types.type_expr list }
+
 type coq_term_desc = {
   ce_name : string;
-  ce_type : Types.type_expr;
-  ce_vars : Types.type_expr list;
+  ce_type : type_scheme;
   ce_rec : Asttypes.rec_flag;
   ce_purary : int;
 }

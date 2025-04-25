@@ -55,7 +55,7 @@ let rec transl_type ~loc ~env ~vars ~def visited ty =
   | Tvar _ | Tunivar _ ->
       let tvars = if def then vars.ctvar_map else vars.tvar_map in
       let name =
-        try TypeMap.find ty tvars with Not_found -> "Not_found" in
+        try TypeMap.find ty tvars with Not_found -> "ml_empty" in
       CTid name
   | Tarrow (Nolabel, t1, t2, _) ->
       let ct1 = transl_rec t1 and ct2 = transl_rec t2 in
@@ -111,11 +111,11 @@ let transl_type ~loc ~env ~vars ?(def=false) =
 let transl_coq_type ~loc ~env ~vars ty =
   mkcoqty (transl_type ~loc ~env ~vars ty)
 
-let find_instantiation ~loc ~env ~vars edesc ty =
-  if edesc.ce_vars = [] then [] else
+let find_instantiation ~loc ~env ~vars sch ty =
+  if sch.sch_vars = [] then [] else
   let open Ctype in
   let ty0, ivars =
-    let tys = List.map (fun t -> (None, t)) (edesc.ce_type :: edesc.ce_vars) in
+    let tys = List.map (fun t -> (None, t)) (sch.sch_type :: sch.sch_vars) in
     let ty1 = newgenty (Ttuple tys) in
     match get_desc (generic_instance ty1) with
       Ttuple ((None, ty0) :: vars) -> ty0, List.map snd vars
@@ -124,7 +124,7 @@ let find_instantiation ~loc ~env ~vars edesc ty =
   with_snapshot ~vars
     (fun () ->
       try unify env ty ty0
-      with Unify _ -> not_allowed ~loc ("Type for " ^ edesc.ce_name))
+      with Unify _ -> not_allowed ~loc "Instantion failed")
     (fun ~vars () -> List.map (transl_type ~loc ~env ~vars) ivars)
 
 let close_type ty =
@@ -277,11 +277,13 @@ let transl_exception ~loc ~env ~vars excon =
   let coq_def_args = List.map coq_def_arg args in
   add_exception (Path.Pident cd.cd_id) cname cmp_args coq_def_args vars
 
-let enter_free_variables ~loc ~vars ty =
+let enter_free_variables ~loc ~vars sch =
   (*close_type ty;*)
-  let fvars = Ctype.free_variables ty in
-  let fvars =
-    List.filter (fun ty -> not (TypeMap.mem ty vars.tvar_map)) fvars in
-  let (fvar_names, vars) =  enter_tvars ~loc ~vars ~def:false fvars in
+  let (bvar_names, vars) = enter_tvars ~loc ~vars ~def:false sch.sch_vars in
+  let all_vars = Ctype.free_variables sch.sch_type in
+  let unbound_vars =
+    List.filter (fun ty -> not (TypeMap.mem ty vars.tvar_map)) all_vars in
+  let vars =
+    List.fold_right (fun tv -> add_tvar tv "ml_empty") unbound_vars vars in
   (*List.iter (Format.eprintf "fvar=%a@." Printtyp.raw_type_expr) fvars;*)
-  fvars, List.map snd fvar_names, vars
+  List.map snd bvar_names, vars
