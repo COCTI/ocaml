@@ -140,6 +140,24 @@ let add_pat_variable ~vars id ty =
 let is_primitive s =
   String.length s >= 2 && s.[0] = '@'
 
+let rec as_value_pattern : type k . k general_pattern -> pattern =
+  fun p -> match p.pat_desc with
+  | Tpat_alias _
+  | Tpat_tuple _
+  | Tpat_construct _
+  | Tpat_variant _
+  | Tpat_record _
+  | Tpat_array _
+  | Tpat_lazy _
+  | Tpat_any
+  | Tpat_var _
+  | Tpat_constant _ as pd -> {p with pat_desc = pd}
+  | Tpat_value p -> (p :> pattern)
+  | Tpat_exception _ -> not_allowed ~loc:p.pat_loc "This exception pattern"
+  | Tpat_or(p1, p2, rd) ->
+      {p with pat_desc =
+       Tpat_or(as_value_pattern p1, as_value_pattern p2, rd)}
+
 let rec transl_pat : type k. vars:_ -> k general_pattern -> _ =
   fun ~vars pat ->
   let loc = pat.pat_loc in
@@ -455,9 +473,26 @@ let rec transl_exp ~vars e =
       let ct = shrink_purary ~vars ct 1 in
       {pterm = ctapp (CTid "make_lazy_val") [cty; ct.pterm];
        pary = 1; prec = ct.prec}
-  | Texp_match (e, cases, [], partial) ->
-      let ct = transl_exp ~vars e.qexp_expr in
-      transl_match ~vars ct cases partial
+  | Texp_match (e1, cases, [], partial) ->
+      if e1.qexp_vars = [] then begin
+        let ct = transl_exp ~vars e1.qexp_expr in
+        transl_match ~vars ct cases partial
+      end else begin
+        match cases with
+        | [ case ] ->
+            Option.iter (fun e -> not_allowed ~loc:e.exp_loc "This guard")
+              case.c_guard;
+            let vb =
+              { vb_pat = as_value_pattern case.c_lhs;
+                vb_expr = e1;
+                vb_rec_kind = Static;
+                vb_attributes = [];
+                vb_loc = e1.qexp_expr.exp_loc } in
+            transl_exp ~vars
+              {e with exp_desc = Texp_let (Nonrecursive, [vb], case.c_rhs)}
+        | _ ->
+            not_allowed ~loc "This polymorphic matching"
+      end
   | Texp_try (e1, cases, []) ->
       let ct = transl_exp ~vars e1 in
       if ct.pary > 0 then ct else
