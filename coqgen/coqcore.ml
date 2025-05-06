@@ -240,8 +240,7 @@ let rec transl_exp ~vars e =
       {pterm = CTcstr (string_of_constant ~loc cst); prec = Nonrecursive;
        pary = 1 }
   | Texp_let (Nonrecursive, vbl, body) ->
-      let ctl =
-        List.map (transl_binding ~vars ~rec_flag:Nonrecursive) vbl in
+      let ctl = transl_bindings ~vars ~rec_flag:Nonrecursive vbl in
       let (id_descs, ctl) = List.split ctl in
       let names = List.map (fun (_,desc) -> desc.ce_name) id_descs in
       let vars =
@@ -542,28 +541,31 @@ and transl_cases ~vars case =
   let ct_rhs = transl_exp ~vars case.c_rhs in
   ((ct_lhs, vars), ct_rhs)
 
-and transl_binding ~vars ~rec_flag vb =
-  let name, id =
-    match vb.vb_pat.pat_desc with
-      Tpat_any -> "_", None
-    | Tpat_var (id, _, _) -> fresh_name ~vars (Ident.name id), Some id
-    | Tpat_construct (_, {cstr_name="()"}, [], _) -> "_", None
-    | _ -> not_allowed ~loc:vb.vb_pat.pat_loc "This pattern"
-  in
+and name_of_pat ~vars pat =
+  match pat.pat_desc with
+    Tpat_any -> "_", None
+  | Tpat_var (id, _, _) -> fresh_name ~vars (Ident.name id), Some id
+  | Tpat_construct (_, {cstr_name="()"}, [], _) -> "_", None
+  | _ -> not_allowed ~loc:pat.pat_loc "This pattern"
+
+and binding_desc ~vars ~rec_flag vb =
+  let name, id = name_of_pat ~vars vb.vb_pat in
   let qexp = vb.vb_expr in
-  let sch = {sch_type = qexp.qexp_expr.exp_type; sch_vars = qexp.qexp_vars} in
-  (*Format.eprintf "exp_type=%a@." Printtyp.raw_type_expr ty;*)
-  let fvar_names, vars =
-    enter_free_variables ~loc:vb.vb_loc ~vars sch in
+  let sch =
+    {sch_type = qexp.qexp_expr.exp_type; sch_vars = qexp.qexp_vars} in
   let desc =
     {ce_name = name; ce_type = sch;
-     ce_rec = rec_flag; ce_purary = fun_arity vb.vb_expr.qexp_expr}
-  in
-  let vars =
-    match rec_flag, id with
-    | Recursive, Some id -> add_term (Path.Pident id) desc vars
-    | _ -> vars
-  in
+     ce_rec = rec_flag; ce_purary = fun_arity qexp.qexp_expr} in
+  (id, desc),
+  match id with
+  | None -> vars
+  | Some id ->
+      if rec_flag = Recursive then add_term (Path.Pident id) desc vars
+      else add_reserved name vars
+
+and transl_binding ~vars ~rec_flag (id, desc) vb =
+  let fvar_names, vars =
+    enter_free_variables ~loc:vb.vb_loc ~vars desc.ce_type in
   let ct = transl_exp ~vars vb.vb_expr.qexp_expr in
   let ct, desc, prec =
     match rec_flag with
@@ -579,6 +581,15 @@ and transl_binding ~vars ~rec_flag vb =
   let ct =
     if rec_flag = Recursive then abstract_recursive ct else ct in
   ((id, desc), {pterm = ct; prec; pary = desc.ce_purary})
+
+and transl_bindings ~vars ~rec_flag vbl =
+  let id_descs, vars =
+    List.fold_left
+      (fun (descs, vars) vb ->
+        let (desc, vars) = binding_desc ~vars ~rec_flag vb in desc::descs, vars)
+      ([], vars) vbl in
+  List.map2 (transl_binding ~vars ~rec_flag) (List.rev id_descs) vbl
+      
 
 (*
 let apply_recursive rec_flag ct =
@@ -647,31 +658,36 @@ let rec transl_structure ~vars = function
           let vars = add_term ~toplevel:true (Path.Pident id) desc vars in
           let cmds, vars = transl_structure ~vars rem in
           (CTdefinition (name, pt.pterm, true) :: cmds, vars)
-    | Tstr_value (rec_flag, [vb]) ->
-        let ((id, desc), pt) = transl_binding ~vars ~rec_flag vb in
-        let pt = close_top ~vars ~ce_vars:desc.ce_type.sch_vars pt in
-        let desc = {desc with ce_purary = pt.pary} in
-        let name, vars' =
-          match id with
-          | Some id ->
-              let prec = if pt.pary > 0 then pt.prec else Nonrecursive in
-              let desc = {desc with ce_rec = or_rec desc.ce_rec prec} in
-              desc.ce_name, add_term ~toplevel:true (Path.Pident id) desc vars
-          | None -> assert false
-        in
+    | Tstr_value (rec_flag, vbl) ->
+        let bindings = transl_bindings ~vars ~rec_flag vbl in
+        let cts, vars' =
+          List.fold_left
+            (fun (cts, vars) bd ->
+              let ct, vars' = transl_definition ~vars bd in (ct::cts, vars'))
+            ([],vars) bindings in
         let cmds, vars' = transl_structure ~vars:vars' rem in
-        if desc.ce_rec = Recursive then
-          if pt.pary = 0 then
-            not_allowed ~loc:it.str_loc "This recursive definition"
-          else
-            CTfixpoint (name, pt.pterm) :: cmds, vars'
+        if List.exists (fun ((_,desc),_) -> desc.ce_rec = Recursive) bindings
+        then
+          let pts =
+            List.rev_map
+              (fun (name, pt) ->
+                if pt.pary = 0 then
+                  not_allowed ~loc:it.str_loc "This recursive definition"
+                else (name, pt.pterm))
+              cts
+          in CTfixpoint pts :: cmds, vars'
         else
-          let ct =
-            if pt.prec = Recursive && pt.pary > 0
-            then abstract_recursive pt.pterm
-            else pt.pterm
-          in
-          CTdefinition (name, ct, false) :: cmds, vars'
+          let cmds' =
+            List.rev_map
+              (fun (name, pt) ->
+                let ct =
+                  if pt.prec = Recursive && pt.pary > 0
+                  then abstract_recursive pt.pterm
+                  else pt.pterm
+                in
+                CTdefinition (name, ct, false))
+              cts
+          in cmds' @ cmds, vars'
     | Tstr_type (Recursive, tds) ->
         let def, vars = transl_typedecls ~env:it.str_env ~vars tds in
         let cmds, vars = transl_structure ~vars rem in
@@ -683,3 +699,16 @@ let rec transl_structure ~vars = function
         transl_structure ~vars rem
     | _ ->
         not_allowed ~loc:it.str_loc "This structure item"
+
+and transl_definition ~vars ((id, desc), pt) =
+  let pt = close_top ~vars ~ce_vars:desc.ce_type.sch_vars pt in
+  let desc = {desc with ce_purary = pt.pary} in
+  let name, vars' =
+    match id with
+    | Some id ->
+        let prec = if pt.pary > 0 then pt.prec else Nonrecursive in
+        let desc = {desc with ce_rec = or_rec desc.ce_rec prec} in
+        desc.ce_name, add_term ~toplevel:true (Path.Pident id) desc vars
+    | None -> assert false
+  in
+  ((name, pt), vars')

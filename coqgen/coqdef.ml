@@ -48,7 +48,7 @@ type inductive =
 
 type vernacular =
   | CTdefinition of string * coq_term * bool
-  | CTfixpoint of string * coq_term
+  | CTfixpoint of (string * coq_term) list
   | CTeval of coq_term
   | CTinductive of inductive list
   | CTverbatim of string

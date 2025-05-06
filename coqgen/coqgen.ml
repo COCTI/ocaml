@@ -47,9 +47,9 @@ let make_coq_type vars =
     in lhs, rhs
   in
   let cases = List.map make_case (Path.Map.bindings vars.type_map) in
-  CTfixpoint ("coq_type",
+  CTfixpoint ["coq_type",
               CTabs ("T", Some ml_tid,
-                     CTann (CTmatch (CTid "T", None, cases), CTsort Type)))
+                     CTann (CTmatch (CTid "T", None, cases), CTsort Type))]
 
 let retEq = ctRet (CTid "Eq")
 
@@ -106,7 +106,7 @@ let make_compare_rec vars =
     in
     (lhs, rhs)
   in
-  CTfixpoint ("compare_rec", CTabs (
+  CTfixpoint ["compare_rec", CTabs (
               "h", Some (CTid "nat"), CTabs (
               "T", Some ml_tid,
               CTann (CTmatch (
@@ -124,7 +124,7 @@ let make_compare_rec vars =
                      None, mkcoqty (CTid "T"), CTprod (
                      None, mkcoqty (CTid "T"),
                      CTapp (CTid"M", [CTid "comparison"]))))
-             )))
+             ))]
 
 let topo_sort (type def) (deps : def -> string * Names.t) (defs : def list) =
   let edges = List.map deps defs in

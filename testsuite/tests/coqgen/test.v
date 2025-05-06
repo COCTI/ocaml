@@ -628,13 +628,13 @@ Definition fixpt (h : nat) (T T_1 : ml_type)
 Definition fib_1 :=
   Restart it_22
     (fixpt h ml_int ml_int
-       (fun fib_1 : coq_type (ml_arrow ml_int ml_int) =>
+       (fun fib_2 : coq_type (ml_arrow ml_int ml_int) =>
           Ret
             (fun n : coq_type ml_int =>
                do v <- ml_le h ml_int n 1%int63;
                if v then Ret 1%int63 else
-                 do v <- fib_1 (PrimInt63.sub n 2%int63);
-                 do v_1 <- fib_1 (PrimInt63.sub n 1%int63);
+                 do v <- fib_2 (PrimInt63.sub n 2%int63);
+                 do v_1 <- fib_2 (PrimInt63.sub n 1%int63);
                  Ret (PrimInt63.add v_1 v)))).
 
 Definition it_23 := Eval compute in

@@ -158,12 +158,12 @@ and print_args is_def ppf ct =
   ct
   (* else may_app (fun cty ct -> CTann (ct, cty)) ann ct *)
 
-let emit_def ppf def s ~eval ct =
+let emit_def ppf def s ~eval ~last ct =
   fprintf ppf "@[<2>@[<2>%s %s" def s;
   let ct = print_args true ppf ct in
   fprintf ppf " :=@]";
   if eval then fprintf ppf "@ Eval compute in";
-  fprintf ppf "@ %a.@]" print_term ct;
+  fprintf ppf "@ %a%s@]" print_term ct (if last then "." else "");
   if eval then fprintf ppf "@ Print %s." s;
   let is_it = s = "it" || String.length s >= 3 && String.sub s 0 3 = "it_" in
   if not is_it then pp_print_newline ppf ()
@@ -176,8 +176,15 @@ let newlines = ref 1
 let emit_vernacular ppf = function
   | CTverbatim s            -> fprintf ppf "%s" s
   | CTdefinition (s, ct, eval) ->
-      emit_def ppf "Definition" s ~eval ct
-  | CTfixpoint (s, ct)   -> emit_def ppf "Fixpoint" s ~eval:false ct
+      emit_def ppf "Definition" s ~eval ~last:true ct
+  | CTfixpoint l ->
+      let rec loop first = function
+          [] -> ()
+        | (s, ct) :: rem ->
+            let def = if first then "Fixpoint" else "with" in
+            emit_def ppf def s ~eval:false ~last:(rem = []) ct;
+            loop false rem
+      in loop true l
   | CTeval ct ->
       fprintf ppf "@[<2>Eval compute in@ %a.@]" print_term ct;
       newlines := 2

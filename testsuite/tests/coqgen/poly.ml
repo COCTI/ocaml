@@ -11,3 +11,6 @@ type ('a,'b) pair = Pair of 'a * 'b
 let k () =
   match (fun x -> x) with
   | f -> Pair (f 1, f true) ;;
+
+let rec f x = x
+and g () = f []; () ;;
