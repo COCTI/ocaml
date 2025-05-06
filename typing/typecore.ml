@@ -432,7 +432,9 @@ let type_continuation_pat env expected_ty sp =
       let desc =
         { val_type = expected_ty; val_kind = Val_reg;
           Types.val_loc = loc; val_attributes = [];
-          val_uid = Uid.mk ~current_unit:(Env.get_current_unit ()); }
+          val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+          val_bound_type_vars = generic_free_variables expected_ty;
+        }
       in
         Some (id, desc)
   | Ppat_extension ext ->
@@ -2237,9 +2239,21 @@ let add_pattern_variables ?check ?check_as env pv =
          {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
           val_attributes = pv_attributes;
           val_uid = pv_uid;
+          val_bound_type_vars = generic_free_variables pv_type;
          } env
     )
     pv env
+
+let update_pattern_variables env pvs =
+  List.fold_right begin fun {pv_id} env ->
+    let desc =
+      try Env.find_value (Path.Pident pv_id) env
+      with Not_found -> assert false
+    in
+    Env.update_value pv_id
+      {desc with val_bound_type_vars = generic_free_variables desc.val_type}
+      env
+  end pvs env
 
 let add_module_variables env module_variables =
   let module_variables_as_list =
@@ -2342,6 +2356,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             ; val_attributes = pv_attributes
             ; val_loc = pv_loc
             ; val_uid
+            ; val_bound_type_vars = []
             }
             val_env
          in
@@ -2352,6 +2367,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             ; val_attributes = pv_attributes
             ; val_loc = pv_loc
             ; val_uid
+            ; val_bound_type_vars = []
             }
             met_env
          in
@@ -3027,8 +3043,8 @@ let rec is_nonexpansive exp =
   | Texp_function _
   | Texp_array (_, []) -> true
   | Texp_let(_rec_flag, pat_exp_list, body) ->
-      List.for_all (fun vb -> is_nonexpansive vb.vb_expr) pat_exp_list &&
-      is_nonexpansive body
+      List.for_all (fun vb -> is_nonexpansive vb.vb_expr.qexp_expr) pat_exp_list
+        && is_nonexpansive body
   | Texp_apply(e, (_,Omitted ())::el) ->
       is_nonexpansive e && List.for_all is_nonexpansive_arg (List.map snd el)
   | Texp_match(e, cases, _, _) ->
@@ -3041,7 +3057,7 @@ let rec is_nonexpansive exp =
           | Tpat_exception _ -> true
           | _ -> false } pat
       in
-      is_nonexpansive e &&
+      is_nonexpansive e.qexp_expr &&
       List.for_all
         (fun {c_lhs; c_guard; c_rhs} ->
            is_nonexpansive_opt c_guard && is_nonexpansive c_rhs
@@ -3129,7 +3145,8 @@ and is_nonexpansive_mod mexp =
           | Tstr_eval _ | Tstr_primitive _ | Tstr_type _
           | Tstr_modtype _ | Tstr_class_type _  -> true
           | Tstr_value (_, pat_exp_list) ->
-              List.for_all (fun vb -> is_nonexpansive vb.vb_expr) pat_exp_list
+              List.for_all (fun vb -> is_nonexpansive vb.vb_expr.qexp_expr)
+                pat_exp_list
           | Tstr_module {mb_expr=m;_}
           | Tstr_open {open_expr=m;_}
           | Tstr_include {incl_mod=m;_} -> is_nonexpansive_mod m
@@ -3164,12 +3181,13 @@ let maybe_expansive e = not (is_nonexpansive e)
 let annotate_recursive_bindings env valbinds =
   let ids = let_bound_idents valbinds in
   List.map
-    (fun {vb_pat; vb_expr; vb_rec_kind = _; vb_attributes; vb_loc} ->
-       match (Value_rec_check.is_valid_recursive_expression ids vb_expr) with
+    (fun {vb_pat; vb_expr = ({qexp_expr} as vb_expr);
+          vb_rec_kind = _; vb_attributes; vb_loc} ->
+       match (Value_rec_check.is_valid_recursive_expression ids qexp_expr) with
        | None ->
-         raise(Error(vb_expr.exp_loc, env, Illegal_letrec_expr))
+         raise(Error(qexp_expr.exp_loc, env, Illegal_letrec_expr))
        | Some vb_rec_kind ->
-         { vb_pat; vb_expr; vb_rec_kind; vb_attributes; vb_loc})
+         { vb_pat; vb_expr; vb_rec_kind; vb_attributes; vb_loc })
     valbinds
 
 let check_recursive_class_bindings env ids exprs =
@@ -3640,6 +3658,10 @@ let with_explanation explanation f =
 let may_lower_contravariant env exp =
   if maybe_expansive exp then lower_contravariant env exp.exp_type
 
+(* build a quantified expression *)
+let qexp_of_exp e =
+  {qexp_expr = e; qexp_vars = generic_free_variables e.exp_type}
+
 (* value binding elaboration *)
 
 let vb_exp_constraint {pvb_expr=expr; pvb_pat=pat; pvb_constraint=ct; _ } =
@@ -3855,7 +3877,7 @@ and type_expect_
                     escape at the outer level to avoid losing generality of
                     types added to [new_env].
                  *)
-                let bound_exp = vb.vb_expr in
+                let bound_exp = vb.vb_expr.qexp_expr in
                 let bound_exp_type = Ctype.instance bound_exp.exp_type in
                 let loc = proper_exp_loc bound_exp in
                 let outer_var = newvar2 outer_level in
@@ -4016,7 +4038,7 @@ and type_expect_
           val_cases
       then check_partial_application ~statement:false arg;
       re {
-        exp_desc = Texp_match(arg, val_cases, eff_cases, partial);
+        exp_desc = Texp_match(qexp_of_exp arg, val_cases, eff_cases, partial);
         exp_loc = loc; exp_extra = [];
         exp_type = instance ty_expected;
         exp_attributes = sexp.pexp_attributes;
@@ -4376,6 +4398,7 @@ and type_expect_
                val_kind = Val_reg;
                val_loc = loc;
                val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+               val_bound_type_vars = [];
               } env
               ~check:(fun s -> Warnings.Unused_for_index s)
         | _ ->
@@ -4684,9 +4707,9 @@ and type_expect_
         let t = Ast_helper.Typ.package ~loc:ptyp.ppt_loc ptyp in
         let pty, exp_extra = type_constraint env t in
         begin match get_desc (instance pty) with
-          | Tpackage (p, fl) ->
-            let (modl, fl') = !type_package env m p fl in
-            let ty = newty (Tpackage (p, fl')) in
+          | Tpackage pack ->
+            let (modl, pack') = !type_package env m pack in
+            let ty = newty (Tpackage pack') in
             unify_exp_types m.pmod_loc env (instance pty) ty;
             rue {
               exp_desc = Texp_pack modl;
@@ -4698,9 +4721,9 @@ and type_expect_
             fatal_error "[type_expect] Package not translated to a package"
         end
       | None ->
-        let (p, fl) =
+        let pack =
           match get_desc (Ctype.expand_head env (instance ty_expected)) with
-            Tpackage (p, fl) ->
+            Tpackage pack ->
               if !Clflags.principal &&
                 get_level (Ctype.expand_head env
                             (protect_expansion env ty_expected))
@@ -4708,17 +4731,17 @@ and type_expect_
               then
                 Location.prerr_warning loc
                   (not_principal "this module packing");
-              (p, fl)
+              pack
           | Tvar _ ->
               raise (Error (loc, env, Cannot_infer_signature))
           | _ ->
               raise (Error (loc, env, Not_a_packed_module ty_expected))
           in
-          let (modl, fl') = !type_package env m p fl in
+          let (modl, pack') = !type_package env m pack in
           rue {
             exp_desc = Texp_pack modl;
             exp_loc = loc; exp_extra = [];
-            exp_type = newty (Tpackage (p, fl'));
+            exp_type = newty (Tpackage pack');
             exp_attributes = sexp.pexp_attributes;
             exp_env = env }
       end
@@ -5692,6 +5715,7 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
             val_attributes = [];
             val_loc = Location.none;
             val_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+            val_bound_type_vars = [];
           }
         in
         let exp_env = Env.add_value id desc env in
@@ -5734,7 +5758,8 @@ and type_argument ?explanation ?recarg env sarg ty_expected' ty_expected =
       let let_pat, let_var = var_pair "arg" texp.exp_type in
       re { texp with exp_type = ty_fun; exp_desc =
            Texp_let (Nonrecursive,
-                     [{vb_pat=let_pat; vb_expr=texp; vb_attributes=[];
+                     [{vb_pat=let_pat; vb_expr=qexp_of_exp texp;
+                       vb_attributes=[];
                        vb_loc=Location.none; vb_rec_kind = Dynamic;
                       }],
                      func let_var) }
@@ -6258,7 +6283,7 @@ and type_cases
           c_lhs = pat;
           c_cont = cont;
           c_guard = guard;
-          c_rhs = {exp with exp_type = ty_infer}
+          c_rhs = {exp with exp_type = ty_infer};
         }
     end
     ~additional_checks_for_split_cases:(fun cases ->
@@ -6329,7 +6354,7 @@ and type_let ?check ?check_strict
   let attrs_list = List.map fst spatl in
   let is_recursive = (rec_flag = Recursive) in
 
-  let (pat_list, exp_list, new_env, mvs) =
+  let (pat_list, exp_list, new_env, mvs, pvs) =
     with_local_level_generalize begin fun () ->
       if existential_context = At_toplevel then Typetexp.TyVarEnv.reset ();
       let (pat_list, new_env, force, pvs, mvs) =
@@ -6425,9 +6450,9 @@ and type_let ?check ?check_strict
         )
         pat_list
         (List.map2 (fun (attrs, _) (e, _) -> attrs, e) spatl exp_list);
-      (pat_list, exp_list, new_env, mvs)
+      (pat_list, exp_list, new_env, mvs, pvs)
     end
-    ~before_generalize: begin fun (pat_list, exp_list, _, _) ->
+    ~before_generalize: begin fun (pat_list, exp_list, _, _, _) ->
       List.iter2 (fun pat (exp, vars) ->
         if maybe_expansive exp then begin
           lower_contravariant env pat.pat_type;
@@ -6445,7 +6470,7 @@ and type_let ?check ?check_strict
     List.map2
       (fun (p, (e, _)) pvb ->
         (* vb_rec_kind will be computed later for recursive bindings *)
-        {vb_pat=p; vb_expr=e; vb_attributes=pvb.pvb_attributes;
+        {vb_pat=p; vb_expr=qexp_of_exp e; vb_attributes=pvb.pvb_attributes;
          vb_loc=pvb.pvb_loc; vb_rec_kind = Dynamic;
         })
       l spat_sexp_list
@@ -6459,8 +6484,10 @@ and type_let ?check ?check_strict
       l;
   List.iter (fun vb ->
       if pattern_needs_partial_application_check vb.vb_pat then
-        check_partial_application ~statement:false vb.vb_expr
+        check_partial_application ~statement:false
+          vb.vb_expr.qexp_expr
     ) l;
+  let new_env = update_pattern_variables new_env pvs in
   (* See Note [add_module_variables after checking expressions] *)
   let new_env = add_module_variables new_env mvs in
   (l, new_env)
@@ -6752,14 +6779,14 @@ let type_expression env sexp =
 
 (* Error report *)
 
-open Format_doc
-module Fmt = Format_doc
-
 let spellcheck unbound_name valid_names =
   Misc.did_you_mean (Misc.spellcheck valid_names unbound_name)
 
 let spellcheck_idents unbound valid_idents =
   spellcheck (Ident.name unbound) (List.map Ident.name valid_idents)
+
+open Format_doc
+module Fmt = Format_doc
 
 module Printtyp = Printtyp.Doc
 
@@ -6941,17 +6968,20 @@ let report_too_many_arg_error ~funct ~func_ty ~previous_arg_loc
       loc_end = cnum_offset ~+1 arg_end;
       loc_ghost = false }
   in
-  let hint_semicolon = if returns_unit then [
-      msg ~loc:tail_loc "@{<hint>Hint@}: Did you forget a ';'?";
-    ] else [] in
-  let sub = hint_semicolon @ [
-    msg ~loc:extra_arg_loc "This extra argument is not expected.";
-  ] in
-  errorf ~loc:app_loc ~sub
+  errorf ~loc:app_loc
     "@[<v>@[<2>%a@ %a@]\
      @ It is applied to too many arguments@]"
     (report_this_texp_has_type (Some "function")) funct
     Printtyp.type_expr func_ty
+    ~sub:(
+      let semicolon =
+        if returns_unit then
+          [msg ~loc:tail_loc "@{<hint>Hint@}: Did you forget a ';'?"]
+        else []
+      in
+      semicolon @
+      [msg ~loc:extra_arg_loc "This extra argument is not expected."]
+    )
 
 let msg = Fmt.doc_printf
 
@@ -7008,13 +7038,11 @@ let report_error ~loc env = function
         "Variable %a is bound several times in this matching"
         Style.inline_code name
   | Orpat_vars (id, valid_idents) ->
-     Location.error_of_printer ~loc (fun ppf () ->
-         Misc.aligned_error_hint ppf
-           "@{<ralign>Variable @}%a must occur on both sides of this %a pattern"
-           Style.inline_code (Ident.name id)
-           Style.inline_code "|"
-           (spellcheck_idents id valid_idents)
-       ) ()
+     Location.aligned_error_hint ~loc
+       "@{<ralign>Variable @}%a must occur on both sides of this %a pattern"
+       Style.inline_code (Ident.name id)
+       Style.inline_code "|"
+       (spellcheck_idents id valid_idents)
   | Expr_type_clash (err, explanation, exp) ->
       let diff = type_clash_of_trace err.trace in
       let sub = report_expr_type_clash_hints exp diff in
@@ -7110,29 +7138,35 @@ let report_error ~loc env = function
       Location.errorf ~loc "The record field %a is not mutable"
         quoted_longident lid
   | Wrong_name (eorp, ty_expected, { type_path; kind; name; valid_names; }) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        Printtyp.wrap_printing_env ~error:true env (fun () ->
-          let { ty; explanation } = ty_expected in
-          if Path.is_constructor_typath type_path then
-            Misc.aligned_error_hint ppf
-              "@{<ralign>The field @}%a is not part of the record argument \
-               for the %a constructor"
-              Style.inline_code name.txt
-              (Style.as_inline_code Printtyp.type_path) type_path
-              (spellcheck name.txt valid_names)
-          else begin
-            fprintf ppf
-              "@[<2>%s type@ %a%a@]@\n"
-              eorp (Style.as_inline_code Printtyp.type_expr) ty
-              pp_doc (report_type_expected_explanation_opt explanation);
-            Misc.aligned_error_hint ppf
-              "@{<ralign>There is no %s @}%a within type %a"
-              (Datatype_kind.label_name kind)
-              Style.inline_code name.txt
-              (Style.as_inline_code Printtyp.type_path) type_path
-              (spellcheck name.txt valid_names)
-          end;
-      )) ()
+     Printtyp.wrap_printing_env ~error:true env (fun () ->
+         let { ty; explanation } = ty_expected in
+         if Path.is_constructor_typath type_path then
+           Location.aligned_error_hint ~loc
+             "@{<ralign>The field @}%a is not part of the record argument \
+              for the %a constructor"
+             Style.inline_code name.txt
+             (Style.as_inline_code Printtyp.type_path) type_path
+             (spellcheck name.txt valid_names)
+         else
+           let intro ppf = Fmt.fprintf ppf "@[%s type@;<1 2>%a%a@]@\n"
+             eorp (Style.as_inline_code Printtyp.type_expr) ty
+             pp_doc (report_type_expected_explanation_opt explanation)
+           in
+           let main =
+             Fmt.doc_printf "@{<ralign>There is no %s @}%a within type %a"
+             (Datatype_kind.label_name kind)
+             Style.inline_code name.txt
+             (Style.as_inline_code Printtyp.type_path) type_path
+           in
+           let main, sub =
+             match spellcheck name.txt valid_names with
+             | None -> main, []
+             | Some hint ->
+                 let main, hint = Misc.align_error_hint ~main ~hint in
+                 main, [Location.mknoloc hint]
+           in
+           Location.errorf ~loc ~sub "%t%a" intro pp_doc main
+       )
   | Name_type_mismatch (kind, lid, tp, tpl) ->
       let type_name = Datatype_kind.type_name kind in
       let name = Datatype_kind.label_name kind in
@@ -7140,7 +7174,7 @@ let report_error ~loc env = function
         | Datatype_kind.Record -> quoted_longident
         | Datatype_kind.Variant -> quoted_constr
       in
-      Location.error_of_printer ~loc (fun ppf () ->
+      Location.errorf ~loc "%t" (fun ppf ->
         Errortrace_report.ambiguous_type ppf env tp tpl
           (msg "The %s %a@ belongs to the %s type"
                name pr lid type_name)
@@ -7148,52 +7182,53 @@ let report_error ~loc env = function
                name pr lid type_name)
           (msg "but a %s was expected belonging to the %s type"
                name type_name)
-        ) ()
+        )
   | Invalid_format msg ->
       Location.errorf ~loc "%s" msg
   | Not_an_object (ty, explanation) ->
-    Location.error_of_printer ~loc (fun ppf () ->
-      fprintf ppf "This expression is not an object;@ \
-                   it has type %a"
-        (Style.as_inline_code Printtyp.type_expr) ty;
-      pp_doc ppf @@ report_type_expected_explanation_opt explanation
-    ) ()
+    Location.errorf ~loc
+      "This expression is not an object;@ it has type %a%a"
+      (Style.as_inline_code Printtyp.type_expr) ty
+      pp_doc (report_type_expected_explanation_opt explanation)
   | Undefined_method (ty, me, valid_methods) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        Printtyp.wrap_printing_env ~error:true env (fun () ->
-          fprintf ppf
-            "@[<v>@[This expression has type@;<1 2>%a@]@,@]"
-            (Style.as_inline_code Printtyp.type_expr) ty;
-          Misc.aligned_error_hint ppf
-            "@{<ralign>It has no method @}%a" Style.inline_code me
-            (match valid_methods with
-             | None -> None
-             | Some valid_methods -> spellcheck me valid_methods
-            )
-      )) ()
+     Printtyp.wrap_printing_env ~error:true env (fun () ->
+          let intro ppf =
+            Fmt.fprintf ppf
+              "@[<v>@[This expression has type@;<1 2>%a@]@,@]"
+              (Style.as_inline_code Printtyp.type_expr) ty
+          in
+          let main =
+            Fmt.doc_printf "@{<ralign>It has no method @}%a"
+              Style.inline_code me
+          in
+          let main, sub =
+            match Option.bind valid_methods (spellcheck me) with
+            | None -> main, []
+            | Some hint ->
+                let main, hint = Misc.align_error_hint ~main ~hint in
+                main, [Location.mknoloc hint]
+          in
+          Location.errorf ~sub ~loc "%t%a" intro pp_doc main
+       )
   | Undefined_self_method (me, valid_methods) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        Misc.aligned_error_hint ppf
-          "@{<ralign>This expression has no method @}%a"
-          Style.inline_code me
-          (spellcheck me valid_methods)
-      ) ()
+     Location.aligned_error_hint ~loc
+       "@{<ralign>This expression has no method @}%a"
+       Style.inline_code me
+       (spellcheck me valid_methods)
   | Virtual_class cl ->
-      Location.errorf ~loc "Cannot instantiate the virtual class %a"
-        quoted_longident cl
+     Location.errorf ~loc "Cannot instantiate the virtual class %a"
+       quoted_longident cl
   | Unbound_instance_variable (var, valid_vars) ->
-     Location.error_of_printer ~loc (fun ppf () ->
-         Misc.aligned_error_hint ppf
-           "@{<ralign>Unbound instance variable @}%a" Style.inline_code var
-           (spellcheck var valid_vars)
-       ) ()
+     Location.aligned_error_hint ~loc
+       "@{<ralign>Unbound instance variable @}%a" Style.inline_code var
+       (spellcheck var valid_vars)
   | Instance_variable_not_mutable v ->
-      Location.errorf ~loc "The instance variable %a is not mutable"
-        Style.inline_code v
+     Location.errorf ~loc "The instance variable %a is not mutable"
+       Style.inline_code v
   | Not_subtype err ->
-      Location.error_of_printer ~loc (fun ppf () ->
+      Location.errorf ~loc "%t" (fun ppf ->
         Errortrace_report.subtype ppf env err "is not a subtype of"
-      ) ()
+      )
   | Outside_class ->
       Location.errorf ~loc
         "This object duplication occurs outside a method definition"
@@ -7202,23 +7237,26 @@ let report_error ~loc env = function
         "The instance variable %a is overridden several times"
         Style.inline_code v
   | Coercion_failure (ty_exp, err, b) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-          let intro =
-            let ty_exp = Out_type.prepare_expansion ty_exp in
-            doc_printf "This expression cannot be coerced to type@;<1 2>%a;@ \
-                        it has type"
-              (Style.as_inline_code @@ Printtyp.type_expansion Type) ty_exp
-          in
+     let intro =
+       let ty_exp = Out_type.prepare_expansion ty_exp in
+       doc_printf "This expression cannot be coerced to type@;<1 2>%a;@ \
+                   it has type"
+         (Style.as_inline_code @@ Printtyp.type_expansion Type) ty_exp
+     in
+      Location.errorf ~loc "%t" (fun ppf ->
         Errortrace_report.unification ppf env err
           intro
-          (Fmt.doc_printf "but is here used with type");
-        if b then
-          fprintf ppf
-            ".@.@[<hov>This simple coercion was not fully general.@ \
-             @{<hint>Hint@}: Consider using a fully explicit coercion@ \
-             of the form: %a@]"
-            Style.inline_code "(foo : ty1 :> ty2)"
-      ) ()
+          (Fmt.Doc.msg "but is here used with type")
+        )
+         ~sub:(
+           if not b then [] else
+             [ Location.msg "This simple coercion was not fully general";
+               Location.msg
+                 "@{<hint>Hint@}: Consider using a fully explicit coercion@ \
+                  of the form: %a"
+                 Style.inline_code "(foo : ty1 :> ty2)"
+             ]
+         )
   | Not_a_function (ty, explanation) ->
       Location.errorf ~loc
         "This expression should not be a function,@ \

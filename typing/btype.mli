@@ -27,6 +27,7 @@ module TypeSet : sig
   val singleton: type_expr -> t
   val exists: (type_expr -> bool) -> t -> bool
   val elements: t -> type_expr list
+  val of_list: type_expr list -> t
 end
 module TransientTypeMap : Map.S with type key = transient_expr
 module TypeMap : sig
@@ -34,6 +35,7 @@ module TypeMap : sig
                      and type 'a t = 'a TransientTypeMap.t
   val add: type_expr -> 'a -> 'a t -> 'a t
   val find: type_expr -> 'a t -> 'a
+  val mem: type_expr -> 'a t -> bool
   val singleton: type_expr -> 'a -> 'a t
   val fold: (type_expr -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 end

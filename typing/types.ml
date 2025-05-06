@@ -44,7 +44,11 @@ and type_desc =
   | Tvariant of row_desc
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
-  | Tpackage of Path.t * (string list * type_expr) list
+  | Tpackage of package
+
+and package =
+    { pack_path : Path.t;
+      pack_cstrs : (string list * type_expr) list }
 
 and row_desc =
     { row_fields: (label * row_field) list;
@@ -115,6 +119,7 @@ type value_description =
     val_loc: Location.t;
     val_attributes: Parsetree.attributes;
     val_uid: Uid.t;
+    val_bound_type_vars: type_expr list;
   }
 
 and value_kind =
@@ -135,7 +140,8 @@ and class_signature =
   { csig_self: type_expr;
     mutable csig_self_row: type_expr;
     mutable csig_vars: (mutable_flag * virtual_flag * type_expr) Vars.t;
-    mutable csig_meths: (method_privacy * virtual_flag * type_expr) Meths.t; }
+    mutable csig_meths: (method_privacy * virtual_flag * type_expr) Meths.t;
+    csig_bound_type_vars: type_expr list; }
 
 and method_privacy =
   | Mpublic
@@ -146,18 +152,25 @@ and method_privacy =
      0 <= may_pos <= pos
      0 <= may_weak <= may_neg <= neg
      0 <= inj
+   may_pos/may_neg mean possible positive/negative occurrences;
+     thus, may_pos + may_neg = invariant
    Additionally, the following implications are valid
      pos => inj
      neg => inj
    Examples:
-     type 'a t        : may_pos + may_neg + may_weak
+     type 'a t        : may_pos + may_neg
+     type +'a t       : may_pos
+     type -'a t       : may_neg
+     type +-'a t      : null (no occurrence of 'a assured)
+     type !'a t       : may_pos + may_neg + inj
+     type +!'a t      : may_pos + inj
+     type -!'a t      : may_neg + inj
+     type +-!'a t     : inj
      type 'a t = 'a   : pos
      type 'a t = 'a -> unit : neg
      type 'a t = ('a -> unit) -> unit : pos + may_weak
      type 'a t = A of (('a -> unit) -> unit) : pos
      type +'a p = ..  : may_pos + inj
-     type +!'a t      : may_pos + inj
-     type -!'a t      : may_neg + inj
      type 'a t = A    : inj
  *)
 
@@ -851,6 +864,9 @@ let snapshot () =
   let old = !last_snapshot in
   last_snapshot := !new_id;
   (!trail, old)
+
+let same_snapshot (snap1 : snapshot) (snap2 : snapshot) =
+  fst snap1 == fst snap2
 
 let rec rev_log accu = function
     Unchanged -> accu

@@ -111,6 +111,11 @@ let fmt_partiality f x =
   | Total -> ()
   | Partial -> fprintf f " (Partial)"
 
+let fmt_presence f x =
+  match x with
+  | Types.Mp_present -> fprintf f "(Present)"
+  | Types.Mp_absent -> fprintf f "(Absent)"
+
 let line i f s (*...*) =
   fprintf f "%s" (String.make (2*i) ' ');
   fprintf f s (*...*)
@@ -216,7 +221,7 @@ let rec core_type i ppf x =
       line i ppf "Ttyp_poly%a\n"
         (fun ppf -> List.iter (fun x -> fprintf ppf " '%s" x)) sl;
       core_type i ppf ct;
-  | Ttyp_package { pack_path = s; pack_fields = l } ->
+  | Ttyp_package { tpt_path = s; tpt_cstrs = l } ->
       line i ppf "Ttyp_package %a\n" fmt_path s;
       list i package_with ppf l;
   | Ttyp_open (path, _mod_ident, t) ->
@@ -339,6 +344,17 @@ and expression_extra i ppf (extra, loc, attrs) =
       line i ppf "Texp_newtype \"%s\"\n" s;
       attributes i ppf attrs;
 
+and quantified_expression i ppf {qexp_expr; qexp_vars} =
+  if qexp_vars = [] then expression i ppf qexp_expr else
+  let t = Btype.newgenty (Types.Tpoly (qexp_expr.exp_type, qexp_vars)) in
+  let buf = Buffer.create 10 in
+  let f = Format.formatter_of_buffer buf in
+  Format.pp_set_margin f 1_000_000_000;
+  Printtyp.type_expr f t;
+  Format.pp_print_flush f ();
+  line i ppf "quantified %s\n" (Buffer.contents buf);
+  expression (i+1) ppf qexp_expr
+
 and expression i ppf x =
   line i ppf "expression %a\n" fmt_location x.exp_loc;
   attributes i ppf x.exp_attributes;
@@ -360,9 +376,9 @@ and expression i ppf x =
       line i ppf "Texp_apply\n";
       expression i ppf e;
       list i label_x_apply_arg ppf l;
-  | Texp_match (e, l1, l2, partial) ->
+  | Texp_match (qe, l1, l2, partial) ->
       line i ppf "Texp_match%a\n" fmt_partiality partial;
-      expression i ppf e;
+      quantified_expression i ppf qe;
       list i case ppf l1;
       list i case ppf l2;
   | Texp_try (e, l1, l2) ->
@@ -767,9 +783,8 @@ and signature_item i ppf x =
       line i ppf "Tsig_exception\n";
       type_exception i ppf ext
   | Tsig_module md ->
-      line i ppf "Tsig_module \"%a\"\n" fmt_modname md.md_id;
-      attributes i ppf md.md_attributes;
-      module_type i ppf md.md_type
+      line i ppf "Tsig_module %a\n" fmt_presence md.md_presence;
+      module_declaration i ppf md
   | Tsig_modsubst ms ->
       line i ppf "Tsig_modsubst \"%a\" = %a\n"
         fmt_ident ms.ms_id fmt_path ms.ms_manifest;
@@ -804,7 +819,7 @@ and signature_item i ppf x =
       attribute i ppf "Tsig_attribute" a
 
 and module_declaration i ppf md =
-  line i ppf "%a" fmt_modname md.md_id;
+  line i ppf "%a\n" fmt_modname md.md_id;
   attributes i ppf md.md_attributes;
   module_type (i+1) ppf md.md_type;
 
@@ -892,7 +907,7 @@ and structure_item i ppf x =
       line i ppf "Tstr_exception\n";
       type_exception i ppf ext;
   | Tstr_module x ->
-      line i ppf "Tstr_module\n";
+      line i ppf "Tstr_module %a\n" fmt_presence x.mb_presence;
       module_binding i ppf x
   | Tstr_recmodule bindings ->
       line i ppf "Tstr_recmodule\n";
@@ -972,7 +987,7 @@ and value_binding rec_flag i ppf x =
   end;
   attributes (i+1) ppf x.vb_attributes;
   pattern (i+1) ppf x.vb_pat;
-  expression (i+1) ppf x.vb_expr
+  quantified_expression (i+1) ppf x.vb_expr
 
 and string_x_expression i ppf (s, _, e) =
   line i ppf "<override> \"%a\"\n" fmt_ident s;

@@ -1090,7 +1090,6 @@ typing/mtype.cmo : \
     typing/types.cmi \
     typing/subst.cmi \
     typing/path.cmi \
-    parsing/location.cmi \
     typing/ident.cmi \
     typing/env.cmi \
     typing/ctype.cmi \
@@ -1102,7 +1101,6 @@ typing/mtype.cmx : \
     typing/types.cmx \
     typing/subst.cmx \
     typing/path.cmx \
-    parsing/location.cmx \
     typing/ident.cmx \
     typing/env.cmx \
     typing/ctype.cmx \
@@ -1425,6 +1423,7 @@ typing/printtyp.cmi : \
 typing/printtyped.cmo : \
     typing/types.cmi \
     typing/typedtree.cmi \
+    typing/printtyp.cmi \
     parsing/printast.cmi \
     parsing/pprintast.cmi \
     typing/path.cmi \
@@ -1433,11 +1432,13 @@ typing/printtyped.cmo : \
     parsing/location.cmi \
     typing/ident.cmi \
     utils/clflags.cmi \
+    typing/btype.cmi \
     parsing/asttypes.cmi \
     typing/printtyped.cmi
 typing/printtyped.cmx : \
     typing/types.cmx \
     typing/typedtree.cmx \
+    typing/printtyp.cmx \
     parsing/printast.cmx \
     parsing/pprintast.cmx \
     typing/path.cmx \
@@ -1446,6 +1447,7 @@ typing/printtyped.cmx : \
     parsing/location.cmx \
     typing/ident.cmx \
     utils/clflags.cmx \
+    typing/btype.cmx \
     parsing/asttypes.cmx \
     typing/printtyped.cmi
 typing/printtyped.cmi : \
@@ -1884,7 +1886,6 @@ typing/typedecl.cmi : \
     parsing/location.cmi \
     typing/includecore.cmi \
     typing/ident.cmi \
-    utils/format_doc.cmi \
     typing/errortrace.cmi \
     typing/env.cmi \
     parsing/asttypes.cmi
@@ -2258,7 +2259,6 @@ typing/typetexp.cmi : \
     parsing/parsetree.cmi \
     parsing/longident.cmi \
     parsing/location.cmi \
-    utils/format_doc.cmi \
     typing/errortrace.cmi \
     typing/env.cmi \
     parsing/asttypes.cmi
@@ -2997,10 +2997,12 @@ asmcomp/cmm_helpers.cmi : \
 asmcomp/cmm_invariants.cmo : \
     utils/numbers.cmi \
     asmcomp/cmm.cmi \
+    middle_end/backend_var.cmi \
     asmcomp/cmm_invariants.cmi
 asmcomp/cmm_invariants.cmx : \
     utils/numbers.cmx \
     asmcomp/cmm.cmx \
+    middle_end/backend_var.cmx \
     asmcomp/cmm_invariants.cmi
 asmcomp/cmm_invariants.cmi : \
     asmcomp/cmm.cmi
@@ -4434,10 +4436,10 @@ lambda/lambda.cmo : \
     typing/path.cmi \
     utils/misc.cmi \
     parsing/longident.cmi \
-    parsing/location.cmi \
     typing/ident.cmi \
     typing/env.cmi \
     lambda/debuginfo.cmi \
+    utils/config.cmi \
     utils/clflags.cmi \
     parsing/asttypes.cmi \
     lambda/lambda.cmi
@@ -4447,10 +4449,10 @@ lambda/lambda.cmx : \
     typing/path.cmx \
     utils/misc.cmx \
     parsing/longident.cmx \
-    parsing/location.cmx \
     typing/ident.cmx \
     typing/env.cmx \
     lambda/debuginfo.cmx \
+    utils/config.cmx \
     utils/clflags.cmx \
     parsing/asttypes.cmx \
     lambda/lambda.cmi
@@ -4999,6 +5001,136 @@ file_formats/linear_format.cmx : \
 file_formats/linear_format.cmi : \
     asmcomp/linear.cmi \
     asmcomp/cmm.cmi
+coqgen/coqcore.cmo : \
+    typing/types.cmi \
+    typing/typedtree.cmi \
+    typing/path.cmi \
+    typing/ident.cmi \
+    typing/ctype.cmi \
+    coqgen/coqtypes.cmi \
+    coqgen/coqinit.cmi \
+    coqgen/coqdef.cmi \
+    parsing/asttypes.cmi \
+    coqgen/coqcore.cmi
+coqgen/coqcore.cmx : \
+    typing/types.cmx \
+    typing/typedtree.cmx \
+    typing/path.cmx \
+    typing/ident.cmx \
+    typing/ctype.cmx \
+    coqgen/coqtypes.cmx \
+    coqgen/coqinit.cmx \
+    coqgen/coqdef.cmx \
+    parsing/asttypes.cmi \
+    coqgen/coqcore.cmi
+coqgen/coqcore.cmi : \
+    typing/typedtree.cmi \
+    coqgen/coqdef.cmi \
+    parsing/asttypes.cmi
+coqgen/coqdef.cmo : \
+    typing/types.cmi \
+    typing/predef.cmi \
+    typing/path.cmi \
+    utils/misc.cmi \
+    parsing/location.cmi \
+    typing/btype.cmi \
+    parsing/asttypes.cmi \
+    coqgen/coqdef.cmi
+coqgen/coqdef.cmx : \
+    typing/types.cmx \
+    typing/predef.cmx \
+    typing/path.cmx \
+    utils/misc.cmx \
+    parsing/location.cmx \
+    typing/btype.cmx \
+    parsing/asttypes.cmi \
+    coqgen/coqdef.cmi
+coqgen/coqdef.cmi : \
+    typing/types.cmi \
+    typing/path.cmi \
+    utils/misc.cmi \
+    parsing/location.cmi \
+    typing/btype.cmi \
+    parsing/asttypes.cmi
+coqgen/coqgen.cmo : \
+    typing/types.cmi \
+    typing/typedtree.cmi \
+    typing/predef.cmi \
+    typing/path.cmi \
+    coqgen/coqtypes.cmi \
+    coqgen/coqinit.cmi \
+    coqgen/coqdef.cmi \
+    coqgen/coqcore.cmi \
+    coqgen/coqgen.cmi
+coqgen/coqgen.cmx : \
+    typing/types.cmx \
+    typing/typedtree.cmx \
+    typing/predef.cmx \
+    typing/path.cmx \
+    coqgen/coqtypes.cmx \
+    coqgen/coqinit.cmx \
+    coqgen/coqdef.cmx \
+    coqgen/coqcore.cmx \
+    coqgen/coqgen.cmi
+coqgen/coqgen.cmi : \
+    typing/typedtree.cmi \
+    coqgen/coqdef.cmi
+coqgen/coqinit.cmo : \
+    typing/types.cmi \
+    typing/predef.cmi \
+    typing/path.cmi \
+    typing/ident.cmi \
+    coqgen/coqdef.cmi \
+    typing/btype.cmi \
+    parsing/asttypes.cmi \
+    coqgen/coqinit.cmi
+coqgen/coqinit.cmx : \
+    typing/types.cmx \
+    typing/predef.cmx \
+    typing/path.cmx \
+    typing/ident.cmx \
+    coqgen/coqdef.cmx \
+    typing/btype.cmx \
+    parsing/asttypes.cmi \
+    coqgen/coqinit.cmi
+coqgen/coqinit.cmi : \
+    typing/types.cmi \
+    typing/path.cmi \
+    coqgen/coqdef.cmi
+coqgen/coqprint.cmo : \
+    coqgen/coqdef.cmi \
+    coqgen/coqprint.cmi
+coqgen/coqprint.cmx : \
+    coqgen/coqdef.cmx \
+    coqgen/coqprint.cmi
+coqgen/coqprint.cmi : \
+    coqgen/coqdef.cmi
+coqgen/coqtypes.cmo : \
+    typing/types.cmi \
+    typing/typedtree.cmi \
+    typing/path.cmi \
+    typing/ident.cmi \
+    typing/ctype.cmi \
+    coqgen/coqdef.cmi \
+    typing/btype.cmi \
+    parsing/asttypes.cmi \
+    coqgen/coqtypes.cmi
+coqgen/coqtypes.cmx : \
+    typing/types.cmx \
+    typing/typedtree.cmx \
+    typing/path.cmx \
+    typing/ident.cmx \
+    typing/ctype.cmx \
+    coqgen/coqdef.cmx \
+    typing/btype.cmx \
+    parsing/asttypes.cmi \
+    coqgen/coqtypes.cmi
+coqgen/coqtypes.cmi : \
+    typing/types.cmi \
+    typing/typedtree.cmi \
+    parsing/location.cmi \
+    typing/env.cmi \
+    coqgen/coqdef.cmi
 middle_end/closure/closure.cmo : \
     utils/warnings.cmi \
     lambda/switch.cmi \
@@ -6968,6 +7100,8 @@ driver/compile.cmo : \
     utils/misc.cmi \
     lambda/lambda.cmi \
     bytecomp/emitcode.cmi \
+    coqgen/coqprint.cmi \
+    coqgen/coqgen.cmi \
     driver/compile_common.cmi \
     utils/clflags.cmi \
     bytecomp/bytegen.cmi \
@@ -6983,6 +7117,8 @@ driver/compile.cmx : \
     utils/misc.cmx \
     lambda/lambda.cmx \
     bytecomp/emitcode.cmx \
+    coqgen/coqprint.cmx \
+    coqgen/coqgen.cmx \
     driver/compile_common.cmx \
     utils/clflags.cmx \
     bytecomp/bytegen.cmx \
@@ -7550,22 +7686,33 @@ toplevel/toploop.cmi : \
 toplevel/topmain.cmi :
 toplevel/topprinters.cmo : \
     typing/types.cmi \
+    typing/printtyp.cmi \
     typing/predef.cmi \
     typing/path.cmi \
+    parsing/longident.cmi \
     typing/ident.cmi \
+    typing/env.cmi \
     typing/ctype.cmi \
+    typing/btype.cmi \
     parsing/asttypes.cmi \
     toplevel/topprinters.cmi
 toplevel/topprinters.cmx : \
     typing/types.cmx \
+    typing/printtyp.cmx \
     typing/predef.cmx \
     typing/path.cmx \
+    parsing/longident.cmx \
     typing/ident.cmx \
+    typing/env.cmx \
     typing/ctype.cmx \
+    typing/btype.cmx \
     parsing/asttypes.cmx \
     toplevel/topprinters.cmi
 toplevel/topprinters.cmi : \
-    typing/types.cmi
+    typing/types.cmi \
+    typing/path.cmi \
+    parsing/longident.cmi \
+    typing/env.cmi
 toplevel/topstart.cmo : \
     toplevel/topmain.cmi \
     toplevel/topstart.cmi
@@ -7727,6 +7874,7 @@ toplevel/native/topeval.cmo : \
     typing/ident.cmi \
     typing/env.cmi \
     otherlibs/dynlink/dynlink.cmi \
+    typing/ctype.cmi \
     utils/config.cmi \
     driver/compmisc.cmi \
     middle_end/compilenv.cmi \
@@ -7755,6 +7903,7 @@ toplevel/native/topeval.cmx : \
     typing/ident.cmx \
     typing/env.cmx \
     otherlibs/dynlink/dynlink.cmx \
+    typing/ctype.cmx \
     utils/config.cmx \
     driver/compmisc.cmx \
     middle_end/compilenv.cmx \
@@ -8533,7 +8682,6 @@ debugger/int64ops.cmx : \
 debugger/int64ops.cmi :
 debugger/loadprinter.cmo : \
     parsing/unit_info.cmi \
-    typing/types.cmi \
     toplevel/topprinters.cmi \
     bytecomp/symtable.cmi \
     debugger/printval.cmi \
@@ -8546,12 +8694,11 @@ debugger/loadprinter.cmo : \
     utils/format_doc.cmi \
     typing/env.cmi \
     otherlibs/dynlink/dynlink.cmi \
-    typing/ctype.cmi \
+    debugger/debugcom.cmi \
     file_formats/cmo_format.cmi \
     debugger/loadprinter.cmi
 debugger/loadprinter.cmx : \
     parsing/unit_info.cmx \
-    typing/types.cmx \
     toplevel/topprinters.cmx \
     bytecomp/symtable.cmx \
     debugger/printval.cmx \
@@ -8564,10 +8711,11 @@ debugger/loadprinter.cmx : \
     utils/format_doc.cmx \
     typing/env.cmx \
     otherlibs/dynlink/dynlink.cmx \
-    typing/ctype.cmx \
+    debugger/debugcom.cmx \
     file_formats/cmo_format.cmi \
     debugger/loadprinter.cmi
 debugger/loadprinter.cmi : \
+    toplevel/topprinters.cmi \
     parsing/longident.cmi \
     otherlibs/dynlink/dynlink.cmi
 debugger/main.cmo : \
@@ -10059,11 +10207,13 @@ ocamltest/filecompare.cmo : \
     ocamltest/run_command.cmi \
     ocamltest/ocamltest_stdlib.cmi \
     ocamltest/ocamltest_config.cmi \
+    utils/misc.cmi \
     ocamltest/filecompare.cmi
 ocamltest/filecompare.cmx : \
     ocamltest/run_command.cmx \
     ocamltest/ocamltest_stdlib.cmx \
     ocamltest/ocamltest_config.cmx \
+    utils/misc.cmx \
     ocamltest/filecompare.cmi
 ocamltest/filecompare.cmi :
 ocamltest/main.cmo : \
@@ -10373,12 +10523,18 @@ ocamltest/options.cmo : \
     ocamltest/variables.cmi \
     ocamltest/translate.cmi \
     ocamltest/tests.cmi \
+    utils/misc.cmi \
+    driver/compmisc.cmi \
+    utils/clflags.cmi \
     ocamltest/actions.cmi \
     ocamltest/options.cmi
 ocamltest/options.cmx : \
     ocamltest/variables.cmx \
     ocamltest/translate.cmx \
     ocamltest/tests.cmx \
+    utils/misc.cmx \
+    driver/compmisc.cmx \
+    utils/clflags.cmx \
     ocamltest/actions.cmx \
     ocamltest/options.cmi
 ocamltest/options.cmi : \
@@ -10597,17 +10753,20 @@ testsuite/tools/parsecmmaux.cmo : \
     parsing/location.cmi \
     lambda/lambda.cmi \
     lambda/debuginfo.cmi \
+    asmcomp/cmm.cmi \
     middle_end/backend_var.cmi \
     testsuite/tools/parsecmmaux.cmi
 testsuite/tools/parsecmmaux.cmx : \
     parsing/location.cmx \
     lambda/lambda.cmx \
     lambda/debuginfo.cmx \
+    asmcomp/cmm.cmx \
     middle_end/backend_var.cmx \
     testsuite/tools/parsecmmaux.cmi
 testsuite/tools/parsecmmaux.cmi : \
     parsing/location.cmi \
     lambda/debuginfo.cmi \
+    asmcomp/cmm.cmi \
     middle_end/backend_var.cmi
 otherlibs/dynlink/byte/dynlink.cmo : \
     otherlibs/dynlink/dynlink_types.cmi \

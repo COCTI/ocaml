@@ -397,7 +397,7 @@ let value_binding sub vb =
       pat, Some constr
     | _ -> pat, None
   in
-  Vb.mk ~loc ~attrs ?value_constraint pat (sub.expr sub vb.vb_expr)
+  Vb.mk ~loc ~attrs ?value_constraint pat (sub.expr sub vb.vb_expr.qexp_expr)
 
 let expression sub exp =
   let loc = sub.location sub exp.exp_loc in
@@ -462,7 +462,7 @@ let expression sub exp =
               | Omitted () -> list
               | Arg exp -> (label, sub.expr sub exp) :: list
           ) list [])
-    | Texp_match (exp, cases, eff_cases, _) ->
+    | Texp_match ({qexp_expr=exp}, cases, eff_cases, _) ->
       let merged_cases = List.map (sub.case sub) cases
         @ List.map
           (fun c ->
@@ -582,10 +582,10 @@ let binding_op sub bop pat =
   {pbop_op; pbop_pat; pbop_exp; pbop_loc}
 
 let package_type sub pack =
-  { ppt_path = map_loc sub pack.pack_txt;
-    ppt_cstrs = List.map (fun (s, ct) -> (s, sub.typ sub ct)) pack.pack_fields;
+  { ppt_path = map_loc sub pack.tpt_txt;
+    ppt_cstrs = List.map (fun (s, ct) -> (s, sub.typ sub ct)) pack.tpt_cstrs;
     ppt_attrs = [];
-    ppt_loc = sub.location sub pack.pack_txt.loc }
+    ppt_loc = sub.location sub pack.tpt_txt.loc }
 
 let module_type_declaration sub mtd =
   let loc = sub.location sub mtd.mtd_loc in

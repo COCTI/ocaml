@@ -56,7 +56,7 @@ let cd = make
       try
         Sys.chdir cwd; (Result.pass, env)
       with _ ->
-        let reason = "Could not chidir to \"" ^ cwd ^ "\"" in
+        let reason = "Could not chdir to \"" ^ cwd ^ "\"" in
         let result = Result.fail_with_reason reason in
         (result, env)
     end)
@@ -102,6 +102,13 @@ let hasstr = make
     "str library available"
     "str library not available")
 
+let multicore = make
+  ~name:"multicore"
+  ~description:"Pass if running on multicore"
+  (Actions_helpers.pass_or_skip (Domain.recommended_domain_count () >= 2)
+    "running on multicore"
+    "not running on multicore")
+
 let windows_OS = "Windows_NT"
 
 let get_OS () = Sys.safe_getenv "OS"
@@ -123,9 +130,25 @@ let not_windows = make
 let not_msvc = make
   ~name:"not-msvc"
   ~description:"Pass if not using MSVC / clang-cl"
-  (Actions_helpers.pass_or_skip (Ocamltest_config.ccomptype <> "msvc")
+  (Actions_helpers.pass_or_skip (Ocamltest_config.ccomp_type <> "msvc")
     "not using MSVC / clang-cl"
     "using MSVC / clang-cl")
+
+(* windows _passes_ on Cygwin; target_windows _skips_ for Cygwin *)
+
+let target_windows = make
+  ~name:"target-windows"
+  ~description:"Pass if the compiler does targets native Windows"
+  (Actions_helpers.pass_or_skip (Ocamltest_config.target_os_type = "Win32")
+    "targeting native Windows"
+    "not targeting native Windows")
+
+let not_target_windows = make
+  ~name:"not-target-windows"
+  ~description:"Pass if the compiler does not target native Windows"
+  (Actions_helpers.pass_or_skip (Ocamltest_config.target_os_type <> "Win32")
+    "not targeting native Windows"
+    "targeting native Windows")
 
 let is_bsd_system s =
   match s with
@@ -376,11 +399,14 @@ let _ =
     hasunix;
     hassysthreads;
     hasstr;
+    multicore;
     libunix;
     libwin32unix;
     windows;
     not_windows;
     not_msvc;
+    target_windows;
+    not_target_windows;
     bsd;
     not_bsd;
     linux;

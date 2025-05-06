@@ -134,8 +134,13 @@ type type_desc =
       where 'a1 ... 'an are names given to types in tyl
       and occurrences of those types in ty. *)
 
-  | Tpackage of Path.t * (string list * type_expr) list
+  | Tpackage of package
   (** Type of a first-class module (a.k.a package). *)
+
+(** [package] corresponds to the type of a first-class module *)
+and package =
+  { pack_path : Path.t;
+    pack_cstrs : (string list * type_expr) list }
 
 and fixed_explanation =
   | Univar of type_expr (** The row type was bound to an univar *)
@@ -399,6 +404,7 @@ type value_description =
     val_loc: Location.t;
     val_attributes: Parsetree.attributes;
     val_uid: Uid.t;
+    val_bound_type_vars: type_expr list;
   }
 
 and value_kind =
@@ -418,7 +424,10 @@ and class_signature =
   { csig_self: type_expr;
     mutable csig_self_row: type_expr;
     mutable csig_vars: (mutable_flag * virtual_flag * type_expr) Vars.t;
-    mutable csig_meths: (method_privacy * virtual_flag * type_expr) Meths.t; }
+    mutable csig_meths: (method_privacy * virtual_flag * type_expr) Meths.t;
+    csig_bound_type_vars: type_expr list; }
+    (* csig_bound_type_vars contains quantified type variables that appear only
+       in csig_vars *)
 
 and method_privacy =
   | Mpublic
@@ -680,6 +689,9 @@ type snapshot
         (* A snapshot for backtracking *)
 val snapshot: unit -> snapshot
         (* Make a snapshot for later backtracking. Costs nothing *)
+val same_snapshot: snapshot -> snapshot -> bool
+        (* Compare two snapshots. If two snapshots are equal,
+           then no type has been changed between them. *)
 val backtrack: cleanup_abbrev:(unit -> unit) -> snapshot -> unit
         (* Backtrack to a given snapshot. Only possible if you have
            not already backtracked to a previous snapshot.

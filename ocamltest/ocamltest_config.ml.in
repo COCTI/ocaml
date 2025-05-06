@@ -31,10 +31,13 @@ let cc = {@QS@|@CC@|@QS@}
 
 let cflags = {@QS@|@common_cflags@|@QS@}
 
-let ccomptype = {@QS@|@ccomptype@|@QS@}
+let ccomp_type = {@QS@|@ccomp_type@|@QS@}
+
+let target_os_type = {@QS@|@target_os_type@|@QS@}
 
 let diff = {@QS@|@DIFF@|@QS@}
 let diff_flags = {@QS@|@DIFF_FLAGS@|@QS@}
+let diff_supports_color = @diff_supports_color@
 
 let shared_libraries = @supports_shared_libraries@
 

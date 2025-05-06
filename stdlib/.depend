@@ -163,6 +163,7 @@ camlinternalOO.cmo : \
     stdlib__Map.cmi \
     stdlib__List.cmi \
     stdlib__Char.cmi \
+    stdlib__Atomic.cmi \
     stdlib__Array.cmi \
     camlinternalOO.cmi
 camlinternalOO.cmx : \
@@ -172,6 +173,7 @@ camlinternalOO.cmx : \
     stdlib__Map.cmx \
     stdlib__List.cmx \
     stdlib__Char.cmx \
+    stdlib__Atomic.cmx \
     stdlib__Array.cmx \
     camlinternalOO.cmi
 camlinternalOO.cmi : \
@@ -695,6 +697,13 @@ stdlib__Random.cmi : random.mli \
     stdlib__Nativeint.cmi \
     stdlib__Int64.cmi \
     stdlib__Int32.cmi
+stdlib__Repr.cmo : repr.ml \
+    stdlib.cmi \
+    stdlib__Repr.cmi
+stdlib__Repr.cmx : repr.ml \
+    stdlib.cmx \
+    stdlib__Repr.cmi
+stdlib__Repr.cmi : repr.mli
 stdlib__Result.cmo : result.ml \
     stdlib__Seq.cmi \
     stdlib__Result.cmi

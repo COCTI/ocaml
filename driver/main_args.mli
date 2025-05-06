@@ -20,6 +20,7 @@ module type Common_options = sig
   val _absname : unit -> unit
   val _no_absname : unit -> unit
   val _alert : string -> unit
+  val _i_variance : unit -> unit
   val _I : string -> unit
   val _H : string -> unit
   val _labels : unit -> unit
@@ -94,6 +95,7 @@ module type Compiler_options = sig
   val _no_g : unit -> unit
   val _stop_after : string -> unit
   val _i : unit -> unit
+  val _i_variance : unit -> unit
   val _impl : string -> unit
   val _intf : string -> unit
   val _intf_suffix : string -> unit
@@ -154,6 +156,7 @@ module type Bytecomp_options = sig
   include Core_options
   include Compiler_options
   val _compat_32 : unit -> unit
+  val _coq : unit -> unit
   val _custom : unit -> unit
   val _no_check_prims : unit -> unit
   val _dllib : string -> unit

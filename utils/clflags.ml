@@ -46,11 +46,13 @@ let cmi_file = ref None
 
 let compile_only = ref false            (* -c *)
 and output_name = ref (None : string option) (* -o *)
+and compile_to_coq = ref false          (* -coq *)
 and include_dirs = ref ([] : string list) (* -I *)
 and hidden_include_dirs = ref ([] : string list) (* -H *)
 and no_std_include = ref false          (* -nostdlib *)
 and no_cwd = ref false                  (* -nocwd *)
 and print_types = ref false             (* -i *)
+and print_variance = ref false          (* -i-variance *)
 and make_archive = ref false            (* -a *)
 and debug = ref false                   (* -g *)
 and debug_full = ref false              (* For full DWARF support *)

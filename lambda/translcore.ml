@@ -269,7 +269,7 @@ and transl_exp0 ~in_new_scope ~scopes e =
         let x, y = List.fold_left split_case ([], []) pat_expr_list in
         List.rev x, List.rev y
       in
-      transl_handler ~scopes e arg (Some (pat_expr_list, partial))
+      transl_handler ~scopes e arg.qexp_expr (Some (pat_expr_list, partial))
         exn_pat_expr_list eff_pat_expr_list
   | Texp_try(body, pat_expr_list, []) ->
       let id = Typecore.name_cases "exn" pat_expr_list in
@@ -525,23 +525,10 @@ and transl_exp0 ~in_new_scope ~scopes e =
         (* A constant expr (of type <> float if [Config.flat_float_array] is
            true) gets compiled as itself. *)
          transl_exp ~scopes e
-      | `Float_that_cannot_be_shortcut ->
-          (* We don't need to wrap with Popaque: this forward
-             block will never be shortcutted since it points to a float
-             and Config.flat_float_array is true. *)
-          Lprim(Pmakeblock(Obj.forward_tag, Immutable, None),
-                [transl_exp ~scopes e], of_location ~scopes e.exp_loc)
+      | `Float_that_cannot_be_shortcut
       | `Identifier `Forward_value ->
-         (* CR-someday mshinwell: Consider adding a new primitive
-            that expresses the construction of forward_tag blocks.
-            We need to use [Popaque] here to prevent unsound
-            optimisation in Flambda, but the concept of a mutable
-            block doesn't really match what is going on here.  This
-            value may subsequently turn into an immediate... *)
-         Lprim (Popaque,
-                [Lprim(Pmakeblock(Obj.forward_tag, Immutable, None),
-                       [transl_exp ~scopes e],
-                       of_location ~scopes e.exp_loc)],
+         Lprim (Pmakelazyblock Forward_tag,
+                [transl_exp ~scopes e],
                 of_location ~scopes e.exp_loc)
       | `Identifier `Other ->
          transl_exp ~scopes e
@@ -557,7 +544,7 @@ and transl_exp0 ~in_new_scope ~scopes e =
                             ~attr:function_attribute_disallowing_arity_fusion
                             ~loc:(of_location ~scopes e.exp_loc)
                             ~body:(transl_exp ~scopes e) in
-          Lprim(Pmakeblock(Config.lazy_tag, Mutable, None), [fn],
+          Lprim(Pmakelazyblock Lazy_tag, [fn],
                 of_location ~scopes e.exp_loc)
       end
   | Texp_object (cs, meths) ->
@@ -963,7 +950,7 @@ and transl_let ~scopes ?(in_structure=false) rec_flag pat_expr_list =
           fun body -> body
       | {vb_pat=pat; vb_expr=expr; vb_rec_kind=_; vb_attributes=attr; vb_loc}
         :: rem ->
-          let lam = transl_bound_exp ~scopes ~in_structure pat expr in
+          let lam = transl_bound_exp ~scopes ~in_structure pat expr.qexp_expr in
           let lam = Translattribute.add_function_attributes lam vb_loc attr in
           let mk_body = transl rem in
           fun body ->
@@ -979,7 +966,8 @@ and transl_let ~scopes ?(in_structure=false) rec_flag pat_expr_list =
         pat_expr_list in
       let transl_case {vb_expr=expr; vb_attributes; vb_rec_kind = rkind;
                        vb_loc; vb_pat} id =
-        let def = transl_bound_exp ~scopes ~in_structure vb_pat expr in
+        let def =
+          transl_bound_exp ~scopes ~in_structure vb_pat expr.qexp_expr in
         let def =
           Translattribute.add_function_attributes def vb_loc vb_attributes
         in
@@ -1166,7 +1154,7 @@ and transl_match ~scopes e arg pat_expr_list partial =
        handler)
   in
   let classic =
-    match arg, exn_cases with
+    match arg.qexp_expr, exn_cases with
     | {exp_desc = Texp_tuple argl}, [] ->
       assert (static_handlers = []);
       Matching.for_multiple_match ~scopes e.exp_loc

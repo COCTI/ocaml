@@ -892,7 +892,7 @@ tsan
 oc_cflags
 common_cflags
 toolchain
-ccomptype
+ccomp_type
 mkexe_via_cc_extra_cmd
 mkexe_via_cc_ldflags
 mkexedebugflag
@@ -928,6 +928,7 @@ libext
 ac_tool_prefix
 CSCFLAGS
 CSC
+diff_supports_color
 DIFF_FLAGS
 encode_C_literal
 SAK
@@ -3418,6 +3419,7 @@ LINEAR_MAGIC_NUMBER=Caml1999L035
 
 
 
+
 # Note: This is present for the flexdll bootstrap where it exposed as the old
 # TOOLPREF variable. It would be better if flexdll where updated to require
 # WINDRES instead.
@@ -3829,14 +3831,14 @@ case $target in #(
 then :
   CC=cl
 fi
-    ccomptype=msvc
+    ccomp_type=msvc
     S=asm
     SO=dll
     outputexe=-Fe
     outputobj=-Fo
     syslib='$(1).lib' ;; #(
   *) :
-    ccomptype=cc
+    ccomp_type=cc
   S=s
   SO=so
   outputexe='-o '
@@ -18581,7 +18583,7 @@ native_cflags=''
 oc_native_cflags=''
 oc_native_cppflags="-DNATIVE_CODE\
  -DTARGET_${arch} -DMODEL_${model} -DSYS_${system}"
-case $ccomptype in #(
+case $ccomp_type in #(
   msvc) :
     runtime_asm_objects=${arch}nt.${OBJEXT} ;; #(
   *) :
@@ -23262,6 +23264,16 @@ test -n "$DIFF" || DIFF="none"
   *) :
      ;;
 esac
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $DIFF supports --color={auto,always,never}" >&5
+printf %s "checking whether $DIFF supports --color={auto,always,never}... " >&6; }
+  if $DIFF --color=auto $0 $0 > /dev/null 2>&1
+then :
+  diff_supports_color=true; { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+else $as_nop
+  diff_supports_color=false; { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+fi
   for flag in ${flags}; do
     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $DIFF supports $flag" >&5
 printf %s "checking whether $DIFF supports $flag... " >&6; };
@@ -23457,7 +23469,7 @@ fi
 # Enable debugging support
 # TODO: add a --disable-debug-info configure option that disables debugging
 # info for both C and OCaml
-if test "$ccomptype" != "msvc"
+if test "$ccomp_type" != "msvc"
 then :
   internal_cflags="-g $internal_cflags"
 fi
@@ -23807,7 +23819,7 @@ then :
 fi
   mkexe_via_cc_ldflags="${mkexe_via_cc_ldflags}\$(OC_LDFLAGS) \$(LDFLAGS)"
   # cl requires linker flags after the objects.
-  if test "$ccomptype" = 'msvc'
+  if test "$ccomp_type" = 'msvc'
 then :
   mkexe_via_cc_ldflags=\
 "/nologo \$(OUTPUTEXE)\$(1) \$(2) $mkexe_via_cc_ldflags"
