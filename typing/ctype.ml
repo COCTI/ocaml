@@ -910,6 +910,18 @@ let needs_expand env level path args =
     (without this constraint, the type system would actually be unsound.)
 *)
 
+let rec check_level_type_rec visited level ty =
+  get_level ty <= level &&
+  match get_abbrev ty with
+    Some (path, args) ->
+      Path.scope path <= level &&
+      (args = [] || List.memq ty visited ||
+      let visited = ty :: visited in
+      List.for_all (check_level_type_rec visited level) args)
+  | None -> true
+
+let check_level_type level ty = check_level_type_rec [] level ty
+
 let rec update_level env level expand ty =
   let ty_level = get_level ty in
   if ty_level > level then begin
@@ -980,14 +992,13 @@ let rec update_level env level expand ty =
         iter_type_expr (update_level env level expand) ty;
         update_level_abbrev env level expand ty
   end
-  else if get_abbrev_scope ty > level then
-    update_level_abbrev env level expand ty
+  else update_level_abbrev env level expand ty
 
 and update_level_abbrev env level expand ty =
   iter_abbrev
     (fun p args ->
       if level < Path.scope p then forget_abbrev ty else
-      if List.for_all (fun ty -> get_level ty <= level) args then () else
+      if List.for_all (check_level_type level) args then () else
       if expand || needs_expand env level p args then forget_abbrev ty else
       List.iter (update_level env level expand) args)
     ty
@@ -1001,7 +1012,7 @@ let update_level_expand env level ty =
 (* First try without expanding, then expand everything,
    to avoid combinatorial blow-up *)
 let update_level env level ty =
-  if get_level ty > level || get_abbrev_scope ty > level then begin
+  if not (check_level_type level ty) then begin
     let snap = snapshot () in
     try
       try_update_level env level ty
@@ -1095,7 +1106,7 @@ let rec lower_contravariant env var_level visited contra ty =
               variance tyl in
           if maybe_expand then (* we expand cautiously to avoid missing cmis *)
             if get_abbrev ty <> None then
-              lower_rec contra Transient_expr.(type_expr (repr ty))
+              lower_rec contra (ignore_abbrev ty)
             else match !forward_try_expand_safe env ty with
             | ty -> visit (); lower_rec contra ty
             | exception Cannot_expand -> not_expanded ()
@@ -3212,6 +3223,7 @@ let unify1_var uenv t1 t2 =
       begin
         try
           update_level env (get_level t1) t2;
+          update_level env (get_level t2) t1; (* for Texpand *)
           update_scope (get_scope t1) t2;
         with Escape e ->
           raise_for Unify (Escape e)
@@ -6356,7 +6368,7 @@ let rec nondep_type_rec_aux ?(expand_private=false) env id_map ids ty =
     if expand_private then try_expand_safe_opt env t
     else try_expand_safe_no_link env t
   in
-  let desc = get_constr_desc ty in
+  let desc = get_folded_desc ~keep_Tvar:true ty in
   match desc with
     Tvar _ | Tunivar _ -> ty
   | _ -> try TypeHash.find nondep_hash ty
@@ -6379,8 +6391,12 @@ let rec nondep_type_rec_aux ?(expand_private=false) env id_map ids ty =
                        List.map nondep_trec tl, ref Mnil)
           with (Nondep_cannot_erase _) as exn ->
             (* If that doesn't work, try expanding abbrevs *)
-            try Tlink (nondep_trec ~expand_private
-                         (try_expand env (newty2 ~level:(get_level ty) desc)))
+            if desc != get_desc ty then begin
+              TypeHash.remove nondep_hash ty;
+              Tlink (nondep_trec ~expand_private (ignore_abbrev ty))
+            end else try
+              Tlink (nondep_trec ~expand_private
+                       (try_expand env (newty2 ~level:(get_level ty) desc)))
               (*
                  The [Tlink] is important. The expanded type may be a
                  variable, or may not be completely copied yet
